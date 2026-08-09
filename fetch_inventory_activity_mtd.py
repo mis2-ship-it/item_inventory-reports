@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import time
 import jwt
@@ -10,9 +11,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-print("🚀 Rista Optimized High-Speed Inventory Activity Pipeline Started")
+print("🚀 Rista Incremental High-Speed Inventory Activity Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -61,8 +62,49 @@ while curr <= end_date:
     date_list.append(curr.strftime("%Y-%m-%d"))
     curr += timedelta(days=1)
 
-print(f"📅 MTD Range: {date_list[0]} to {date_list[-1]} ({len(date_list)} Days)")
+print(f"📅 Current MTD Range: {date_list[0]} to {date_list[-1]} ({len(date_list)} Days)")
 month_year_filename = f"{today.strftime('%Y-%m')}.csv"
+
+# =========================================================
+# LOAD EXISTING DATA FROM GOOGLE DRIVE (INCREMENTAL CHECK)
+# =========================================================
+drive_service = build('drive', 'v3', credentials=creds)
+existing_df = pd.DataFrame()
+existing_file_id = None
+
+try:
+    query = f"name = '{month_year_filename}' and '{DRIVE_FOLDER_ID}' in parents and trashed = false"
+    results = drive_service.files().list(
+        q=query, 
+        fields="files(id, name)", 
+        supportsAllDrives=True, 
+        includeItemsFromAllDrives=True
+    ).execute()
+    existing_files = results.get('files', [])
+
+    if existing_files:
+        existing_file_id = existing_files[0]['id']
+        print(f"📥 Found existing Drive file: '{month_year_filename}' (ID: {existing_file_id}). Reading dataset...")
+        request = drive_service.files().get_media(fileId=existing_file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        fh.seek(0)
+        existing_df = pd.read_csv(fh, dtype=str)
+        print(f"✅ Loaded {len(existing_df)} existing rows from Drive.")
+except Exception as e:
+    print(f"ℹ️ Could not read existing Drive file (Will fetch all MTD dates): {e}")
+
+# Determine missing dates that need to be fetched
+existing_dates = set()
+if not existing_df.empty and "activityDate" in existing_df.columns:
+    existing_dates = set(existing_df["activityDate"].dropna().astype(str).str.strip().unique())
+
+dates_to_fetch = [d for d in date_list if d not in existing_dates]
+print(f"📅 Existing Dates in File: {sorted(list(existing_dates))}")
+print(f"⚡ Missing Dates to Fetch: {dates_to_fetch}")
 
 # =========================================================
 # LOAD HELP SHEET & MAP STORES
@@ -125,7 +167,7 @@ branches = help_lookup["branchCode"].loc[lambda x: x != ""].tolist()
 print(f"🏪 Active Branches Loaded: {len(branches)}")
 
 # =========================================================
-# FAST PARALLEL FETCH FUNCTION
+# FETCH ONLY MISSING DATES VIA PARALLEL API CALLS
 # =========================================================
 def fetch_branch_day_data(branch, day_str):
     all_records = []
@@ -152,9 +194,7 @@ def fetch_branch_day_data(branch, day_str):
                 data = res.json().get("data", [])
                 if not data:
                     break
-                
                 all_records.extend(data)
-                
                 if len(data) < 20:
                     break
                 page += 1
@@ -177,36 +217,55 @@ def fetch_branch_day_data(branch, day_str):
         return df
     return None
 
-# Generate all branch-day job combinations
-tasks = [(b, d) for b in branches for d in date_list]
-print(f"⚡ Multithreading enabled: Processing {len(tasks)} tasks concurrently...")
+new_data_dfs = []
 
-inv_items_list_activity = []
-completed_count = 0
+if dates_to_fetch:
+    tasks = [(b, d) for b in branches for d in dates_to_fetch]
+    print(f"⚡ Processing {len(tasks)} new tasks for missing dates...")
+    
+    completed_count = 0
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        futures = {executor.submit(fetch_branch_day_data, b, d): (b, d) for b, d in tasks}
+        for future in as_completed(futures):
+            completed_count += 1
+            res_df = future.result()
+            if res_df is not None and not res_df.empty:
+                new_data_dfs.append(res_df)
+            
+            if completed_count % 50 == 0 or completed_count == len(tasks):
+                print(f"📊 Completed [{completed_count}/{len(tasks)}] fetch tasks...")
+else:
+    print("✅ All dates already exist in Drive CSV. Skipping API fetches!")
 
-with ThreadPoolExecutor(max_workers=12) as executor:
-    futures = {executor.submit(fetch_branch_day_data, b, d): (b, d) for b, d in tasks}
-    for future in as_completed(futures):
-        completed_count += 1
-        res_df = future.result()
-        if res_df is not None and not res_df.empty:
-            inv_items_list_activity.append(res_df)
-        
-        if completed_count % 50 == 0 or completed_count == len(tasks):
-            print(f"📊 Completed [{completed_count}/{len(tasks)}] fetch tasks...")
+# Merge newly fetched data with existing Drive data
+if new_data_dfs:
+    fetched_df = pd.concat(new_data_dfs, ignore_index=True)
+    if not existing_df.empty:
+        final_df = pd.concat([existing_df, fetched_df], ignore_index=True)
+    else:
+        final_df = fetched_df
+else:
+    final_df = existing_df
 
-if not inv_items_list_activity:
-    print("❌ No activity data retrieved.")
+if final_df.empty:
+    print("❌ No activity data retrieved or present.")
     exit()
 
-final_df = pd.concat(inv_items_list_activity, ignore_index=True)
+# Deduplicate and sort
+final_df = final_df.drop_duplicates().copy()
 final_df["branchCode"] = final_df["branchCode"].astype(str).str.strip()
+
+# Apply Help Sheet lookups
+for col in ["Store Name", "Region"]:
+    if col in final_df.columns:
+        final_df = final_df.drop(columns=[col])
+
 final_df = final_df.merge(help_lookup, on="branchCode", how="left")
 
 num_fields = ["activity_quantity", "activity_cost", "openingBalance", "openingCost", "closingBalance", "closingCost"]
 for col in num_fields:
     if col in final_df.columns:
-        final_df[col] = pd.to_numeric(final_df[col], errors="coerce").fillna(0)
+        final_df[col] = pd.to_numeric(final_df[col], errors="coerce").fillna(0.0)
     else:
         final_df[col] = 0.0
 
@@ -217,27 +276,27 @@ lead_cols = [c for c in ["branchCode", "Store Name", "Region", "activityDate"] i
 final_df = final_df[lead_cols + [c for c in final_df.columns if c not in lead_cols]]
 
 # =========================================================
-# 1. PUSH MASTER DATA DIRECTLY TO GOOGLE DRIVE
+# 1. SAVE MASTER DATA TO CSV & UPDATE GOOGLE DRIVE
 # =========================================================
 final_df.to_csv(month_year_filename, index=False)
-print(f"📁 Local CSV generated: {month_year_filename} ({len(final_df)} rows)")
+print(f"📁 Local CSV generated: {month_year_filename} ({len(final_df)} total rows)")
 
 try:
-    drive_service = build('drive', 'v3', credentials=creds)
     media = MediaFileUpload(month_year_filename, mimetype='text/csv', resumable=True)
+    upload_file_id = existing_file_id if existing_file_id else TARGET_FILE_ID
     
     drive_service.files().update(
-        fileId=TARGET_FILE_ID,
+        fileId=upload_file_id,
         media_body=media,
         addParents=DRIVE_FOLDER_ID,
         supportsAllDrives=True
     ).execute()
-    print(f"✅ Master Data updated in Drive File ID '{TARGET_FILE_ID}' inside Folder '{DRIVE_FOLDER_ID}'")
+    print(f"✅ Master Data updated in Drive File ID '{upload_file_id}' inside Folder '{DRIVE_FOLDER_ID}'")
 except Exception as e:
     print(f"❌ Google Drive Update Error: {e}")
 
 # =========================================================
-# 2. GENERATE STORE-LEVEL SUMMARY (SALES ONLY)
+# 2. GENERATE STORE-LEVEL SUMMARY (NEW STOCK ON HAND FORMULA)
 # =========================================================
 sales_df = final_df[final_df["activity_type"].astype(str).str.strip().str.upper() == "SALES"].copy()
 min_date, max_date = date_list[0], date_list[-1]
@@ -248,8 +307,17 @@ sales_activity_sums = sales_df.groupby(["Region", "Store Name"], as_index=False)
 
 store_summary = opening_df.merge(closing_df, on=["Region", "Store Name"], how="outer").merge(sales_activity_sums, on=["Region", "Store Name"], how="outer").fillna(0)
 
-store_summary["Stock on Hand Cost %"] = np.where(store_summary["closingCost"] > 0, (store_summary["activity_cost"] / store_summary["closingCost"]) * 100, 0)
-store_summary["Stock on Hand Qty %"] = np.where(store_summary["closingBalance"] > 0, (store_summary["activity_quantity"] / store_summary["closingBalance"]) * 100, 0)
+# Formula Update: 1 - (sales / closing)
+store_summary["Stock on Hand Cost %"] = np.where(
+    store_summary["closingCost"] > 0, 
+    (1 - (store_summary["activity_cost"] / store_summary["closingCost"])) * 100, 
+    0
+)
+store_summary["Stock on Hand Qty %"] = np.where(
+    store_summary["closingBalance"] > 0, 
+    (1 - (store_summary["activity_quantity"] / store_summary["closingBalance"])) * 100, 
+    0
+)
 
 store_summary = store_summary.rename(columns={
     "openingCost": "Opening Cost",
@@ -267,8 +335,16 @@ store_summary_display["Stock on Hand Qty %"] = store_summary_display["Stock on H
 # =========================================================
 region_agg = store_summary.groupby("Region", as_index=False)[["Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "activity_cost", "activity_quantity"]].sum()
 
-region_agg["Stock on Hand Cost %"] = np.where(region_agg["Closing Cost"] > 0, (region_agg["activity_cost"] / region_agg["Closing Cost"]) * 100, 0)
-region_agg["Stock on Hand Qty %"] = np.where(region_agg["Closing Qty"] > 0, (region_agg["activity_quantity"] / region_agg["Closing Qty"]) * 100, 0)
+region_agg["Stock on Hand Cost %"] = np.where(
+    region_agg["Closing Cost"] > 0, 
+    (1 - (region_agg["activity_cost"] / region_agg["Closing Cost"])) * 100, 
+    0
+)
+region_agg["Stock on Hand Qty %"] = np.where(
+    region_agg["Closing Qty"] > 0, 
+    (1 - (region_agg["activity_quantity"] / region_agg["Closing Qty"])) * 100, 
+    0
+)
 
 kpi_cols = ["Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "Stock on Hand Cost %", "Stock on Hand Qty %"]
 region_summary = pd.DataFrame({"KPI Metrics": kpi_cols})
@@ -285,13 +361,17 @@ for _, row in region_agg.iterrows():
     ]
 
 # =========================================================
-# 4. GENERATE DAILY STOCK ON HAND SHEET (SALES ONLY)
+# 4. GENERATE DAILY STOCK ON HAND SHEET (NEW FORMULA)
 # =========================================================
 daily_sales = sales_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["activity_cost"].sum()
 daily_closing = final_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["closingCost"].sum()
 
 daily_merged = daily_closing.merge(daily_sales, on=["Region", "Store Name", "activityDate"], how="left").fillna(0)
-daily_merged["SOH_Cost_Pct"] = np.where(daily_merged["closingCost"] > 0, (daily_merged["activity_cost"] / daily_merged["closingCost"]) * 100, 0)
+daily_merged["SOH_Cost_Pct"] = np.where(
+    daily_merged["closingCost"] > 0, 
+    (1 - (daily_merged["activity_cost"] / daily_merged["closingCost"])) * 100, 
+    0
+)
 
 daily_pivot = daily_merged.pivot(index=["Region", "Store Name"], columns="activityDate", values="SOH_Cost_Pct").fillna(0).reset_index()
 
@@ -316,4 +396,4 @@ update_tab("Region_Summary", region_summary)
 update_tab("Store_Summary", store_summary_display)
 update_tab("Daily_Stock_On_Hand", daily_pivot)
 
-print("🏁 Execution complete in record time!")
+print("🏁 Incremental execution complete!")
