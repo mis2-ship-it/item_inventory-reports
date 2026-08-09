@@ -6,12 +6,13 @@ import requests
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-print("🚀 Rista Complete Inventory Activity Pipeline Started")
+print("🚀 Rista Optimized High-Speed Inventory Activity Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -24,11 +25,13 @@ SPREADSHEET_ID = "130C3oQsVmONGVUulhGbDWroRKpkebwgnFhq3uiny_O0"
 DRIVE_FOLDER_ID = "1cS_jlVQqMIMlk0omVozQR-rUBzjw9IUf"
 TARGET_FILE_ID = "1tdLOS5XxD1HwazuxDMrY2n2Lp4J03R3B"
 
+session = requests.Session()
+
 def get_token():
     payload = {"iss": API_KEY, "iat": int(time.time())}
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
-def headers():
+def get_headers():
     return {
         "x-api-key": API_KEY,
         "x-api-token": get_token(),
@@ -122,14 +125,12 @@ branches = help_lookup["branchCode"].loc[lambda x: x != ""].tolist()
 print(f"🏪 Active Branches Loaded: {len(branches)}")
 
 # =========================================================
-# FETCH COMPLETE INVENTORY ACTIVITY (FULL EXHAUSTIVE PAGINATION)
+# FAST PARALLEL FETCH FUNCTION
 # =========================================================
-inv_items_list_activity = []
-
-def fetch_all_materials_for_branch_day(branch, day_str):
+def fetch_branch_day_data(branch, day_str):
     all_records = []
     page = 1
-    max_pages = 100  # Safety limit to prevent infinite loops
+    max_pages = 50
     
     while page <= max_pages:
         try:
@@ -139,52 +140,60 @@ def fetch_all_materials_for_branch_day(branch, day_str):
                 "date": day_str,
                 "page": page,
                 "limit": 500,
-                "size": 500,
-                "pageSize": 500,
                 "count": 500
             }
-            res = requests.get(
+            res = session.get(
                 f"{RISTA_BASE_URL}/inventory/item/activity/page",
-                headers=headers(),
+                headers=get_headers(),
                 params=params,
-                timeout=60
+                timeout=20
             )
             if res.status_code == 200:
                 data = res.json().get("data", [])
-                if not data or len(data) == 0:
-                    break  # Stop only when an empty page is returned
+                if not data:
+                    break
                 
                 all_records.extend(data)
                 
-                # Check for last page without breaking on default 20-item page size
                 if len(data) < 20:
                     break
-                    
                 page += 1
             else:
                 break
-        except Exception as e:
-            print(f"⚠️ Fetch Error on {branch} {day_str} page {page}: {e}")
+        except Exception:
             break
-            
-    return all_records
 
-for idx, branch in enumerate(branches):
-    print(f"🔄 Processing Branch [{idx+1}/{len(branches)}]: {branch}")
-    for day_str in date_list:
-        data = fetch_all_materials_for_branch_day(branch, day_str)
-        if data:
-            df = pd.json_normalize(data)
-            df["branchCode"] = branch
-            df["activityDate"] = day_str
+    if all_records:
+        df = pd.json_normalize(all_records)
+        df["branchCode"] = branch
+        df["activityDate"] = day_str
+        
+        if "activities" in df.columns:
+            df = df.dropna(subset=["activities"]).copy()
+            df = df.explode("activities").reset_index(drop=True)
+            activities_df = pd.json_normalize(df["activities"]).add_prefix("activity_")
+            df = pd.concat([df.drop(columns=["activities"]), activities_df], axis=1)
             
-            if "activities" in df.columns:
-                df = df.dropna(subset=["activities"]).copy()
-                df = df.explode("activities").reset_index(drop=True)
-                activities_df = pd.json_normalize(df["activities"]).add_prefix("activity_")
-                df = pd.concat([df.drop(columns=["activities"]), activities_df], axis=1)
-                
-            inv_items_list_activity.append(df)
+        return df
+    return None
+
+# Generate all branch-day job combinations
+tasks = [(b, d) for b in branches for d in date_list]
+print(f"⚡ Multithreading enabled: Processing {len(tasks)} tasks concurrently...")
+
+inv_items_list_activity = []
+completed_count = 0
+
+with ThreadPoolExecutor(max_workers=12) as executor:
+    futures = {executor.submit(fetch_branch_day_data, b, d): (b, d) for b, d in tasks}
+    for future in as_completed(futures):
+        completed_count += 1
+        res_df = future.result()
+        if res_df is not None and not res_df.empty:
+            inv_items_list_activity.append(res_df)
+        
+        if completed_count % 50 == 0 or completed_count == len(tasks):
+            print(f"📊 Completed [{completed_count}/{len(tasks)}] fetch tasks...")
 
 if not inv_items_list_activity:
     print("❌ No activity data retrieved.")
@@ -208,7 +217,7 @@ lead_cols = [c for c in ["branchCode", "Store Name", "Region", "activityDate"] i
 final_df = final_df[lead_cols + [c for c in final_df.columns if c not in lead_cols]]
 
 # =========================================================
-# 1. PUSH MASTER DATA DIRECTLY TO DRIVE FILE (ID: 1tdLOS5XxD1HwazuxDMrY2n2Lp4J03R3B)
+# 1. PUSH MASTER DATA DIRECTLY TO GOOGLE DRIVE
 # =========================================================
 final_df.to_csv(month_year_filename, index=False)
 print(f"📁 Local CSV generated: {month_year_filename} ({len(final_df)} rows)")
@@ -223,18 +232,14 @@ try:
         addParents=DRIVE_FOLDER_ID,
         supportsAllDrives=True
     ).execute()
-    print(f"✅ Successfully updated Master Data in Drive File ID '{TARGET_FILE_ID}' inside Folder '{DRIVE_FOLDER_ID}'")
+    print(f"✅ Master Data updated in Drive File ID '{TARGET_FILE_ID}' inside Folder '{DRIVE_FOLDER_ID}'")
 except Exception as e:
     print(f"❌ Google Drive Update Error: {e}")
 
 # =========================================================
-# FILTER SALES ACTIVITY TYPE FOR DASHBOARDS
+# 2. GENERATE STORE-LEVEL SUMMARY (SALES ONLY)
 # =========================================================
 sales_df = final_df[final_df["activity_type"].astype(str).str.strip().str.upper() == "SALES"].copy()
-
-# =========================================================
-# 2. GENERATE STORE-LEVEL SUMMARY
-# =========================================================
 min_date, max_date = date_list[0], date_list[-1]
 
 opening_df = final_df[final_df["activityDate"] == min_date].groupby(["Region", "Store Name"], as_index=False)[["openingCost", "openingBalance"]].sum()
@@ -311,4 +316,4 @@ update_tab("Region_Summary", region_summary)
 update_tab("Store_Summary", store_summary_display)
 update_tab("Daily_Stock_On_Hand", daily_pivot)
 
-print("🏁 Execution complete. All material rows extracted and refreshed.")
+print("🏁 Execution complete in record time!")
