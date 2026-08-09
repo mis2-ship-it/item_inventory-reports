@@ -13,7 +13,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-print("🚀 Rista High-Speed Inventory Activity & Formatted Dashboard Pipeline Started")
+print("🚀 Rista Warehouse & Retail Differentiated Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -25,6 +25,9 @@ RISTA_BASE_URL = "https://api.ristaapps.com/v1"
 SPREADSHEET_ID = "130C3oQsVmONGVUulhGbDWroRKpkebwgnFhq3uiny_O0"
 DRIVE_FOLDER_ID = "1cS_jlVQqMIMlk0omVozQR-rUBzjw9IUf"
 TARGET_FILE_ID = "1tdLOS5XxD1HwazuxDMrY2n2Lp4J03R3B"
+
+# Dedicated Warehouse Branch Codes (Uses Transfer Out instead of Sales)
+WH_BRANCH_CODES = ["90003-2221", "DW", "90003-2216", "90003-2218", "90003-2214", "90003-2215"]
 
 session = requests.Session()
 
@@ -149,13 +152,11 @@ if region_cols:
     lookup_cols.append(region_cols[0])
     rename_dict[region_cols[0]] = "Region"
 
-explicit_stores = ["90003-2221", "90003-2216", "90003-2218", "90003-2214", "90003-2215", "DW"]
-
 if ownership_cols:
     ownership_series = help_df[ownership_cols[0]].astype(str).str.upper().str.strip()
     branch_series = help_df[branch_col_name].astype(str).str.strip()
     is_coco_wh = ownership_series.str.contains("COCO|WARE|WH", na=False)
-    is_explicit = branch_series.isin(explicit_stores)
+    is_explicit = branch_series.isin(WH_BRANCH_CODES)
     help_df = help_df[is_coco_wh | is_explicit].copy()
 
 help_lookup = help_df[lookup_cols].copy().rename(columns=rename_dict)
@@ -292,18 +293,29 @@ except Exception as e:
     print(f"❌ Google Drive Update Error: {e}")
 
 # =========================================================
-# 2. GENERATE STORE-LEVEL SUMMARY
+# 2. SEPARATE OUTBOUND ACTIVITY (SALES vs TRANSFER OUT)
 # =========================================================
-sales_df = final_df[final_df["activity_type"].astype(str).str.strip().str.upper() == "SALES"].copy()
+act_type_clean = final_df["activity_type"].astype(str).str.strip().str.upper()
+is_wh_store = final_df["branchCode"].isin(WH_BRANCH_CODES)
+
+# Retail = Sales; Warehouse = Transfer Out
+is_retail_outbound = (~is_wh_store) & (act_type_clean == "SALES")
+is_wh_outbound = is_wh_store & act_type_clean.str.contains("TRANSFER OUT|TRANSFEROUT|TRANSFER_OUT", na=False)
+
+outbound_df = final_df[is_retail_outbound | is_wh_outbound].copy()
+
+# =========================================================
+# 3. GENERATE STORE-LEVEL SUMMARY
+# =========================================================
 min_date, max_date = date_list[0], date_list[-1]
 
 opening_df = final_df[final_df["activityDate"] == min_date].groupby(["Region", "Store Name"], as_index=False)[["openingCost", "openingBalance"]].sum()
 closing_df = final_df[final_df["activityDate"] == max_date].groupby(["Region", "Store Name"], as_index=False)[["closingCost", "closingBalance"]].sum()
-sales_activity_sums = sales_df.groupby(["Region", "Store Name"], as_index=False)[["activity_cost", "activity_quantity"]].sum()
+outbound_activity_sums = outbound_df.groupby(["Region", "Store Name"], as_index=False)[["activity_cost", "activity_quantity"]].sum()
 
-store_summary = opening_df.merge(closing_df, on=["Region", "Store Name"], how="outer").merge(sales_activity_sums, on=["Region", "Store Name"], how="outer").fillna(0)
+store_summary = opening_df.merge(closing_df, on=["Region", "Store Name"], how="outer").merge(outbound_activity_sums, on=["Region", "Store Name"], how="outer").fillna(0)
 
-# Fractional Stock on Hand for Native % Formatting
+# Stock on Hand Formula: 1 - (Outbound / Closing)
 store_summary["Stock on Hand Cost %"] = np.where(
     store_summary["closingCost"] > 0, 
     (1 - (store_summary["activity_cost"] / store_summary["closingCost"])), 
@@ -325,7 +337,7 @@ store_summary = store_summary.rename(columns={
 store_summary_display = store_summary[["Region", "Store Name", "Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "Stock on Hand Cost %", "Stock on Hand Qty %"]].copy()
 
 # =========================================================
-# 3. GENERATE OVERALL REGION SUMMARY
+# 4. GENERATE OVERALL REGION SUMMARY
 # =========================================================
 region_agg = store_summary.groupby("Region", as_index=False)[["Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "activity_cost", "activity_quantity"]].sum()
 
@@ -355,12 +367,12 @@ for _, row in region_agg.iterrows():
     ]
 
 # =========================================================
-# 4. GENERATE DAILY STOCK ON HAND SHEET
+# 5. GENERATE DAILY STOCK ON HAND SHEET
 # =========================================================
-daily_sales = sales_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["activity_cost"].sum()
+daily_outbound = outbound_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["activity_cost"].sum()
 daily_closing = final_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["closingCost"].sum()
 
-daily_merged = daily_closing.merge(daily_sales, on=["Region", "Store Name", "activityDate"], how="left").fillna(0)
+daily_merged = daily_closing.merge(daily_outbound, on=["Region", "Store Name", "activityDate"], how="left").fillna(0)
 daily_merged["SOH_Cost_Pct"] = np.where(
     daily_merged["closingCost"] > 0, 
     (1 - (daily_merged["activity_cost"] / daily_merged["closingCost"])), 
@@ -370,7 +382,7 @@ daily_merged["SOH_Cost_Pct"] = np.where(
 daily_pivot = daily_merged.pivot(index=["Region", "Store Name"], columns="activityDate", values="SOH_Cost_Pct").fillna(0.0).reset_index()
 
 # =========================================================
-# 5. EXPORT DASHBOARD TABS TO GOOGLE SHEET
+# 6. EXPORT DASHBOARD TABS TO GOOGLE SHEET
 # =========================================================
 def update_tab(tab_name, df):
     try:
@@ -379,7 +391,6 @@ def update_tab(tab_name, df):
         ws = spreadsheet.add_worksheet(title=tab_name, rows=str(len(df) + 100), cols=str(len(df.columns) + 10))
     ws.clear()
     
-    # Standardize values for Google Sheets API
     cleaned_df = df.replace([np.inf, -np.inf], 0.0).fillna(0.0)
     sheet_data = [cleaned_df.columns.tolist()] + cleaned_df.values.tolist()
     ws.update(sheet_data, "A1")
@@ -390,14 +401,13 @@ update_tab("Store_Summary", store_summary_display)
 update_tab("Daily_Stock_On_Hand", daily_pivot)
 
 # =========================================================
-# 6. APPLY AUTOMATED STRUCTURED STYLING & CONDITIONAL HIGHLIGHTS
+# 7. APPLY AUTOMATED STRUCTURED STYLING & CONDITIONAL HIGHLIGHTS
 # =========================================================
 def apply_dashboard_styles():
     print("🎨 Applying Structured Formatting & Conditional Highlights...")
     
     reqs = []
     
-    # Sheet IDs
     ws_reg = spreadsheet.worksheet("Region_Summary")
     ws_sto = spreadsheet.worksheet("Store_Summary")
     ws_day = spreadsheet.worksheet("Daily_Stock_On_Hand")
@@ -406,7 +416,6 @@ def apply_dashboard_styles():
     id_sto = ws_sto.id
     id_day = ws_day.id
     
-    # RGB Palette Definitions
     NAVY_HEADER = {"red": 0.12, "green": 0.23, "blue": 0.37}
     WHITE = {"red": 1.0, "green": 1.0, "blue": 1.0}
     
@@ -423,7 +432,6 @@ def apply_dashboard_styles():
             "endColumnIndex": end_col
         }
         return [
-            # Rule 1: < 30% (0.30) -> Light Red
             {
                 "addConditionalFormatRule": {
                     "rule": {
@@ -439,7 +447,6 @@ def apply_dashboard_styles():
                     "index": 0
                 }
             },
-            # Rule 2: < 50% (0.50) -> Light Yellow
             {
                 "addConditionalFormatRule": {
                     "rule": {
@@ -455,7 +462,6 @@ def apply_dashboard_styles():
                     "index": 1
                 }
             },
-            # Rule 3: >= 50% (0.50) -> Light Green
             {
                 "addConditionalFormatRule": {
                     "rule": {
@@ -473,9 +479,8 @@ def apply_dashboard_styles():
             }
         ]
 
-    # --- 1. STORE SUMMARY FORMATTING ---
+    # --- STORE SUMMARY ---
     sto_row_count = len(store_summary_display) + 1
-    # Header format
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_sto, "startRowIndex": 0, "endRowIndex": 1},
@@ -489,7 +494,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
-    # Costs/Qty Number Format (Cols C to F)
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 2, "endColumnIndex": 6},
@@ -497,7 +501,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat.numberFormat"
         }
     })
-    # SOH % Percent Format (Cols G & H)
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 6, "endColumnIndex": 8},
@@ -510,14 +513,11 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
         }
     })
-    # Freeze Header
     reqs.append({"updateSheetProperties": {"properties": {"sheetId": id_sto, "gridProperties": {"frozenRowCount": 1}}, "fields": "gridProperties.frozenRowCount"}})
-    # Store Conditional Rules
     reqs.extend(create_conditional_rules(id_sto, 1, sto_row_count, 6, 8))
 
-    # --- 2. REGION SUMMARY FORMATTING ---
+    # --- REGION SUMMARY ---
     reg_col_count = len(region_summary.columns)
-    # Header format
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_reg, "startRowIndex": 0, "endRowIndex": 1},
@@ -531,7 +531,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
-    # Rows 2-5 Currency/Qty Format
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_reg, "startRowIndex": 1, "endRowIndex": 5, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
@@ -539,7 +538,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat.numberFormat"
         }
     })
-    # Rows 6-7 SOH % Percent Format
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_reg, "startRowIndex": 5, "endRowIndex": 7, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
@@ -552,13 +550,11 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
         }
     })
-    # Region Conditional Rules (Rows 6 & 7)
     reqs.extend(create_conditional_rules(id_reg, 5, 7, 1, reg_col_count))
 
-    # --- 3. DAILY STOCK ON HAND FORMATTING ---
+    # --- DAILY STOCK ON HAND ---
     day_row_count = len(daily_pivot) + 1
     day_col_count = len(daily_pivot.columns)
-    # Header format
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_day, "startRowIndex": 0, "endRowIndex": 1},
@@ -572,7 +568,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
-    # All Date Columns Percent Format (Cols C+)
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_day, "startRowIndex": 1, "endRowIndex": day_row_count, "startColumnIndex": 2, "endColumnIndex": day_col_count},
@@ -585,12 +580,9 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
         }
     })
-    # Freeze Header & First 2 Columns
     reqs.append({"updateSheetProperties": {"properties": {"sheetId": id_day, "gridProperties": {"frozenRowCount": 1, "frozenColumnCount": 2}}, "fields": "gridProperties(frozenRowCount,frozenColumnCount)"}})
-    # Daily Conditional Rules
     reqs.extend(create_conditional_rules(id_day, 1, day_row_count, 2, day_col_count))
 
-    # Execute Batch Update Request
     try:
         spreadsheet.batch_update({"requests": reqs})
         print("✨ Structured styles and conditional highlights applied successfully!")
@@ -599,4 +591,4 @@ def apply_dashboard_styles():
 
 apply_dashboard_styles()
 
-print("🏁 Incremental execution and dashboard styling complete!")
+print("🏁 Warehouse & Retail differentiated pipeline execution complete!")
