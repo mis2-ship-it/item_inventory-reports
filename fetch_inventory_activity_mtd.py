@@ -13,7 +13,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-print("🚀 Rista Incremental High-Speed Inventory Activity Pipeline Started")
+print("🚀 Rista High-Speed Inventory Activity & Formatted Dashboard Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -97,7 +97,6 @@ try:
 except Exception as e:
     print(f"ℹ️ Could not read existing Drive file (Will fetch all MTD dates): {e}")
 
-# Determine missing dates that need to be fetched
 existing_dates = set()
 if not existing_df.empty and "activityDate" in existing_df.columns:
     existing_dates = set(existing_df["activityDate"].dropna().astype(str).str.strip().unique())
@@ -237,7 +236,6 @@ if dates_to_fetch:
 else:
     print("✅ All dates already exist in Drive CSV. Skipping API fetches!")
 
-# Merge newly fetched data with existing Drive data
 if new_data_dfs:
     fetched_df = pd.concat(new_data_dfs, ignore_index=True)
     if not existing_df.empty:
@@ -251,11 +249,9 @@ if final_df.empty:
     print("❌ No activity data retrieved or present.")
     exit()
 
-# Deduplicate and sort
 final_df = final_df.drop_duplicates().copy()
 final_df["branchCode"] = final_df["branchCode"].astype(str).str.strip()
 
-# Apply Help Sheet lookups
 for col in ["Store Name", "Region"]:
     if col in final_df.columns:
         final_df = final_df.drop(columns=[col])
@@ -296,7 +292,7 @@ except Exception as e:
     print(f"❌ Google Drive Update Error: {e}")
 
 # =========================================================
-# 2. GENERATE STORE-LEVEL SUMMARY (NEW STOCK ON HAND FORMULA)
+# 2. GENERATE STORE-LEVEL SUMMARY
 # =========================================================
 sales_df = final_df[final_df["activity_type"].astype(str).str.strip().str.upper() == "SALES"].copy()
 min_date, max_date = date_list[0], date_list[-1]
@@ -307,16 +303,16 @@ sales_activity_sums = sales_df.groupby(["Region", "Store Name"], as_index=False)
 
 store_summary = opening_df.merge(closing_df, on=["Region", "Store Name"], how="outer").merge(sales_activity_sums, on=["Region", "Store Name"], how="outer").fillna(0)
 
-# Formula Update: 1 - (sales / closing)
+# Fractional Stock on Hand for Native % Formatting
 store_summary["Stock on Hand Cost %"] = np.where(
     store_summary["closingCost"] > 0, 
-    (1 - (store_summary["activity_cost"] / store_summary["closingCost"])) * 100, 
-    0
+    (1 - (store_summary["activity_cost"] / store_summary["closingCost"])), 
+    0.0
 )
 store_summary["Stock on Hand Qty %"] = np.where(
     store_summary["closingBalance"] > 0, 
-    (1 - (store_summary["activity_quantity"] / store_summary["closingBalance"])) * 100, 
-    0
+    (1 - (store_summary["activity_quantity"] / store_summary["closingBalance"])), 
+    0.0
 )
 
 store_summary = store_summary.rename(columns={
@@ -327,8 +323,6 @@ store_summary = store_summary.rename(columns={
 }).sort_values(by=["Region", "Store Name"])
 
 store_summary_display = store_summary[["Region", "Store Name", "Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "Stock on Hand Cost %", "Stock on Hand Qty %"]].copy()
-store_summary_display["Stock on Hand Cost %"] = store_summary_display["Stock on Hand Cost %"].round(2).astype(str) + "%"
-store_summary_display["Stock on Hand Qty %"] = store_summary_display["Stock on Hand Qty %"].round(2).astype(str) + "%"
 
 # =========================================================
 # 3. GENERATE OVERALL REGION SUMMARY
@@ -337,13 +331,13 @@ region_agg = store_summary.groupby("Region", as_index=False)[["Opening Cost", "O
 
 region_agg["Stock on Hand Cost %"] = np.where(
     region_agg["Closing Cost"] > 0, 
-    (1 - (region_agg["activity_cost"] / region_agg["Closing Cost"])) * 100, 
-    0
+    (1 - (region_agg["activity_cost"] / region_agg["Closing Cost"])), 
+    0.0
 )
 region_agg["Stock on Hand Qty %"] = np.where(
     region_agg["Closing Qty"] > 0, 
-    (1 - (region_agg["activity_quantity"] / region_agg["Closing Qty"])) * 100, 
-    0
+    (1 - (region_agg["activity_quantity"] / region_agg["Closing Qty"])), 
+    0.0
 )
 
 kpi_cols = ["Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "Stock on Hand Cost %", "Stock on Hand Qty %"]
@@ -356,12 +350,12 @@ for _, row in region_agg.iterrows():
         round(row["Opening Qty"], 2),
         round(row["Closing Cost"], 2),
         round(row["Closing Qty"], 2),
-        f"{round(row['Stock on Hand Cost %'], 2)}%",
-        f"{round(row['Stock on Hand Qty %'], 2)}%"
+        round(row["Stock on Hand Cost %"], 4),
+        round(row["Stock on Hand Qty %"], 4)
     ]
 
 # =========================================================
-# 4. GENERATE DAILY STOCK ON HAND SHEET (NEW FORMULA)
+# 4. GENERATE DAILY STOCK ON HAND SHEET
 # =========================================================
 daily_sales = sales_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["activity_cost"].sum()
 daily_closing = final_df.groupby(["Region", "Store Name", "activityDate"], as_index=False)["closingCost"].sum()
@@ -369,15 +363,11 @@ daily_closing = final_df.groupby(["Region", "Store Name", "activityDate"], as_in
 daily_merged = daily_closing.merge(daily_sales, on=["Region", "Store Name", "activityDate"], how="left").fillna(0)
 daily_merged["SOH_Cost_Pct"] = np.where(
     daily_merged["closingCost"] > 0, 
-    (1 - (daily_merged["activity_cost"] / daily_merged["closingCost"])) * 100, 
-    0
+    (1 - (daily_merged["activity_cost"] / daily_merged["closingCost"])), 
+    0.0
 )
 
-daily_pivot = daily_merged.pivot(index=["Region", "Store Name"], columns="activityDate", values="SOH_Cost_Pct").fillna(0).reset_index()
-
-for c in date_list:
-    if c in daily_pivot.columns:
-        daily_pivot[c] = daily_pivot[c].round(2).astype(str) + "%"
+daily_pivot = daily_merged.pivot(index=["Region", "Store Name"], columns="activityDate", values="SOH_Cost_Pct").fillna(0.0).reset_index()
 
 # =========================================================
 # 5. EXPORT DASHBOARD TABS TO GOOGLE SHEET
@@ -388,12 +378,225 @@ def update_tab(tab_name, df):
     except Exception:
         ws = spreadsheet.add_worksheet(title=tab_name, rows=str(len(df) + 100), cols=str(len(df.columns) + 10))
     ws.clear()
-    sheet_data = [df.columns.tolist()] + df.values.tolist()
+    
+    # Standardize values for Google Sheets API
+    cleaned_df = df.replace([np.inf, -np.inf], 0.0).fillna(0.0)
+    sheet_data = [cleaned_df.columns.tolist()] + cleaned_df.values.tolist()
     ws.update(sheet_data, "A1")
-    print(f"✅ Dashboard updated: '{tab_name}' ({len(df)} rows)")
+    print(f"✅ Dashboard populated: '{tab_name}' ({len(df)} rows)")
 
 update_tab("Region_Summary", region_summary)
 update_tab("Store_Summary", store_summary_display)
 update_tab("Daily_Stock_On_Hand", daily_pivot)
 
-print("🏁 Incremental execution complete!")
+# =========================================================
+# 6. APPLY AUTOMATED STRUCTURED STYLING & CONDITIONAL HIGHLIGHTS
+# =========================================================
+def apply_dashboard_styles():
+    print("🎨 Applying Structured Formatting & Conditional Highlights...")
+    
+    reqs = []
+    
+    # Sheet IDs
+    ws_reg = spreadsheet.worksheet("Region_Summary")
+    ws_sto = spreadsheet.worksheet("Store_Summary")
+    ws_day = spreadsheet.worksheet("Daily_Stock_On_Hand")
+    
+    id_reg = ws_reg.id
+    id_sto = ws_sto.id
+    id_day = ws_day.id
+    
+    # RGB Palette Definitions
+    NAVY_HEADER = {"red": 0.12, "green": 0.23, "blue": 0.37}
+    WHITE = {"red": 1.0, "green": 1.0, "blue": 1.0}
+    
+    LIGHT_RED = {"red": 0.98, "green": 0.80, "blue": 0.80}    # < 30% (#FADBD8)
+    LIGHT_YELLOW = {"red": 0.99, "green": 0.95, "blue": 0.78} # < 50% (#FCF3CF)
+    LIGHT_GREEN = {"red": 0.83, "green": 0.93, "blue": 0.83}  # >= 50% (#D4EFDF)
+
+    def create_conditional_rules(sheet_id, start_row, end_row, start_col, end_col):
+        r_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": start_row,
+            "endRowIndex": end_row,
+            "startColumnIndex": start_col,
+            "endColumnIndex": end_col
+        }
+        return [
+            # Rule 1: < 30% (0.30) -> Light Red
+            {
+                "addConditionalFormatRule": {
+                    "rule": {
+                        "ranges": [r_range],
+                        "booleanRule": {
+                            "condition": {
+                                "type": "NUMBER_LESS",
+                                "values": [{"userEnteredValue": "0.30"}]
+                            },
+                            "format": {"backgroundColor": LIGHT_RED}
+                        }
+                    },
+                    "index": 0
+                }
+            },
+            # Rule 2: < 50% (0.50) -> Light Yellow
+            {
+                "addConditionalFormatRule": {
+                    "rule": {
+                        "ranges": [r_range],
+                        "booleanRule": {
+                            "condition": {
+                                "type": "NUMBER_LESS",
+                                "values": [{"userEnteredValue": "0.50"}]
+                            },
+                            "format": {"backgroundColor": LIGHT_YELLOW}
+                        }
+                    },
+                    "index": 1
+                }
+            },
+            # Rule 3: >= 50% (0.50) -> Light Green
+            {
+                "addConditionalFormatRule": {
+                    "rule": {
+                        "ranges": [r_range],
+                        "booleanRule": {
+                            "condition": {
+                                "type": "NUMBER_GREATER_THAN_EQ",
+                                "values": [{"userEnteredValue": "0.50"}]
+                            },
+                            "format": {"backgroundColor": LIGHT_GREEN}
+                        }
+                    },
+                    "index": 2
+                }
+            }
+        ]
+
+    # --- 1. STORE SUMMARY FORMATTING ---
+    sto_row_count = len(store_summary_display) + 1
+    # Header format
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_sto, "startRowIndex": 0, "endRowIndex": 1},
+            "cell": {
+                "userEnteredFormat": {
+                    "backgroundColor": NAVY_HEADER,
+                    "textFormat": {"bold": True, "foregroundColor": WHITE},
+                    "horizontalAlignment": "CENTER"
+                }
+            },
+            "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
+        }
+    })
+    # Costs/Qty Number Format (Cols C to F)
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 2, "endColumnIndex": 6},
+            "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}}},
+            "fields": "userEnteredFormat.numberFormat"
+        }
+    })
+    # SOH % Percent Format (Cols G & H)
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 6, "endColumnIndex": 8},
+            "cell": {
+                "userEnteredFormat": {
+                    "numberFormat": {"type": "PERCENT", "pattern": "0.00%"},
+                    "horizontalAlignment": "CENTER"
+                }
+            },
+            "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
+        }
+    })
+    # Freeze Header
+    reqs.append({"updateSheetProperties": {"properties": {"sheetId": id_sto, "gridProperties": {"frozenRowCount": 1}}, "fields": "gridProperties.frozenRowCount"}})
+    # Store Conditional Rules
+    reqs.extend(create_conditional_rules(id_sto, 1, sto_row_count, 6, 8))
+
+    # --- 2. REGION SUMMARY FORMATTING ---
+    reg_col_count = len(region_summary.columns)
+    # Header format
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_reg, "startRowIndex": 0, "endRowIndex": 1},
+            "cell": {
+                "userEnteredFormat": {
+                    "backgroundColor": NAVY_HEADER,
+                    "textFormat": {"bold": True, "foregroundColor": WHITE},
+                    "horizontalAlignment": "CENTER"
+                }
+            },
+            "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
+        }
+    })
+    # Rows 2-5 Currency/Qty Format
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_reg, "startRowIndex": 1, "endRowIndex": 5, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
+            "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}}},
+            "fields": "userEnteredFormat.numberFormat"
+        }
+    })
+    # Rows 6-7 SOH % Percent Format
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_reg, "startRowIndex": 5, "endRowIndex": 7, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
+            "cell": {
+                "userEnteredFormat": {
+                    "numberFormat": {"type": "PERCENT", "pattern": "0.00%"},
+                    "horizontalAlignment": "CENTER"
+                }
+            },
+            "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
+        }
+    })
+    # Region Conditional Rules (Rows 6 & 7)
+    reqs.extend(create_conditional_rules(id_reg, 5, 7, 1, reg_col_count))
+
+    # --- 3. DAILY STOCK ON HAND FORMATTING ---
+    day_row_count = len(daily_pivot) + 1
+    day_col_count = len(daily_pivot.columns)
+    # Header format
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_day, "startRowIndex": 0, "endRowIndex": 1},
+            "cell": {
+                "userEnteredFormat": {
+                    "backgroundColor": NAVY_HEADER,
+                    "textFormat": {"bold": True, "foregroundColor": WHITE},
+                    "horizontalAlignment": "CENTER"
+                }
+            },
+            "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
+        }
+    })
+    # All Date Columns Percent Format (Cols C+)
+    reqs.append({
+        "repeatCell": {
+            "range": {"sheetId": id_day, "startRowIndex": 1, "endRowIndex": day_row_count, "startColumnIndex": 2, "endColumnIndex": day_col_count},
+            "cell": {
+                "userEnteredFormat": {
+                    "numberFormat": {"type": "PERCENT", "pattern": "0.00%"},
+                    "horizontalAlignment": "CENTER"
+                }
+            },
+            "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
+        }
+    })
+    # Freeze Header & First 2 Columns
+    reqs.append({"updateSheetProperties": {"properties": {"sheetId": id_day, "gridProperties": {"frozenRowCount": 1, "frozenColumnCount": 2}}, "fields": "gridProperties(frozenRowCount,frozenColumnCount)"}})
+    # Daily Conditional Rules
+    reqs.extend(create_conditional_rules(id_day, 1, day_row_count, 2, day_col_count))
+
+    # Execute Batch Update Request
+    try:
+        spreadsheet.batch_update({"requests": reqs})
+        print("✨ Structured styles and conditional highlights applied successfully!")
+    except Exception as err:
+        print(f"⚠️ Batch formatting warning: {err}")
+
+apply_dashboard_styles()
+
+print("🏁 Incremental execution and dashboard styling complete!")
