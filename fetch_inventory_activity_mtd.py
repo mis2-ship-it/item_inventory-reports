@@ -3,6 +3,7 @@ import io
 import json
 import time
 import jwt
+import pytz
 import requests
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-print("🚀 Rista Warehouse & Retail Differentiated Pipeline Started")
+print("🚀 Rista Complete MTD Inventory Activity Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -26,7 +27,7 @@ SPREADSHEET_ID = "130C3oQsVmONGVUulhGbDWroRKpkebwgnFhq3uiny_O0"
 DRIVE_FOLDER_ID = "1cS_jlVQqMIMlk0omVozQR-rUBzjw9IUf"
 TARGET_FILE_ID = "1tdLOS5XxD1HwazuxDMrY2n2Lp4J03R3B"
 
-# Dedicated Warehouse Branch Codes (Uses Transfer Out instead of Sales)
+# Warehouse Branch Codes
 WH_BRANCH_CODES = ["90003-2221", "DW", "90003-2216", "90003-2218", "90003-2214", "90003-2215"]
 
 session = requests.Session()
@@ -53,9 +54,10 @@ client = gspread.authorize(creds)
 spreadsheet = client.open_by_key(SPREADSHEET_ID)
 
 # =========================================================
-# DATE RANGE & DYNAMIC MONTHLY FILE NAME
+# DATE RANGE & DYNAMIC MONTHLY FILE NAME (IST TIMEZONE)
 # =========================================================
-today = datetime.now()
+ist = pytz.timezone('Asia/Kolkata')
+today = datetime.now(ist)
 start_date = today.replace(day=1)
 end_date = today - timedelta(days=1)
 
@@ -65,7 +67,7 @@ while curr <= end_date:
     date_list.append(curr.strftime("%Y-%m-%d"))
     curr += timedelta(days=1)
 
-print(f"📅 Current MTD Range: {date_list[0]} to {date_list[-1]} ({len(date_list)} Days)")
+print(f"📅 Current IST MTD Range: {date_list[0]} to {date_list[-1]} ({len(date_list)} Days)")
 month_year_filename = f"{today.strftime('%Y-%m')}.csv"
 
 # =========================================================
@@ -167,12 +169,12 @@ branches = help_lookup["branchCode"].loc[lambda x: x != ""].tolist()
 print(f"🏪 Active Branches Loaded: {len(branches)}")
 
 # =========================================================
-# FETCH ONLY MISSING DATES VIA PARALLEL API CALLS
+# FETCH ALL SKUs (EXHAUSTIVE UNLIMITED PAGINATION LOOP)
 # =========================================================
 def fetch_branch_day_data(branch, day_str):
     all_records = []
     page = 1
-    max_pages = 50
+    max_pages = 100
     
     while page <= max_pages:
         try:
@@ -181,22 +183,24 @@ def fetch_branch_day_data(branch, day_str):
                 "day": day_str,
                 "date": day_str,
                 "page": page,
-                "limit": 500,
-                "count": 500
+                "pageNo": page,
+                "limit": 100,
+                "count": 100,
+                "pageSize": 100,
+                "size": 100
             }
             res = session.get(
                 f"{RISTA_BASE_URL}/inventory/item/activity/page",
                 headers=get_headers(),
                 params=params,
-                timeout=20
+                timeout=25
             )
             if res.status_code == 200:
                 data = res.json().get("data", [])
-                if not data:
+                if not data or len(data) == 0:
                     break
+                
                 all_records.extend(data)
-                if len(data) < 20:
-                    break
                 page += 1
             else:
                 break
@@ -221,7 +225,7 @@ new_data_dfs = []
 
 if dates_to_fetch:
     tasks = [(b, d) for b in branches for d in dates_to_fetch]
-    print(f"⚡ Processing {len(tasks)} new tasks for missing dates...")
+    print(f"⚡ Processing {len(tasks)} tasks for missing dates (All SKUs)...")
     
     completed_count = 0
     with ThreadPoolExecutor(max_workers=12) as executor:
@@ -293,19 +297,18 @@ except Exception as e:
     print(f"❌ Google Drive Update Error: {e}")
 
 # =========================================================
-# 2. SEPARATE OUTBOUND ACTIVITY (SALES vs TRANSFER OUT)
+# 2. SEPARATE OUTBOUND ACTIVITY (SALES / TRANSFER OUT)
 # =========================================================
 act_type_clean = final_df["activity_type"].astype(str).str.strip().str.upper()
 is_wh_store = final_df["branchCode"].isin(WH_BRANCH_CODES)
 
-# Retail = Sales; Warehouse = Transfer Out
 is_retail_outbound = (~is_wh_store) & (act_type_clean == "SALES")
 is_wh_outbound = is_wh_store & act_type_clean.str.contains("TRANSFER OUT|TRANSFEROUT|TRANSFER_OUT", na=False)
 
 outbound_df = final_df[is_retail_outbound | is_wh_outbound].copy()
 
 # =========================================================
-# 3. GENERATE STORE-LEVEL SUMMARY
+# 3. GENERATE STORE-LEVEL SUMMARY (WITH SALES COST & QTY)
 # =========================================================
 min_date, max_date = date_list[0], date_list[-1]
 
@@ -330,29 +333,46 @@ store_summary["Stock on Hand Qty %"] = np.where(
 store_summary = store_summary.rename(columns={
     "openingCost": "Opening Cost",
     "openingBalance": "Opening Qty",
+    "activity_cost": "Sales/Outbound Cost",
+    "activity_quantity": "Sales/Outbound Qty",
     "closingCost": "Closing Cost",
     "closingBalance": "Closing Qty"
 }).sort_values(by=["Region", "Store Name"])
 
-store_summary_display = store_summary[["Region", "Store Name", "Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "Stock on Hand Cost %", "Stock on Hand Qty %"]].copy()
+store_summary_display = store_summary[[
+    "Region", "Store Name", 
+    "Opening Cost", "Opening Qty", 
+    "Sales/Outbound Cost", "Sales/Outbound Qty", 
+    "Closing Cost", "Closing Qty", 
+    "Stock on Hand Cost %", "Stock on Hand Qty %"
+]].copy()
 
 # =========================================================
-# 4. GENERATE OVERALL REGION SUMMARY
+# 4. GENERATE OVERALL REGION SUMMARY (WITH SALES COST & QTY)
 # =========================================================
-region_agg = store_summary.groupby("Region", as_index=False)[["Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "activity_cost", "activity_quantity"]].sum()
+region_agg = store_summary.groupby("Region", as_index=False)[[
+    "Opening Cost", "Opening Qty", 
+    "Sales/Outbound Cost", "Sales/Outbound Qty", 
+    "Closing Cost", "Closing Qty"
+]].sum()
 
 region_agg["Stock on Hand Cost %"] = np.where(
     region_agg["Closing Cost"] > 0, 
-    (1 - (region_agg["activity_cost"] / region_agg["Closing Cost"])), 
+    (1 - (region_agg["Sales/Outbound Cost"] / region_agg["Closing Cost"])), 
     0.0
 )
 region_agg["Stock on Hand Qty %"] = np.where(
     region_agg["Closing Qty"] > 0, 
-    (1 - (region_agg["activity_quantity"] / region_agg["Closing Qty"])), 
+    (1 - (region_agg["Sales/Outbound Qty"] / region_agg["Closing Qty"])), 
     0.0
 )
 
-kpi_cols = ["Opening Cost", "Opening Qty", "Closing Cost", "Closing Qty", "Stock on Hand Cost %", "Stock on Hand Qty %"]
+kpi_cols = [
+    "Opening Cost", "Opening Qty", 
+    "Sales/Outbound Cost", "Sales/Outbound Qty", 
+    "Closing Cost", "Closing Qty", 
+    "Stock on Hand Cost %", "Stock on Hand Qty %"
+]
 region_summary = pd.DataFrame({"KPI Metrics": kpi_cols})
 
 for _, row in region_agg.iterrows():
@@ -360,6 +380,8 @@ for _, row in region_agg.iterrows():
     region_summary[reg] = [
         round(row["Opening Cost"], 2),
         round(row["Opening Qty"], 2),
+        round(row["Sales/Outbound Cost"], 2),
+        round(row["Sales/Outbound Qty"], 2),
         round(row["Closing Cost"], 2),
         round(row["Closing Qty"], 2),
         round(row["Stock on Hand Cost %"], 4),
@@ -479,7 +501,7 @@ def apply_dashboard_styles():
             }
         ]
 
-    # --- STORE SUMMARY ---
+    # --- STORE SUMMARY FORMATTING ---
     sto_row_count = len(store_summary_display) + 1
     reqs.append({
         "repeatCell": {
@@ -494,16 +516,18 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
+    # Cols C to H (Opening, Sales, Closing Costs & Qties) -> Number Pattern
     reqs.append({
         "repeatCell": {
-            "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 2, "endColumnIndex": 6},
+            "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 2, "endColumnIndex": 8},
             "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}}},
             "fields": "userEnteredFormat.numberFormat"
         }
     })
+    # Cols I & J (Stock on Hand Cost % and Qty %) -> Percent Pattern
     reqs.append({
         "repeatCell": {
-            "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 6, "endColumnIndex": 8},
+            "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 8, "endColumnIndex": 10},
             "cell": {
                 "userEnteredFormat": {
                     "numberFormat": {"type": "PERCENT", "pattern": "0.00%"},
@@ -514,9 +538,9 @@ def apply_dashboard_styles():
         }
     })
     reqs.append({"updateSheetProperties": {"properties": {"sheetId": id_sto, "gridProperties": {"frozenRowCount": 1}}, "fields": "gridProperties.frozenRowCount"}})
-    reqs.extend(create_conditional_rules(id_sto, 1, sto_row_count, 6, 8))
+    reqs.extend(create_conditional_rules(id_sto, 1, sto_row_count, 8, 10))
 
-    # --- REGION SUMMARY ---
+    # --- REGION SUMMARY FORMATTING ---
     reg_col_count = len(region_summary.columns)
     reqs.append({
         "repeatCell": {
@@ -531,16 +555,18 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
+    # Rows 2 to 7 (Opening, Sales, Closing) -> Number Pattern
     reqs.append({
         "repeatCell": {
-            "range": {"sheetId": id_reg, "startRowIndex": 1, "endRowIndex": 5, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
+            "range": {"sheetId": id_reg, "startRowIndex": 1, "endRowIndex": 7, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
             "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}}},
             "fields": "userEnteredFormat.numberFormat"
         }
     })
+    # Rows 8 & 9 (Stock on Hand Cost % & Qty %) -> Percent Pattern
     reqs.append({
         "repeatCell": {
-            "range": {"sheetId": id_reg, "startRowIndex": 5, "endRowIndex": 7, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
+            "range": {"sheetId": id_reg, "startRowIndex": 7, "endRowIndex": 9, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
             "cell": {
                 "userEnteredFormat": {
                     "numberFormat": {"type": "PERCENT", "pattern": "0.00%"},
@@ -550,9 +576,9 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(numberFormat,horizontalAlignment)"
         }
     })
-    reqs.extend(create_conditional_rules(id_reg, 5, 7, 1, reg_col_count))
+    reqs.extend(create_conditional_rules(id_reg, 7, 9, 1, reg_col_count))
 
-    # --- DAILY STOCK ON HAND ---
+    # --- DAILY STOCK ON HAND FORMATTING ---
     day_row_count = len(daily_pivot) + 1
     day_col_count = len(daily_pivot.columns)
     reqs.append({
@@ -591,4 +617,4 @@ def apply_dashboard_styles():
 
 apply_dashboard_styles()
 
-print("🏁 Warehouse & Retail differentiated pipeline execution complete!")
+print("🏁 Final Pipeline Execution Complete!")
