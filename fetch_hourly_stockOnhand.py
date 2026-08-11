@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 import gspread
 from google.oauth2.service_account import Credentials
 
-print("🚀 Rista Hourly Availability Email Dashboard Pipeline Started")
+print("🚀 Rista Hourly Stock On Hand Email Dashboard Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -24,7 +24,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 RISTA_BASE_URL = "https://api.ristaapps.com/v1"
 
 SPREADSHEET_ID = "130C3oQsVmONGVUulhGbDWroRKpkebwgnFhq3uiny_O0"
-TARGET_HOURLY_TAB = "Hourly_Availability_Dashboard"
+TARGET_HOURLY_TAB = "Hourly_Stock On Hand_Dashboard"
 
 # =========================================================
 # EMAIL CONFIGURATION & TEST RECIPIENTS
@@ -87,7 +87,7 @@ now_ist = datetime.now(ist)
 today_str = now_ist.strftime("%Y-%m-%d")
 time_str = now_ist.strftime("%I:%M %p IST")
 
-print(f"📅 Running Hourly Availability for: {today_str} ({time_str})")
+print(f"📅 Running Hourly Stock On Hand for: {today_str} ({time_str})")
 
 # =========================================================
 # LOAD HELP SHEET & MAP STORES
@@ -227,7 +227,7 @@ def fetch_hourly_store(branch):
         return df
     return None
 
-print(f"⚡ Fetching Hourly Availability for {len(branches)} stores...")
+print(f"⚡ Fetching Hourly Stock On Hand for {len(branches)} stores...")
 hourly_dfs = []
 
 with ThreadPoolExecutor(max_workers=12) as executor:
@@ -249,7 +249,7 @@ if not hourly_dfs:
                 hourly_dfs.append(res_df)
 
 if not hourly_dfs:
-    print("❌ No hourly availability data retrieved.")
+    print("❌ No hourly Stock On Hand data retrieved.")
     exit()
 
 final_df = pd.concat(hourly_dfs, ignore_index=True)
@@ -282,7 +282,7 @@ outbound_grp = outbound_df.groupby(["Hourly_Group", "Region", "branchCode", "Sto
 
 store_metrics = closing_grp.merge(outbound_grp, on=["Hourly_Group", "Region", "branchCode", "Store Name"], how="left").fillna(0.0)
 
-store_metrics["Availability_Cost_Pct"] = np.where(
+store_metrics["Stock On Hand_Cost_Pct"] = np.where(
     store_metrics["closingCost"] > 0, 
     (1 - (store_metrics["activity_cost"] / store_metrics["closingCost"])), 
     0.0
@@ -290,10 +290,10 @@ store_metrics["Availability_Cost_Pct"] = np.where(
 
 total_stores = int(len(store_metrics))
 total_closing_cost = float(store_metrics["closingCost"].sum())
-avg_availability_pct = float(store_metrics["Availability_Cost_Pct"].mean()) * 100
-below_30_count = int((store_metrics["Availability_Cost_Pct"] < 0.30).sum())
-between_30_50_count = int(((store_metrics["Availability_Cost_Pct"] >= 0.30) & (store_metrics["Availability_Cost_Pct"] < 0.50)).sum())
-above_50_count = int((store_metrics["Availability_Cost_Pct"] >= 0.50).sum())
+avg_Stock On Hand_pct = float(store_metrics["Stock On Hand_Cost_Pct"].mean()) * 100
+below_30_count = int((store_metrics["Stock On Hand_Cost_Pct"] < 0.30).sum())
+between_30_50_count = int(((store_metrics["Stock On Hand_Cost_Pct"] >= 0.30) & (store_metrics["Stock On Hand_Cost_Pct"] < 0.50)).sum())
+above_50_count = int((store_metrics["Stock On Hand_Cost_Pct"] >= 0.50).sum())
 
 coco_groups = ["KA", "MH", "TN", "Kerala"]
 wh_groups = ["WH_KA", "WH_MH", "WH_Kerala", "WH_NCR", "WH_TN"]
@@ -304,13 +304,13 @@ def calculate_group_summary(groups_list):
         "activity_cost": "sum",
         "branchCode": "count"
     })
-    group_df["Availability_Pct"] = np.where(group_df["closingCost"] > 0, (1 - (group_df["activity_cost"] / group_df["closingCost"])) * 100, 0.0)
+    group_df["Stock On Hand_Pct"] = np.where(group_df["closingCost"] > 0, (1 - (group_df["activity_cost"] / group_df["closingCost"])) * 100, 0.0)
     return group_df
 
 coco_summary_df = calculate_group_summary(coco_groups)
 wh_summary_df = calculate_group_summary(wh_groups)
 
-# Helper for availability badges (whole percentage)
+# Helper for Stock On Hand badges (whole percentage)
 def get_status_badge(pct_val):
     rounded_pct = int(round(pct_val))
     if pct_val < 30:
@@ -356,7 +356,7 @@ html_content = f"""
 <body>
     <div class="container">
         <div class="header">
-            <h2>HOURLY AVAILABILITY DASHBOARD</h2>
+            <h2>HOURLY Stock On Hand DASHBOARD</h2>
             <p>Report Generated: {today_str} | {time_str}</p>
         </div>
         <div class="content">
@@ -373,8 +373,8 @@ html_content = f"""
                         <div class="kpi-val">₹{format_inr(total_closing_cost)}</div>
                     </td>
                     <td class="kpi-card" width="33%">
-                        <div class="kpi-label">Avg Availability</div>
-                        <div class="kpi-val">{int(round(avg_availability_pct))}%</div>
+                        <div class="kpi-label">Avg Stock On Hand</div>
+                        <div class="kpi-val">{int(round(avg_Stock On Hand_pct))}%</div>
                     </td>
                 </tr>
                 <tr>
@@ -402,14 +402,14 @@ html_content = f"""
                         <th class="text-center">Stores</th>
                         <th class="text-right">Outbound Cost (₹)</th>
                         <th class="text-right">Closing Stock (₹)</th>
-                        <th class="text-center">Availability %</th>
+                        <th class="text-center">Stock On Hand %</th>
                     </tr>
                 </thead>
                 <tbody>
 """
 
 for _, r in coco_summary_df.iterrows():
-    avail_pct = float(r["Availability_Pct"])
+    avail_pct = float(r["Stock On Hand_Pct"])
     html_content += f"""
                     <tr>
                         <td><b>{r['Hourly_Group']}</b></td>
@@ -432,14 +432,14 @@ html_content += """
                         <th class="text-center">Stores</th>
                         <th class="text-right">Transfer Out Cost (₹)</th>
                         <th class="text-right">Closing Stock (₹)</th>
-                        <th class="text-center">Availability %</th>
+                        <th class="text-center">Stock On Hand %</th>
                     </tr>
                 </thead>
                 <tbody>
 """
 
 for _, r in wh_summary_df.iterrows():
-    avail_pct = float(r["Availability_Pct"])
+    avail_pct = float(r["Stock On Hand_Pct"])
     html_content += f"""
                     <tr>
                         <td><b>{r['Hourly_Group']}</b></td>
@@ -454,7 +454,7 @@ html_content += """
             </table>
 
             <!-- STORE DETAILED BREAKDOWN -->
-            <div class="section-title">Region & Store Wise Availability Details</div>
+            <div class="section-title">Region & Store Wise Stock On Hand Details</div>
             <table class="data-table">
                 <thead>
                     <tr>
@@ -462,7 +462,7 @@ html_content += """
                         <th>Store Name</th>
                         <th class="text-right">Outbound/Transfer Cost (₹)</th>
                         <th class="text-right">Closing Cost (₹)</th>
-                        <th class="text-center">Availability %</th>
+                        <th class="text-center">Stock On Hand %</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -480,7 +480,7 @@ for grp in all_groups:
                     </tr>"""
     
     for _, sr in grp_stores.iterrows():
-        avail_pct = float(sr["Availability_Cost_Pct"]) * 100
+        avail_pct = float(sr["Stock On Hand_Cost_Pct"]) * 100
         html_content += f"""
                     <tr>
                         <td>{sr['branchCode']}</td>
@@ -531,7 +531,7 @@ def send_email_dashboard(html_body):
         return
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📊 Hourly Availability Dashboard — {today_str} ({time_str})"
+    msg["Subject"] = f"📊 Hourly Stock On Hand Dashboard — {today_str} ({time_str})"
     msg["From"] = EMAIL_USER
     msg["To"] = ", ".join(to_list)
     if cc_list:
@@ -546,10 +546,10 @@ def send_email_dashboard(html_body):
         server.login(EMAIL_USER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_USER, all_recipients, msg.as_string())
         server.quit()
-        print("✅ Hourly Availability Dashboard Email sent successfully!")
+        print("✅ Hourly Stock On Hand Dashboard Email sent successfully!")
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
 
 send_email_dashboard(html_content)
 
-print("🏁 Hourly Availability Dashboard & Email Delivery Pipeline Complete!")
+print("🏁 Hourly Stock On Hand Dashboard & Email Delivery Pipeline Complete!")
