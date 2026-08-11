@@ -33,7 +33,7 @@ SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 
 EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASS = os.environ.get("EMAIL_PASS")
+EMAIL_PASS = os.environ.get("EMAIL_PASSWORD")
 
 # Hardcoded test recipients (add your testing email addresses here)
 TO_EMAIL = "your_test_email@example.com"
@@ -507,7 +507,7 @@ html_content += """
 # CONFIGURATION & RECIPIENTS (TESTING MODE)
 # =========================================================
 EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASS = os.environ.get("EMAIL_PASS")
+EMAIL_PASS = os.environ.get("EMAIL_PASSWORD")
 
 # Hardcoded test recipients
 TO_EMAIL = "your_test_email@example.com"  # Replace with your primary email
