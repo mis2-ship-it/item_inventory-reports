@@ -254,6 +254,11 @@ if final_df.empty:
     print("❌ No activity data retrieved or present.")
     exit()
 
+# Convert any unhashable columns (lists/dicts) to string format prior to deduplication
+for col in final_df.columns:
+    if final_df[col].apply(lambda x: isinstance(x, (list, dict))).any():
+        final_df[col] = final_df[col].astype(str)
+
 final_df = final_df.drop_duplicates().copy()
 final_df["branchCode"] = final_df["branchCode"].astype(str).str.strip()
 
@@ -516,7 +521,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
-    # Cols C to H (Opening, Sales, Closing Costs & Qties) -> Number Pattern
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 2, "endColumnIndex": 8},
@@ -524,7 +528,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat.numberFormat"
         }
     })
-    # Cols I & J (Stock on Hand Cost % and Qty %) -> Percent Pattern
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_sto, "startRowIndex": 1, "endRowIndex": sto_row_count, "startColumnIndex": 8, "endColumnIndex": 10},
@@ -555,7 +558,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
         }
     })
-    # Rows 2 to 7 (Opening, Sales, Closing) -> Number Pattern
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_reg, "startRowIndex": 1, "endRowIndex": 7, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
@@ -563,7 +565,6 @@ def apply_dashboard_styles():
             "fields": "userEnteredFormat.numberFormat"
         }
     })
-    # Rows 8 & 9 (Stock on Hand Cost % & Qty %) -> Percent Pattern
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": id_reg, "startRowIndex": 7, "endRowIndex": 9, "startColumnIndex": 1, "endColumnIndex": reg_col_count},
