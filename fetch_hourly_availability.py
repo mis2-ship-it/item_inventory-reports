@@ -2,15 +2,19 @@ import os
 import json
 import time
 import jwt
+import pytz
 import requests
+import smtplib
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import gspread
 from google.oauth2.service_account import Credentials
 
-print("🚀 Rista Hourly Availability Pipeline Started")
+print("🚀 Rista Hourly Availability Email Dashboard Pipeline Started")
 
 # =========================================================
 # CONFIGURATION & AUTH
@@ -21,6 +25,13 @@ RISTA_BASE_URL = "https://api.ristaapps.com/v1"
 
 SPREADSHEET_ID = "130C3oQsVmONGVUulhGbDWroRKpkebwgnFhq3uiny_O0"
 TARGET_HOURLY_TAB = "Hourly_Availability_Dashboard"
+
+# Email Configuration
+SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_EMAIL = os.environ.get("SMTP_EMAIL")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+OPS_EMAIL_RECIPIENTS = os.environ.get("OPS_EMAIL_RECIPIENTS", "")
 
 # Warehouse Branch Codes
 WH_BRANCH_CODES = ["90003-2221", "DW", "90003-2216", "90003-2218", "90003-2214", "90003-2215"]
@@ -38,6 +49,25 @@ def get_headers():
         "content-type": "application/json"
     }
 
+# Indian Number System Formatter (e.g. 1,22,202)
+def format_inr(val):
+    try:
+        val = int(round(float(val)))
+        is_negative = val < 0
+        s = str(abs(val))
+        if len(s) <= 3:
+            res = s
+        else:
+            res = s[-3:]
+            s = s[:-3]
+            while len(s) > 2:
+                res = s[-2:] + ',' + res
+                s = s[:-2]
+            res = s + ',' + res
+        return ('-' if is_negative else '') + res
+    except Exception:
+        return "0"
+
 # Google Credentials
 google_creds_json = json.loads(os.environ["GOOGLE_CREDENTIALS"])
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -45,11 +75,13 @@ creds = Credentials.from_service_account_info(google_creds_json, scopes=scopes)
 client = gspread.authorize(creds)
 spreadsheet = client.open_by_key(SPREADSHEET_ID)
 
-# =========================================================
-# DATE SELECTION (TODAY - LATEST DATA)
-# =========================================================
-today_str = datetime.now().strftime("%Y-%m-%d")
-print(f"📅 Running Hourly Availability for: {today_str}")
+# IST Timezone setup
+ist = pytz.timezone('Asia/Kolkata')
+now_ist = datetime.now(ist)
+today_str = now_ist.strftime("%Y-%m-%d")
+time_str = now_ist.strftime("%I:%M %p IST")
+
+print(f"📅 Running Hourly Availability for: {today_str} ({time_str})")
 
 # =========================================================
 # LOAD HELP SHEET & MAP STORES
@@ -108,7 +140,6 @@ help_lookup = help_lookup.drop_duplicates(subset=["branchCode"])
 
 branches = help_lookup["branchCode"].loc[lambda x: x != ""].tolist()
 
-# Map Custom Hourly Regions (COCO vs WH Grouping)
 def map_hourly_group(row):
     b_code = str(row["branchCode"]).strip()
     reg = str(row.get("Region", "")).strip().upper()
@@ -139,7 +170,7 @@ def map_hourly_group(row):
 help_lookup["Hourly_Group"] = help_lookup.apply(map_hourly_group, axis=1)
 
 # =========================================================
-# FETCH TODAY'S HOURLY DATA (ALL SKUs)
+# FETCH HOURLY STORE DATA (ALL SKUs)
 # =========================================================
 def fetch_hourly_store(branch):
     all_records = []
@@ -202,7 +233,7 @@ with ThreadPoolExecutor(max_workers=12) as executor:
 
 if not hourly_dfs:
     print("⚠️ Today's date returned no records yet. Checking yesterday fallback...")
-    fallback_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    fallback_date = (now_ist - timedelta(days=1)).strftime("%Y-%m-%d")
     today_str = fallback_date
     with ThreadPoolExecutor(max_workers=12) as executor:
         futures = {executor.submit(fetch_hourly_store, b): b for b in branches}
@@ -253,7 +284,7 @@ store_metrics["Availability_Cost_Pct"] = np.where(
 
 total_stores = int(len(store_metrics))
 total_closing_cost = float(store_metrics["closingCost"].sum())
-avg_availability_pct = float(store_metrics["Availability_Cost_Pct"].mean())
+avg_availability_pct = float(store_metrics["Availability_Cost_Pct"].mean()) * 100
 below_30_count = int((store_metrics["Availability_Cost_Pct"] < 0.30).sum())
 between_30_50_count = int(((store_metrics["Availability_Cost_Pct"] >= 0.30) & (store_metrics["Availability_Cost_Pct"] < 0.50)).sum())
 above_50_count = int((store_metrics["Availability_Cost_Pct"] >= 0.50).sum())
@@ -267,46 +298,169 @@ def calculate_group_summary(groups_list):
         "activity_cost": "sum",
         "branchCode": "count"
     })
-    group_df["Availability_Pct"] = np.where(group_df["closingCost"] > 0, 1 - (group_df["activity_cost"] / group_df["closingCost"]), 0.0)
+    group_df["Availability_Pct"] = np.where(group_df["closingCost"] > 0, (1 - (group_df["activity_cost"] / group_df["closingCost"])) * 100, 0.0)
     return group_df
 
 coco_summary_df = calculate_group_summary(coco_groups)
 wh_summary_df = calculate_group_summary(wh_groups)
 
+# Helper for availability badges (whole percentage)
+def get_status_badge(pct_val):
+    rounded_pct = int(round(pct_val))
+    if pct_val < 30:
+        return f'<span style="background-color: #FADBD8; color: #78281F; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{rounded_pct}%</span>'
+    elif pct_val < 50:
+        return f'<span style="background-color: #FCF3CF; color: #7D6608; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{rounded_pct}%</span>'
+    else:
+        return f'<span style="background-color: #D4EFDF; color: #145A32; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{rounded_pct}%</span>'
+
 # =========================================================
-# BUILD DASHBOARD MATRIX LAYOUT
+# GENERATE STRUCTURED HTML EMAIL BODY
 # =========================================================
-output_rows = []
+html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }}
+        .container {{ max-width: 850px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }}
+        .header {{ background-color: #1F3A5F; color: #ffffff; padding: 20px; text-align: center; }}
+        .header h2 {{ margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }}
+        .header p {{ margin: 5px 0 0 0; font-size: 13px; opacity: 0.85; }}
+        .content {{ padding: 25px; }}
+        .section-title {{ font-size: 16px; font-weight: bold; color: #1F3A5F; border-bottom: 2px solid #1F3A5F; padding-bottom: 5px; margin-top: 25px; margin-bottom: 15px; text-transform: uppercase; }}
+        
+        /* KPI Grid */
+        .kpi-table {{ width: 100%; border-collapse: separate; border-spacing: 10px; margin-bottom: 20px; }}
+        .kpi-card {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center; }}
+        .kpi-label {{ font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-bottom: 4px; }}
+        .kpi-val {{ font-size: 20px; font-weight: bold; color: #0f172a; }}
+        
+        /* Data Tables */
+        table.data-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }}
+        table.data-table th {{ background-color: #f1f5f9; color: #334155; text-align: left; padding: 10px; font-weight: 600; border-bottom: 2px solid #cbd5e1; }}
+        table.data-table td {{ padding: 9px 10px; border-bottom: 1px solid #e2e8f0; color: #334155; }}
+        table.data-table tr:nth-child(even) {{ background-color: #f8fafc; }}
+        .text-right {{ text-align: right; }}
+        .text-center {{ text-align: center; }}
+        .region-header {{ background-color: #e2e8f0 !important; font-weight: bold; color: #1e293b; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>HOURLY AVAILABILITY DASHBOARD</h2>
+            <p>Report Generated: {today_str} | {time_str}</p>
+        </div>
+        <div class="content">
+            
+            <!-- TOP KPI BOXES -->
+            <table class="kpi-table">
+                <tr>
+                    <td class="kpi-card" width="33%">
+                        <div class="kpi-label">Active Stores</div>
+                        <div class="kpi-val">{total_stores}</div>
+                    </td>
+                    <td class="kpi-card" width="33%">
+                        <div class="kpi-label">Total Closing Stock</div>
+                        <div class="kpi-val">₹{format_inr(total_closing_cost)}</div>
+                    </td>
+                    <td class="kpi-card" width="33%">
+                        <div class="kpi-label">Avg Availability</div>
+                        <div class="kpi-val">{int(round(avg_availability_pct))}%</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="kpi-card" style="background-color: #FADBD8;">
+                        <div class="kpi-label" style="color: #78281F;">🔴 Less Than 30%</div>
+                        <div class="kpi-val" style="color: #78281F;">{below_30_count} Stores</div>
+                    </td>
+                    <td class="kpi-card" style="background-color: #FCF3CF;">
+                        <div class="kpi-label" style="color: #7D6608;">🟡 30% to 50%</div>
+                        <div class="kpi-val" style="color: #7D6608;">{between_30_50_count} Stores</div>
+                    </td>
+                    <td class="kpi-card" style="background-color: #D4EFDF;">
+                        <div class="kpi-label" style="color: #145A32;">🟢 50% and Above</div>
+                        <div class="kpi-val" style="color: #145A32;">{above_50_count} Stores</div>
+                    </td>
+                </tr>
+            </table>
 
-# Title
-output_rows.append([f"HOURLY AVAILABILITY REPORT — {today_str} ({datetime.now().strftime('%I:%M %p')})", "", "", "", ""])
-output_rows.append(["", "", "", "", ""])
+            <!-- GROUP COCO SUMMARY -->
+            <div class="section-title">Group COCO - Region Summary</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Region</th>
+                        <th class="text-center">Stores</th>
+                        <th class="text-right">Outbound Cost (₹)</th>
+                        <th class="text-right">Closing Stock (₹)</th>
+                        <th class="text-center">Availability %</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
 
-# Top KPI Summary Cards
-output_rows.append(["KPI METRIC", "VALUE", "", "AVAILABILITY RANGE", "STORE COUNT"])
-output_rows.append(["Total Active Stores", total_stores, "", "🔴 Less than 30%", below_30_count])
-output_rows.append(["Total Closing Stock Value", total_closing_cost, "", "🟡 30% to 50%", between_30_50_count])
-output_rows.append(["Overall Avg Availability %", avg_availability_pct, "", "🟢 50% and Above", above_50_count])
-output_rows.append(["", "", "", "", ""])
-
-# Group COCO Summary
-output_rows.append(["GROUP COCO - REGION SUMMARY", "", "", "", ""])
-output_rows.append(["Region", "Stores", "Outbound Cost", "Closing Stock", "Availability %"])
 for _, r in coco_summary_df.iterrows():
-    output_rows.append([str(r["Hourly_Group"]), int(r["branchCode"]), float(r["activity_cost"]), float(r["closingCost"]), float(r["Availability_Pct"])])
+    avail_pct = float(r["Availability_Pct"])
+    html_content += f"""
+                    <tr>
+                        <td><b>{r['Hourly_Group']}</b></td>
+                        <td class="text-center">{int(r['branchCode'])}</td>
+                        <td class="text-right">₹{format_inr(r['activity_cost'])}</td>
+                        <td class="text-right">₹{format_inr(r['closingCost'])}</td>
+                        <td class="text-center">{get_status_badge(avail_pct)}</td>
+                    </tr>"""
 
-output_rows.append(["", "", "", "", ""])
+html_content += """
+                </tbody>
+            </table>
 
-# Group Warehouse Summary
-output_rows.append(["WAREHOUSE SUMMARY", "", "", "", ""])
-output_rows.append(["Warehouse Region", "Stores", "Transfer Out Cost", "Closing Stock", "Availability %"])
+            <!-- WAREHOUSE SUMMARY -->
+            <div class="section-title">Warehouse Summary</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Warehouse Region</th>
+                        <th class="text-center">Stores</th>
+                        <th class="text-right">Transfer Out Cost (₹)</th>
+                        <th class="text-right">Closing Stock (₹)</th>
+                        <th class="text-center">Availability %</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
+
 for _, r in wh_summary_df.iterrows():
-    output_rows.append([str(r["Hourly_Group"]), int(r["branchCode"]), float(r["activity_cost"]), float(r["closingCost"]), float(r["Availability_Pct"])])
+    avail_pct = float(r["Availability_Pct"])
+    html_content += f"""
+                    <tr>
+                        <td><b>{r['Hourly_Group']}</b></td>
+                        <td class="text-center">{int(r['branchCode'])}</td>
+                        <td class="text-right">₹{format_inr(r['activity_cost'])}</td>
+                        <td class="text-right">₹{format_inr(r['closingCost'])}</td>
+                        <td class="text-center">{get_status_badge(avail_pct)}</td>
+                    </tr>"""
 
-output_rows.append(["", "", "", "", ""])
+html_content += """
+                </tbody>
+            </table>
 
-# Region + Store Details
-output_rows.append(["REGION & STORE WISE AVAILABILITY DETAILS", "", "", "", ""])
+            <!-- STORE DETAILED BREAKDOWN -->
+            <div class="section-title">Region & Store Wise Availability Details</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Branch Code</th>
+                        <th>Store Name</th>
+                        <th class="text-right">Outbound/Transfer Cost (₹)</th>
+                        <th class="text-right">Closing Cost (₹)</th>
+                        <th class="text-center">Availability %</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
 
 all_groups = coco_groups + wh_groups
 for grp in all_groups:
@@ -314,100 +468,63 @@ for grp in all_groups:
     if grp_stores.empty:
         continue
     
-    output_rows.append([f"📍 REGION: {grp}", "", "", "", ""])
-    output_rows.append(["Branch Code", "Store Name", "Outbound/Transfer Cost", "Closing Cost", "Availability %"])
+    html_content += f"""
+                    <tr class="region-header">
+                        <td colspan="5">📍 REGION: {grp}</td>
+                    </tr>"""
     
     for _, sr in grp_stores.iterrows():
-        output_rows.append([str(sr["branchCode"]), str(sr["Store Name"]), float(sr["activity_cost"]), float(sr["closingCost"]), float(sr["Availability_Cost_Pct"])])
-    
-    output_rows.append(["", "", "", "", ""])
+        avail_pct = float(sr["Availability_Cost_Pct"]) * 100
+        html_content += f"""
+                    <tr>
+                        <td>{sr['branchCode']}</td>
+                        <td>{sr['Store Name']}</td>
+                        <td class="text-right">₹{format_inr(sr['activity_cost'])}</td>
+                        <td class="text-right">₹{format_inr(sr['closingCost'])}</td>
+                        <td class="text-center">{get_status_badge(avail_pct)}</td>
+                    </tr>"""
+
+html_content += """
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+</body>
+</html>
+"""
 
 # =========================================================
-# SANITIZE DATA (CONVERT NUMPY TYPES TO PYTHON NATIVE TYPES)
+# SEND EMAIL DASHBOARD TO OPS TEAM
 # =========================================================
-sanitized_rows = []
-for row in output_rows:
-    clean_row = []
-    for item in row:
-        if isinstance(item, (np.integer, np.int64, np.int32)):
-            clean_row.append(int(item))
-        elif isinstance(item, (np.floating, np.float64, np.float32)):
-            clean_row.append(float(item))
-        elif pd.isna(item):
-            clean_row.append("")
-        else:
-            clean_row.append(item)
-    sanitized_rows.append(clean_row)
+def send_email_dashboard(html_body):
+    if not SMTP_EMAIL or not SMTP_PASSWORD or not OPS_EMAIL_RECIPIENTS:
+        print("⚠️ Email credentials or recipients missing. Skipping email send.")
+        return
 
-# =========================================================
-# EXPORT TO GOOGLE SHEET & APPLY STYLING
-# =========================================================
-try:
-    ws_hourly = spreadsheet.worksheet(TARGET_HOURLY_TAB)
-except Exception:
-    ws_hourly = spreadsheet.add_worksheet(title=TARGET_HOURLY_TAB, rows="500", cols="10")
+    recipients = [email.strip() for email in OPS_EMAIL_RECIPIENTS.split(",") if email.strip()]
+    if not recipients:
+        print("⚠️ No valid recipient emails found.")
+        return
 
-ws_hourly.clear()
-ws_hourly.update(sanitized_rows, "A1")
-print(f"✅ Data populated in '{TARGET_HOURLY_TAB}' tab.")
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"📊 Hourly Availability Dashboard — {today_str} ({time_str})"
+    msg["From"] = SMTP_EMAIL
+    msg["To"] = ", ".join(recipients)
 
-# Apply Formatting
-def apply_hourly_styles():
-    sheet_id = ws_hourly.id
-    reqs = []
-    
-    NAVY = {"red": 0.12, "green": 0.23, "blue": 0.37}
-    WHITE = {"red": 1.0, "green": 1.0, "blue": 1.0}
-    GRAY_HEADER = {"red": 0.90, "green": 0.92, "blue": 0.95}
-    
-    reqs.append({
-        "repeatCell": {
-            "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 5},
-            "cell": {
-                "userEnteredFormat": {
-                    "backgroundColor": NAVY,
-                    "textFormat": {"bold": True, "foregroundColor": WHITE, "fontSize": 12},
-                    "horizontalAlignment": "CENTER"
-                }
-            },
-            "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
-        }
-    })
-    
-    reqs.append({
-        "repeatCell": {
-            "range": {"sheetId": sheet_id, "startRowIndex": 2, "endRowIndex": 3, "startColumnIndex": 0, "endColumnIndex": 5},
-            "cell": {
-                "userEnteredFormat": {
-                    "backgroundColor": GRAY_HEADER,
-                    "textFormat": {"bold": True},
-                    "horizontalAlignment": "CENTER"
-                }
-            },
-            "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
-        }
-    })
-    
-    reqs.append({
-        "repeatCell": {
-            "range": {"sheetId": sheet_id, "startRowIndex": 4, "endRowIndex": 5, "startColumnIndex": 1, "endColumnIndex": 2},
-            "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}}},
-            "fields": "userEnteredFormat.numberFormat"
-        }
-    })
-    reqs.append({
-        "repeatCell": {
-            "range": {"sheetId": sheet_id, "startRowIndex": 5, "endRowIndex": 6, "startColumnIndex": 1, "endColumnIndex": 2},
-            "cell": {"userEnteredFormat": {"numberFormat": {"type": "PERCENT", "pattern": "0.00%"}}},
-            "fields": "userEnteredFormat.numberFormat"
-        }
-    })
+    msg.attach(MIMEText(html_body, "html"))
 
     try:
-        spreadsheet.batch_update({"requests": reqs})
-        print("🎨 Formatting applied successfully!")
-    except Exception as err:
-        print(f"⚠️ Formatting warning: {err}")
+        print(f"📧 Sending email dashboard to: {', '.join(recipients)}...")
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.sendmail(SMTP_EMAIL, recipients, msg.as_string())
+        server.quit()
+        print("✅ Hourly Availability Dashboard Email sent successfully!")
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
 
-apply_hourly_styles()
-print("🏁 Hourly Availability Pipeline Complete!")
+send_email_dashboard(html_content)
+
+print("🏁 Hourly Availability Dashboard & Email Delivery Pipeline Complete!")
