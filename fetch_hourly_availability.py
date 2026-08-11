@@ -113,7 +113,6 @@ def map_hourly_group(row):
     b_code = str(row["branchCode"]).strip()
     reg = str(row.get("Region", "")).strip().upper()
     
-    # Warehouse Mapping
     if b_code in WH_BRANCH_CODES or "WH" in reg or "WAREHOUSE" in reg:
         if "KA" in reg or "KARNATAKA" in reg or "BLR" in reg or "ECITY" in reg or "2214" in b_code:
             return "WH_KA"
@@ -127,7 +126,6 @@ def map_hourly_group(row):
             return "WH_TN"
         return "WH_KA"
     
-    # Retail COCO Grouping
     if "KA" in reg or "KARNATAKA" in reg or "BLR" in reg:
         return "KA"
     elif "MH" in reg or "MAHARASHTRA" in reg or "PUNE" in reg or "MUMBAI" in reg:
@@ -141,12 +139,12 @@ def map_hourly_group(row):
 help_lookup["Hourly_Group"] = help_lookup.apply(map_hourly_group, axis=1)
 
 # =========================================================
-# FETCH TODAY'S HOURLY DATA
+# FETCH TODAY'S HOURLY DATA (ALL SKUs)
 # =========================================================
 def fetch_hourly_store(branch):
     all_records = []
     page = 1
-    max_pages = 50
+    max_pages = 100
     
     while page <= max_pages:
         try:
@@ -155,8 +153,11 @@ def fetch_hourly_store(branch):
                 "day": today_str,
                 "date": today_str,
                 "page": page,
-                "limit": 500,
-                "count": 500
+                "pageNo": page,
+                "limit": 100,
+                "count": 100,
+                "pageSize": 100,
+                "size": 100
             }
             res = session.get(
                 f"{RISTA_BASE_URL}/inventory/item/activity/page",
@@ -166,11 +167,9 @@ def fetch_hourly_store(branch):
             )
             if res.status_code == 200:
                 data = res.json().get("data", [])
-                if not data:
+                if not data or len(data) == 0:
                     break
                 all_records.extend(data)
-                if len(data) < 20:
-                    break
                 page += 1
             else:
                 break
@@ -202,7 +201,7 @@ with ThreadPoolExecutor(max_workers=12) as executor:
             hourly_dfs.append(res_df)
 
 if not hourly_dfs:
-    print("⚠️ Today's date (or current hour) returned no records yet. Checking yesterday fallback...")
+    print("⚠️ Today's date returned no records yet. Checking yesterday fallback...")
     fallback_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     today_str = fallback_date
     with ThreadPoolExecutor(max_workers=12) as executor:
@@ -252,15 +251,13 @@ store_metrics["Availability_Cost_Pct"] = np.where(
     0.0
 )
 
-# Overall KPI Card Aggregation Values
-total_stores = len(store_metrics)
-total_closing_cost = store_metrics["closingCost"].sum()
-avg_availability_pct = store_metrics["Availability_Cost_Pct"].mean()
-below_30_count = (store_metrics["Availability_Cost_Pct"] < 0.30).sum()
-between_30_50_count = ((store_metrics["Availability_Cost_Pct"] >= 0.30) & (store_metrics["Availability_Cost_Pct"] < 0.50)).sum()
-above_50_count = (store_metrics["Availability_Cost_Pct"] >= 0.50).sum()
+total_stores = int(len(store_metrics))
+total_closing_cost = float(store_metrics["closingCost"].sum())
+avg_availability_pct = float(store_metrics["Availability_Cost_Pct"].mean())
+below_30_count = int((store_metrics["Availability_Cost_Pct"] < 0.30).sum())
+between_30_50_count = int(((store_metrics["Availability_Cost_Pct"] >= 0.30) & (store_metrics["Availability_Cost_Pct"] < 0.50)).sum())
+above_50_count = int((store_metrics["Availability_Cost_Pct"] >= 0.50).sum())
 
-# COCO and WH Group Summaries
 coco_groups = ["KA", "MH", "TN", "Kerala"]
 wh_groups = ["WH_KA", "WH_MH", "WH_Kerala", "WH_NCR", "WH_TN"]
 
@@ -281,11 +278,11 @@ wh_summary_df = calculate_group_summary(wh_groups)
 # =========================================================
 output_rows = []
 
-# Row 1: Dashboard Title & Timestamp
-output_rows.append([f"HOURLY AVAILABILITY REPORT — {today_str} ({datetime.now().strftime('%I:%M %p')})", "", "", "", "", ""])
-output_rows.append(["", "", "", "", "", ""])
+# Title
+output_rows.append([f"HOURLY AVAILABILITY REPORT — {today_str} ({datetime.now().strftime('%I:%M %p')})", "", "", "", ""])
+output_rows.append(["", "", "", "", ""])
 
-# Rows 3-7: Top KPI Summary Boxes
+# Top KPI Summary Cards
 output_rows.append(["KPI METRIC", "VALUE", "", "AVAILABILITY RANGE", "STORE COUNT"])
 output_rows.append(["Total Active Stores", total_stores, "", "🔴 Less than 30%", below_30_count])
 output_rows.append(["Total Closing Stock Value", total_closing_cost, "", "🟡 30% to 50%", between_30_50_count])
@@ -296,7 +293,7 @@ output_rows.append(["", "", "", "", ""])
 output_rows.append(["GROUP COCO - REGION SUMMARY", "", "", "", ""])
 output_rows.append(["Region", "Stores", "Outbound Cost", "Closing Stock", "Availability %"])
 for _, r in coco_summary_df.iterrows():
-    output_rows.append([r["Hourly_Group"], r["branchCode"], r["activity_cost"], r["closingCost"], r["Availability_Pct"]])
+    output_rows.append([str(r["Hourly_Group"]), int(r["branchCode"]), float(r["activity_cost"]), float(r["closingCost"]), float(r["Availability_Pct"])])
 
 output_rows.append(["", "", "", "", ""])
 
@@ -304,11 +301,11 @@ output_rows.append(["", "", "", "", ""])
 output_rows.append(["WAREHOUSE SUMMARY", "", "", "", ""])
 output_rows.append(["Warehouse Region", "Stores", "Transfer Out Cost", "Closing Stock", "Availability %"])
 for _, r in wh_summary_df.iterrows():
-    output_rows.append([r["Hourly_Group"], r["branchCode"], r["activity_cost"], r["closingCost"], r["Availability_Pct"]])
+    output_rows.append([str(r["Hourly_Group"]), int(r["branchCode"]), float(r["activity_cost"]), float(r["closingCost"]), float(r["Availability_Pct"])])
 
 output_rows.append(["", "", "", "", ""])
 
-# Region + Store Details Section
+# Region + Store Details
 output_rows.append(["REGION & STORE WISE AVAILABILITY DETAILS", "", "", "", ""])
 
 all_groups = coco_groups + wh_groups
@@ -321,9 +318,26 @@ for grp in all_groups:
     output_rows.append(["Branch Code", "Store Name", "Outbound/Transfer Cost", "Closing Cost", "Availability %"])
     
     for _, sr in grp_stores.iterrows():
-        output_rows.append([sr["branchCode"], sr["Store Name"], sr["activity_cost"], sr["closingCost"], sr["Availability_Cost_Pct"]])
+        output_rows.append([str(sr["branchCode"]), str(sr["Store Name"]), float(sr["activity_cost"]), float(sr["closingCost"]), float(sr["Availability_Cost_Pct"])])
     
     output_rows.append(["", "", "", "", ""])
+
+# =========================================================
+# SANITIZE DATA (CONVERT NUMPY TYPES TO PYTHON NATIVE TYPES)
+# =========================================================
+sanitized_rows = []
+for row in output_rows:
+    clean_row = []
+    for item in row:
+        if isinstance(item, (np.integer, np.int64, np.int32)):
+            clean_row.append(int(item))
+        elif isinstance(item, (np.floating, np.float64, np.float32)):
+            clean_row.append(float(item))
+        elif pd.isna(item):
+            clean_row.append("")
+        else:
+            clean_row.append(item)
+    sanitized_rows.append(clean_row)
 
 # =========================================================
 # EXPORT TO GOOGLE SHEET & APPLY STYLING
@@ -334,10 +348,10 @@ except Exception:
     ws_hourly = spreadsheet.add_worksheet(title=TARGET_HOURLY_TAB, rows="500", cols="10")
 
 ws_hourly.clear()
-ws_hourly.update(output_rows, "A1")
+ws_hourly.update(sanitized_rows, "A1")
 print(f"✅ Data populated in '{TARGET_HOURLY_TAB}' tab.")
 
-# Apply Formatting Request
+# Apply Formatting
 def apply_hourly_styles():
     sheet_id = ws_hourly.id
     reqs = []
@@ -346,7 +360,6 @@ def apply_hourly_styles():
     WHITE = {"red": 1.0, "green": 1.0, "blue": 1.0}
     GRAY_HEADER = {"red": 0.90, "green": 0.92, "blue": 0.95}
     
-    # Title Row
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 5},
@@ -361,7 +374,6 @@ def apply_hourly_styles():
         }
     })
     
-    # KPI Box Headers
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": sheet_id, "startRowIndex": 2, "endRowIndex": 3, "startColumnIndex": 0, "endColumnIndex": 5},
@@ -376,7 +388,6 @@ def apply_hourly_styles():
         }
     })
     
-    # Number Formats for KPI Block
     reqs.append({
         "repeatCell": {
             "range": {"sheetId": sheet_id, "startRowIndex": 4, "endRowIndex": 5, "startColumnIndex": 1, "endColumnIndex": 2},
