@@ -33,7 +33,7 @@ SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 
 EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASS = os.environ.get("EMAIL_PASSWORD")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 # Hardcoded test recipients (add your testing email addresses here)
 TO_EMAIL = "your_test_email@example.com"
@@ -507,7 +507,7 @@ html_content += """
 # CONFIGURATION & RECIPIENTS (TESTING MODE)
 # =========================================================
 EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASS = os.environ.get("EMAIL_PASSWORD")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 # Hardcoded test recipients
 TO_EMAIL = "your_test_email@example.com"  # Replace with your primary email
@@ -517,8 +517,8 @@ CC_EMAIL = "your_cc_email@example.com"    # Replace with CC email or leave as ""
 # SEND EMAIL DASHBOARD FUNCTION
 # =========================================================
 def send_email_dashboard(html_body):
-    if not EMAIL_USER or not EMAIL_PASS:
-        print("⚠️ Sender credentials (EMAIL_USER / EMAIL_PASS) missing in environment.")
+    if not EMAIL_USER or not EMAIL_PASSWORD:
+        print("⚠️ Sender credentials (EMAIL_USER / EMAIL_PASSWORD) missing in environment.")
         return
 
     # Process TO and CC lists
@@ -543,7 +543,7 @@ def send_email_dashboard(html_body):
         print(f"📧 Sending email dashboard to TO: {to_list} | CC: {cc_list}...")
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASS)
+        server.login(EMAIL_USER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_USER, all_recipients, msg.as_string())
         server.quit()
         print("✅ Hourly Availability Dashboard Email sent successfully!")
