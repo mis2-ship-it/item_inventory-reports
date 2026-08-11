@@ -26,12 +26,18 @@ RISTA_BASE_URL = "https://api.ristaapps.com/v1"
 SPREADSHEET_ID = "130C3oQsVmONGVUulhGbDWroRKpkebwgnFhq3uiny_O0"
 TARGET_HOURLY_TAB = "Hourly_Availability_Dashboard"
 
-# Email Configuration
+# =========================================================
+# EMAIL CONFIGURATION & TEST RECIPIENTS
+# =========================================================
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
-SMTP_EMAIL = os.environ.get("SMTP_EMAIL")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
-OPS_EMAIL_RECIPIENTS = os.environ.get("OPS_EMAIL_RECIPIENTS", "")
+
+EMAIL_USER = os.environ.get("EMAIL_USER")
+EMAIL_PASS = os.environ.get("EMAIL_PASS")
+
+# Hardcoded test recipients (add your testing email addresses here)
+TO_EMAIL = "your_test_email@example.com"
+CC_EMAIL = "your_cc_email@example.com"  # Set to "" if no CC is needed
 
 # Warehouse Branch Codes
 WH_BRANCH_CODES = ["90003-2221", "DW", "90003-2216", "90003-2218", "90003-2214", "90003-2215"]
@@ -497,29 +503,48 @@ html_content += """
 # =========================================================
 # SEND EMAIL DASHBOARD TO OPS TEAM
 # =========================================================
+# =========================================================
+# CONFIGURATION & RECIPIENTS (TESTING MODE)
+# =========================================================
+EMAIL_USER = os.environ.get("EMAIL_USER")
+EMAIL_PASS = os.environ.get("EMAIL_PASS")
+
+# Hardcoded test recipients
+TO_EMAIL = "your_test_email@example.com"  # Replace with your primary email
+CC_EMAIL = "your_cc_email@example.com"    # Replace with CC email or leave as "" if none
+
+# =========================================================
+# SEND EMAIL DASHBOARD FUNCTION
+# =========================================================
 def send_email_dashboard(html_body):
-    if not SMTP_EMAIL or not SMTP_PASSWORD or not OPS_EMAIL_RECIPIENTS:
-        print("⚠️ Email credentials or recipients missing. Skipping email send.")
+    if not EMAIL_USER or not EMAIL_PASS:
+        print("⚠️ Sender credentials (EMAIL_USER / EMAIL_PASS) missing in environment.")
         return
 
-    recipients = [email.strip() for email in OPS_EMAIL_RECIPIENTS.split(",") if email.strip()]
-    if not recipients:
-        print("⚠️ No valid recipient emails found.")
+    # Process TO and CC lists
+    to_list = [e.strip() for e in TO_EMAIL.split(",") if e.strip()]
+    cc_list = [e.strip() for e in CC_EMAIL.split(",") if e.strip()] if CC_EMAIL else []
+    all_recipients = to_list + cc_list
+
+    if not all_recipients:
+        print("⚠️ No valid recipient email addresses provided.")
         return
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"📊 Hourly Availability Dashboard — {today_str} ({time_str})"
-    msg["From"] = SMTP_EMAIL
-    msg["To"] = ", ".join(recipients)
+    msg["From"] = EMAIL_USER
+    msg["To"] = ", ".join(to_list)
+    if cc_list:
+        msg["Cc"] = ", ".join(cc_list)
 
     msg.attach(MIMEText(html_body, "html"))
 
     try:
-        print(f"📧 Sending email dashboard to: {', '.join(recipients)}...")
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        print(f"📧 Sending email dashboard to TO: {to_list} | CC: {cc_list}...")
+        server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-        server.sendmail(SMTP_EMAIL, recipients, msg.as_string())
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, all_recipients, msg.as_string())
         server.quit()
         print("✅ Hourly Availability Dashboard Email sent successfully!")
     except Exception as e:
