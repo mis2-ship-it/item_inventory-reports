@@ -1,0 +1,30 @@
+name: Hourly Availability Pipeline
+
+on:
+
+  workflow_dispatch:      # Allows manual run from GitHub interface
+
+jobs:
+  run-hourly:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          pip install pandas numpy requests PyJWT gspread google-auth google-api-python-client pytz
+
+      - name: Run Hourly Availability Script
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: |
+          python fetch_hourly_availability.py
