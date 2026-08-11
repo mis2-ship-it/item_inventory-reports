@@ -36,8 +36,8 @@ EMAIL_USER = os.environ.get("EMAIL_USER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 # Hardcoded test recipients (add your testing email addresses here)
-TO_EMAIL = "your_test_email@example.com"
-CC_EMAIL = "your_cc_email@example.com"  # Set to "" if no CC is needed
+TO_EMAIL = "scm@frozenbottle.in,mis3@frozenbottle.in"
+CC_EMAIL = "vivek@frozenbottle.in"  # Set to "" if no CC is needed
 
 # Warehouse Branch Codes
 WH_BRANCH_CODES = ["90003-2221", "DW", "90003-2216", "90003-2218", "90003-2214", "90003-2215"]
@@ -510,8 +510,8 @@ EMAIL_USER = os.environ.get("EMAIL_USER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 # Hardcoded test recipients
-TO_EMAIL = "your_test_email@example.com"  # Replace with your primary email
-CC_EMAIL = "your_cc_email@example.com"    # Replace with CC email or leave as "" if none
+TO_EMAIL = "scm@frozenbottle.in,mis3@frozenbottle.in"  # Replace with your primary email
+CC_EMAIL = "vivek@frozenbottle.in"    # Replace with CC email or leave as "" if none
 
 # =========================================================
 # SEND EMAIL DASHBOARD FUNCTION
