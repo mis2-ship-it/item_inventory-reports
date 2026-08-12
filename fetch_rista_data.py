@@ -14,8 +14,9 @@ API_KEY = os.environ.get("API_KEY")
 SECRET_KEY = os.environ.get("SECRET_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
-# Active Store/Branch Code for Stock Query
+# Active Store Identifiers
 STORE_CODE = os.environ.get("STORE_CODE", "FZBBLR034")
+BRANCH_NAME = os.environ.get("BRANCH_NAME", "AECS Layout")
 
 def get_jwt_token():
     payload = {"iss": API_KEY, "iat": int(time.time())}
@@ -125,46 +126,62 @@ def fetch_inventory_items():
         print(f"Error fetching inventory items: {e}")
         return pd.DataFrame()
 
-# --- 2. Fetch Store Items & Merge Stock Values ---
-def fetch_store_items_with_stock(store_code):
-    # A. Fetch Store Items Catalog
+# --- 2. Fetch Store Items & Robust Stock/Values Fetch ---
+def fetch_store_items_with_stock(store_code, branch_name):
+    # A. Fetch Base Store Items Metadata
     url_items = f"{RISTA_BASE_URL}/v1/inventory/store/items"
     items_list = []
-    try:
-        res_items = requests.get(url_items, headers=get_headers(), params={"storeCode": store_code}, timeout=30)
-        if res_items.status_code == 200:
-            js = res_items.json()
-            items_list = js.get("data", js if isinstance(js, list) else [])
-    except Exception as e:
-        print(f"Error fetching store item catalog: {e}")
+    
+    for identifier in [store_code, branch_name]:
+        try:
+            res_items = requests.get(url_items, headers=get_headers(), params={"storeCode": identifier}, timeout=30)
+            if res_items.status_code == 200:
+                js = res_items.json()
+                items_list = js.get("data", js if isinstance(js, list) else [])
+                if items_list:
+                    print(f"Fetched store catalog metadata using '{identifier}'")
+                    break
+        except Exception as e:
+            print(f"Error fetching catalog with '{identifier}': {e}")
 
     df_items = pd.json_normalize(items_list) if items_list else pd.DataFrame()
 
-    # B. Fetch Current Stock Values (POST Request)
+    # B. Robust POST Queries for Live Stock Quantities & Values
     stock_list = []
     stock_endpoints = [
         f"{RISTA_BASE_URL}/v1/inventory/item/stock",
         f"{RISTA_BASE_URL}/inventory/item/stock"
     ]
+    
+    # Payload matrix covering Rista identifier formats
+    payload_options = [
+        {"storeCode": store_code},
+        {"branch": branch_name},
+        {"branch": store_code},
+        {"storeCode": branch_name},
+        {"store": store_code},
+        {"branchCode": store_code}
+    ]
+
     for url in stock_endpoints:
-        try:
-            res_stock = requests.post(
-                url,
-                headers=get_headers(),
-                json={"storeCode": store_code, "branch": store_code},
-                timeout=30
-            )
-            if res_stock.status_code == 200:
-                js_stock = res_stock.json()
-                stock_list = js_stock.get("data", js_stock.get("items", js_stock if isinstance(js_stock, list) else []))
-                if stock_list:
-                    break
-        except Exception:
-            continue
+        if stock_list:
+            break
+        for payload in payload_options:
+            try:
+                res_stock = requests.post(url, headers=get_headers(), json=payload, timeout=15)
+                if res_stock.status_code == 200:
+                    js_stock = res_stock.json()
+                    extracted = js_stock.get("data", js_stock.get("items", js_stock.get("stock", js_stock if isinstance(js_stock, list) else [])))
+                    if isinstance(extracted, list) and len(extracted) > 0:
+                        stock_list = extracted
+                        print(f"✅ Stock values retrieved from {url} using payload {payload}")
+                        break
+            except Exception:
+                continue
 
     df_stock = pd.json_normalize(stock_list) if stock_list else pd.DataFrame()
 
-    # C. Merge Stock/Value columns into Store Items
+    # C. Merge Stock/Value columns into Store Items Catalog
     if not df_items.empty and not df_stock.empty and "skuCode" in df_stock.columns:
         df_merged = pd.merge(df_items, df_stock, on="skuCode", how="left", suffixes=("", "_stock"))
         return df_merged
@@ -172,7 +189,7 @@ def fetch_store_items_with_stock(store_code):
         return df_stock
     return df_items
 
-# --- Generic Fetch for Other Endpoints ---
+# --- Generic Fetch for Remaining Endpoints ---
 def fetch_generic_endpoint(endpoint, key_name="data"):
     url = f"{RISTA_BASE_URL}{endpoint}"
     try:
@@ -211,8 +228,8 @@ def main():
     df_items = fetch_inventory_items()
     push_to_sheet(sh, "Inventory_Items", df_items)
 
-    print(f"\n2. Processing Store_Items & Stock Values for Store '{STORE_CODE}'...")
-    df_store_items = fetch_store_items_with_stock(STORE_CODE)
+    print(f"\n2. Processing Store_Items & Stock Values for Store '{STORE_CODE}' / '{BRANCH_NAME}'...")
+    df_store_items = fetch_store_items_with_stock(STORE_CODE, BRANCH_NAME)
     push_to_sheet(sh, "Store_Items", df_store_items)
 
     print("\n3. Processing Store_List...")
@@ -227,7 +244,7 @@ def main():
     df_sup_items = fetch_generic_endpoint("/v1/inventory/supplieritem/list")
     push_to_sheet(sh, "Supplier_Items", df_sup_items)
 
-    print("\n🎉 Complete! All sheets updated with unnested data and stock values.")
+    print("\n🎉 Complete! All sheets updated with detailed values.")
 
 if __name__ == "__main__":
     main()
