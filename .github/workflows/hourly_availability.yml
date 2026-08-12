@@ -1,10 +1,10 @@
-name: Hourly Stock On Hand Pipeline
+name: Fetch Stock on Hand MTD
 
 on:
-  workflow_dispatch:      # Allows manual run from GitHub interface
+  workflow_dispatch:      # Allows trigger via API dispatch and manual runs
 
 jobs:
-  run-hourly:
+  run-script:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,12 +20,11 @@ jobs:
         run: |
           pip install pandas numpy requests PyJWT gspread google-auth google-api-python-client pytz
 
-      - name: Run Hourly Stock On Hand Script
+      - name: Run Stock on Hand MTD Script
         env:
           API_KEY: ${{ secrets.API_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
         run: |
-          python fetch_hourly_stockOnhand.py
+          echo "Running Fetch Inventory Activity MTD script..."
+          python fetch_inventory_activity_mtd.py
