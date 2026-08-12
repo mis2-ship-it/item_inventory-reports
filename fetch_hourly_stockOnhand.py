@@ -290,7 +290,7 @@ store_metrics["Stock On Hand_Cost_Pct"] = np.where(
 
 total_stores = int(len(store_metrics))
 total_closing_cost = float(store_metrics["closingCost"].sum())
-avg_Stock On Hand_pct = float(store_metrics["Stock On Hand_Cost_Pct"].mean()) * 100
+avg_Stock_On_Hand_pct = float(store_metrics["Stock On Hand_Cost_Pct"].mean()) * 100
 below_30_count = int((store_metrics["Stock On Hand_Cost_Pct"] < 0.30).sum())
 between_30_50_count = int(((store_metrics["Stock On Hand_Cost_Pct"] >= 0.30) & (store_metrics["Stock On Hand_Cost_Pct"] < 0.50)).sum())
 above_50_count = int((store_metrics["Stock On Hand_Cost_Pct"] >= 0.50).sum())
@@ -374,7 +374,7 @@ html_content = f"""
                     </td>
                     <td class="kpi-card" width="33%">
                         <div class="kpi-label">Avg Stock On Hand</div>
-                        <div class="kpi-val">{int(round(avg_Stock On Hand_pct))}%</div>
+                        <div class="kpi-val">{int(round(avg_Stock_On_Hand_pct))}%</div>
                     </td>
                 </tr>
                 <tr>
