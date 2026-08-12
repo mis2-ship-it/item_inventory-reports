@@ -30,4 +30,4 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
         run: |
           echo "Running Hourly Availability script..."
-          python fetch_hourly_availability.py
+          python fetch_hourly_stockOnhand.py
