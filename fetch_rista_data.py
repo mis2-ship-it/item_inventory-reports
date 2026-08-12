@@ -14,37 +14,8 @@ API_KEY = os.environ.get("API_KEY")
 SECRET_KEY = os.environ.get("SECRET_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
-# Branch Code for Store-Specific Endpoints
+# Active Store/Branch Code for Stock Query
 STORE_CODE = os.environ.get("STORE_CODE", "FZBBLR034")
-
-# --- Target Endpoints Configuration ---
-TARGET_ENDPOINTS = [
-    {
-        "tab_name": "Store_List",
-        "endpoint": "/v1/inventory/store/list",
-        "params": {}
-    },
-    {
-        "tab_name": "Inventory_Items",
-        "endpoint": "/v1/inventory/items",
-        "params": {}
-    },
-    {
-        "tab_name": "Store_Items",
-        "endpoint": "/v1/inventory/store/items",
-        "params": {"storeCode": STORE_CODE}
-    },
-    {
-        "tab_name": "Supplier_List",
-        "endpoint": "/v1/inventory/supplier/list",
-        "params": {}
-    },
-    {
-        "tab_name": "Supplier_Items",
-        "endpoint": "/v1/inventory/supplieritem/list",
-        "params": {}
-    }
-]
 
 def get_jwt_token():
     payload = {"iss": API_KEY, "iat": int(time.time())}
@@ -63,69 +34,200 @@ def init_gspread():
     credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     return gspread.authorize(credentials)
 
-def fetch_data(endpoint, params):
-    url = f"{RISTA_BASE_URL}{endpoint}"
-    clean_params = {k: v for k, v in params.items() if v}
+def clean_data_for_gsheet(df):
+    """Converts nested dicts/lists into clean comma-separated strings."""
+    if df.empty:
+        return df
     
+    df = df.copy()
+    for col in df.columns:
+        df[col] = df[col].apply(
+            lambda val: ", ".join([str(x) for x in val]) if isinstance(val, list)
+            else json.dumps(val) if isinstance(val, dict)
+            else "" if pd.isna(val) else str(val)
+        )
+    return df
+
+# --- 1. Flatten Inventory Items & BOM Variants ---
+def fetch_inventory_items():
+    url = f"{RISTA_BASE_URL}/v1/inventory/items"
     try:
-        res = requests.get(url, headers=get_headers(), params=clean_params, timeout=30)
-        if res.status_code == 200:
-            js_data = res.json()
-            
-            # Extract nested list if response is wrapped in dict
-            if isinstance(js_data, dict):
-                if "items" in js_data:
-                    js_data = js_data["items"]
-                elif "data" in js_data:
-                    js_data = js_data["data"]
-            
-            return pd.json_normalize(js_data)
-        else:
-            print(f"⚠️ Failed to fetch {endpoint} | Status Code: {res.status_code}")
+        res = requests.get(url, headers=get_headers(), timeout=30)
+        if res.status_code != 200:
             return pd.DataFrame()
+        
+        raw_data = res.json().get("items", [])
+        flattened_rows = []
+
+        for item in raw_data:
+            base_info = {
+                "skuCode": item.get("skuCode", ""),
+                "name": item.get("name", ""),
+                "category": item.get("category", ""),
+                "subCategory": item.get("subCategory", ""),
+                "itemType": item.get("itemType", ""),
+                "inventoryItemNature": item.get("inventoryItemNature", ""),
+                "itemNature": item.get("itemNature", ""),
+                "measuringUnit": item.get("measuringUnit", ""),
+                "trackingMethod": item.get("trackingMethod", ""),
+                "valuationMethod": item.get("valuationMethod", ""),
+                "trackInventory": item.get("trackInventory", ""),
+                "perishable": item.get("perishable", ""),
+                "allowFraction": item.get("allowFraction", ""),
+                "barCode": item.get("barCode", ""),
+                "itemTaxCode": item.get("itemTaxCode", ""),
+                "shelfLife": item.get("shelfLife", ""),
+            }
+
+            bom_variants = item.get("bomVariants", [])
+            if bom_variants:
+                for variant in bom_variants:
+                    v_id = variant.get("variantId", "")
+                    v_yield = variant.get("bomYield", "")
+                    v_channels = variant.get("channels", "")
+                    v_stores = variant.get("stores", "")
+                    materials = variant.get("materials", [])
+
+                    if materials:
+                        for mat in materials:
+                            row = base_info.copy()
+                            row.update({
+                                "bom_variantId": v_id,
+                                "bom_yield": v_yield,
+                                "bom_channels": v_channels,
+                                "bom_stores": v_stores,
+                                "material_skuCode": mat.get("skuCode", ""),
+                                "material_quantity": mat.get("quantity", ""),
+                                "material_unit": mat.get("measuringUnit", ""),
+                                "material_consumptionUnit": mat.get("consumptionUnit", ""),
+                                "material_yield": mat.get("materialYield", "")
+                            })
+                            flattened_rows.append(row)
+                    else:
+                        row = base_info.copy()
+                        row.update({
+                            "bom_variantId": v_id, "bom_yield": v_yield, "bom_channels": v_channels,
+                            "bom_stores": v_stores, "material_skuCode": "", "material_quantity": "",
+                            "material_unit": "", "material_consumptionUnit": "", "material_yield": ""
+                        })
+                        flattened_rows.append(row)
+            else:
+                row = base_info.copy()
+                row.update({
+                    "bom_variantId": "", "bom_yield": "", "bom_channels": "", "bom_stores": "",
+                    "material_skuCode": "", "material_quantity": "", "material_unit": "",
+                    "material_consumptionUnit": "", "material_yield": ""
+                })
+                flattened_rows.append(row)
+
+        return pd.DataFrame(flattened_rows)
     except Exception as e:
-        print(f"❌ Error fetching {endpoint}: {e}")
+        print(f"Error fetching inventory items: {e}")
         return pd.DataFrame()
+
+# --- 2. Fetch Store Items & Merge Stock Values ---
+def fetch_store_items_with_stock(store_code):
+    # A. Fetch Store Items Catalog
+    url_items = f"{RISTA_BASE_URL}/v1/inventory/store/items"
+    items_list = []
+    try:
+        res_items = requests.get(url_items, headers=get_headers(), params={"storeCode": store_code}, timeout=30)
+        if res_items.status_code == 200:
+            js = res_items.json()
+            items_list = js.get("data", js if isinstance(js, list) else [])
+    except Exception as e:
+        print(f"Error fetching store item catalog: {e}")
+
+    df_items = pd.json_normalize(items_list) if items_list else pd.DataFrame()
+
+    # B. Fetch Current Stock Values (POST Request)
+    stock_list = []
+    stock_endpoints = [
+        f"{RISTA_BASE_URL}/v1/inventory/item/stock",
+        f"{RISTA_BASE_URL}/inventory/item/stock"
+    ]
+    for url in stock_endpoints:
+        try:
+            res_stock = requests.post(
+                url,
+                headers=get_headers(),
+                json={"storeCode": store_code, "branch": store_code},
+                timeout=30
+            )
+            if res_stock.status_code == 200:
+                js_stock = res_stock.json()
+                stock_list = js_stock.get("data", js_stock.get("items", js_stock if isinstance(js_stock, list) else []))
+                if stock_list:
+                    break
+        except Exception:
+            continue
+
+    df_stock = pd.json_normalize(stock_list) if stock_list else pd.DataFrame()
+
+    # C. Merge Stock/Value columns into Store Items
+    if not df_items.empty and not df_stock.empty and "skuCode" in df_stock.columns:
+        df_merged = pd.merge(df_items, df_stock, on="skuCode", how="left", suffixes=("", "_stock"))
+        return df_merged
+    elif not df_stock.empty:
+        return df_stock
+    return df_items
+
+# --- Generic Fetch for Other Endpoints ---
+def fetch_generic_endpoint(endpoint, key_name="data"):
+    url = f"{RISTA_BASE_URL}{endpoint}"
+    try:
+        res = requests.get(url, headers=get_headers(), timeout=30)
+        if res.status_code == 200:
+            js = res.json()
+            data = js.get(key_name, js if isinstance(js, list) else [])
+            return pd.json_normalize(data)
+    except Exception as e:
+        print(f"Error fetching {endpoint}: {e}")
+    return pd.DataFrame()
 
 def push_to_sheet(spreadsheet, tab_name, df):
     if df.empty:
         print(f"Skipping empty sheet: {tab_name}")
         return
-    
-    # Fill NaN values with empty string for clean sheet rendering
-    df = df.fillna("")
-    
+
+    df_clean = clean_data_for_gsheet(df)
+
     try:
         worksheet = spreadsheet.worksheet(tab_name)
     except gspread.WorksheetNotFound:
         worksheet = spreadsheet.add_worksheet(title=tab_name, rows="1000", cols="50")
-    
+
     worksheet.clear()
-    
-    # Convert dataframe to list format and update sheet
-    data_matrix = [df.columns.tolist()] + df.astype(str).values.tolist()
+    data_matrix = [df_clean.columns.tolist()] + df_clean.astype(str).values.tolist()
     worksheet.update(data_matrix)
-    print(f"✅ Successfully updated tab: '{tab_name}' ({len(df)} rows)")
+    print(f"✅ Updated tab: '{tab_name}' ({len(df_clean)} rows, {len(df_clean.columns)} columns)")
 
 def main():
     print("Connecting to Google Sheets...")
     gc = init_gspread()
     sh = gc.open_by_key(GSHEET_ID)
-    
-    for target in TARGET_ENDPOINTS:
-        tab_name = target["tab_name"]
-        ep = target["endpoint"]
-        params = target["params"]
-        
-        print(f"\nProcessing endpoint: {ep}...")
-        df = fetch_data(ep, params)
-        
-        if not df.empty:
-            push_to_sheet(sh, tab_name, df)
-        else:
-            print(f"No records retrieved for {ep}")
 
-    print("\n🎉 All 5 endpoints successfully synced to separate GSheet tabs!")
+    print("\n1. Processing Inventory_Items (Flattening BOM)...")
+    df_items = fetch_inventory_items()
+    push_to_sheet(sh, "Inventory_Items", df_items)
+
+    print(f"\n2. Processing Store_Items & Stock Values for Store '{STORE_CODE}'...")
+    df_store_items = fetch_store_items_with_stock(STORE_CODE)
+    push_to_sheet(sh, "Store_Items", df_store_items)
+
+    print("\n3. Processing Store_List...")
+    df_stores = fetch_generic_endpoint("/v1/inventory/store/list")
+    push_to_sheet(sh, "Store_List", df_stores)
+
+    print("\n4. Processing Supplier_List...")
+    df_suppliers = fetch_generic_endpoint("/v1/inventory/supplier/list")
+    push_to_sheet(sh, "Supplier_List", df_suppliers)
+
+    print("\n5. Processing Supplier_Items...")
+    df_sup_items = fetch_generic_endpoint("/v1/inventory/supplieritem/list")
+    push_to_sheet(sh, "Supplier_Items", df_sup_items)
+
+    print("\n🎉 Complete! All sheets updated with unnested data and stock values.")
 
 if __name__ == "__main__":
     main()
