@@ -47,9 +47,17 @@ def init_gspread():
     credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     return gspread.authorize(credentials)
 
+# Updated base URL handling
+RISTA_BASE_URL = os.environ.get("RISTA_BASE_URL") or "https://api.rista.io"
+
 def fetch_endpoint_data(endpoint, params):
-    """Fetch data from Rista endpoint."""
-    url = f"{RISTA_BASE_URL.rstrip('/')}{endpoint}"
+    base = RISTA_BASE_URL.rstrip('/')
+    # Ensure scheme exists
+    if not base.startswith(('http://', 'https://')):
+        base = f"https://{base}"
+        
+    url = f"{base}{endpoint}"
+    
     headers = {
         "x-api-key": API_KEY,
         "x-secret-key": SECRET_KEY,
@@ -61,7 +69,7 @@ def fetch_endpoint_data(endpoint, params):
         status = response.status_code
         try:
             data = response.json()
-            sample_text = json.dumps(data)[:2000] # Truncate long responses for sample view
+            sample_text = json.dumps(data)[:2000]
         except Exception:
             sample_text = response.text[:2000]
         return status, sample_text
