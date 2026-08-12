@@ -5,6 +5,7 @@ import jwt
 import requests
 import pandas as pd
 import gspread
+from datetime import datetime
 from google.oauth2.service_account import Credentials
 
 # --- Environment & Configuration ---
@@ -14,9 +15,11 @@ API_KEY = os.environ.get("API_KEY")
 SECRET_KEY = os.environ.get("SECRET_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
-# Active Store Identifiers
-STORE_CODE = os.environ.get("STORE_CODE", "FZBBLR034")
-BRANCH_NAME = os.environ.get("BRANCH_NAME", "AECS Layout")
+# Dynamic Parameters
+BRANCH = os.environ.get("BRANCH", os.environ.get("STORE_CODE", "AECS Layout"))
+CHANNEL = os.environ.get("CHANNEL", "DineIn")
+TODAY_STR = datetime.now().strftime("%Y-%m-%d")
+DAY_VAL = os.environ.get("DAY_VAL", TODAY_STR)
 
 def get_jwt_token():
     payload = {"iss": API_KEY, "iat": int(time.time())}
@@ -49,7 +52,7 @@ def clean_data_for_gsheet(df):
         )
     return df
 
-# --- 1. Flatten Inventory Items & BOM Variants ---
+# --- Flattened Inventory Items ---
 def fetch_inventory_items():
     url = f"{RISTA_BASE_URL}/v1/inventory/items"
     try:
@@ -126,80 +129,35 @@ def fetch_inventory_items():
         print(f"Error fetching inventory items: {e}")
         return pd.DataFrame()
 
-# --- 2. Fetch Store Items & Robust Stock/Values Fetch ---
-def fetch_store_items_with_stock(store_code, branch_name):
-    # A. Fetch Base Store Items Metadata
-    url_items = f"{RISTA_BASE_URL}/v1/inventory/store/items"
-    items_list = []
-    
-    for identifier in [store_code, branch_name]:
+# --- Endpoint Fetch with Path Version Fallbacks ---
+def fetch_endpoint(endpoint, params=None):
+    if params is None:
+        params = {}
+        
+    clean_params = {k: v for k, v in params.items() if v}
+    paths_to_try = [
+        f"{RISTA_BASE_URL}{endpoint}",
+        f"{RISTA_BASE_URL}/v1{endpoint}" if not endpoint.startswith("/v1") else f"{RISTA_BASE_URL}{endpoint.replace('/v1', '')}"
+    ]
+
+    for url in paths_to_try:
         try:
-            res_items = requests.get(url_items, headers=get_headers(), params={"storeCode": identifier}, timeout=30)
-            if res_items.status_code == 200:
-                js = res_items.json()
-                items_list = js.get("data", js if isinstance(js, list) else [])
-                if items_list:
-                    print(f"Fetched store catalog metadata using '{identifier}'")
-                    break
-        except Exception as e:
-            print(f"Error fetching catalog with '{identifier}': {e}")
+            res = requests.get(url, headers=get_headers(), params=clean_params, timeout=20)
+            if res.status_code == 200:
+                js = res.json()
+                if isinstance(js, dict):
+                    data = js.get("data", js.get("items", js.get("catalog", js.get("resources", js))))
+                else:
+                    data = js
+                
+                if isinstance(data, list):
+                    return pd.json_normalize(data)
+                elif isinstance(data, dict):
+                    return pd.json_normalize([data])
+        except Exception:
+            continue
 
-    df_items = pd.json_normalize(items_list) if items_list else pd.DataFrame()
-
-    # B. Robust POST Queries for Live Stock Quantities & Values
-    stock_list = []
-    stock_endpoints = [
-        f"{RISTA_BASE_URL}/v1/inventory/item/stock",
-        f"{RISTA_BASE_URL}/inventory/item/stock"
-    ]
-    
-    # Payload matrix covering Rista identifier formats
-    payload_options = [
-        {"storeCode": store_code},
-        {"branch": branch_name},
-        {"branch": store_code},
-        {"storeCode": branch_name},
-        {"store": store_code},
-        {"branchCode": store_code}
-    ]
-
-    for url in stock_endpoints:
-        if stock_list:
-            break
-        for payload in payload_options:
-            try:
-                res_stock = requests.post(url, headers=get_headers(), json=payload, timeout=15)
-                if res_stock.status_code == 200:
-                    js_stock = res_stock.json()
-                    extracted = js_stock.get("data", js_stock.get("items", js_stock.get("stock", js_stock if isinstance(js_stock, list) else [])))
-                    if isinstance(extracted, list) and len(extracted) > 0:
-                        stock_list = extracted
-                        print(f"✅ Stock values retrieved from {url} using payload {payload}")
-                        break
-            except Exception:
-                continue
-
-    df_stock = pd.json_normalize(stock_list) if stock_list else pd.DataFrame()
-
-    # C. Merge Stock/Value columns into Store Items Catalog
-    if not df_items.empty and not df_stock.empty and "skuCode" in df_stock.columns:
-        df_merged = pd.merge(df_items, df_stock, on="skuCode", how="left", suffixes=("", "_stock"))
-        return df_merged
-    elif not df_stock.empty:
-        return df_stock
-    return df_items
-
-# --- Generic Fetch for Remaining Endpoints ---
-def fetch_generic_endpoint(endpoint, key_name="data"):
-    url = f"{RISTA_BASE_URL}{endpoint}"
-    try:
-        res = requests.get(url, headers=get_headers(), timeout=30)
-        if res.status_code == 200:
-            js = res.json()
-            data = js.get(key_name, js if isinstance(js, list) else [])
-            return pd.json_normalize(data)
-    except Exception as e:
-        print(f"Error fetching {endpoint}: {e}")
+    print(f"⚠️ Could not retrieve data for {endpoint}")
     return pd.DataFrame()
 
 def push_to_sheet(spreadsheet, tab_name, df):
@@ -224,27 +182,37 @@ def main():
     gc = init_gspread()
     sh = gc.open_by_key(GSHEET_ID)
 
-    print("\n1. Processing Inventory_Items (Flattening BOM)...")
-    df_items = fetch_inventory_items()
-    push_to_sheet(sh, "Inventory_Items", df_items)
+    # 1. Retained Inventory Endpoints
+    print("\n--- INVENTORY ENDPOINTS ---")
+    print("Fetching Store List...")
+    df_store_list = fetch_endpoint("/v1/inventory/store/list")
+    push_to_sheet(sh, "Store_List", df_store_list)
 
-    print(f"\n2. Processing Store_Items & Stock Values for Store '{STORE_CODE}' / '{BRANCH_NAME}'...")
-    df_store_items = fetch_store_items_with_stock(STORE_CODE, BRANCH_NAME)
-    push_to_sheet(sh, "Store_Items", df_store_items)
+    print("Fetching Inventory Items (Flattened BOM)...")
+    df_inv_items = fetch_inventory_items()
+    push_to_sheet(sh, "Inventory_Items", df_inv_items)
 
-    print("\n3. Processing Store_List...")
-    df_stores = fetch_generic_endpoint("/v1/inventory/store/list")
-    push_to_sheet(sh, "Store_List", df_stores)
+    # 2. Catalog GET Endpoints
+    print("\n--- CATALOG ENDPOINTS ---")
+    catalog_targets = [
+        {"tab": "Resource_List", "ep": "/resource", "params": {"branch": BRANCH}},
+        {"tab": "Catalog_Branch", "ep": "/catalog", "params": {"branch": BRANCH, "channel": CHANNEL}},
+        {"tab": "Catalog_Enterprise", "ep": "/catalog/enterprise", "params": {}},
+        {"tab": "Catalog_Sync_Status", "ep": "/catalog/sync/status", "params": {}},
+        {"tab": "Catalog_Item_List", "ep": "/catalog/item/list", "params": {}},
+        {"tab": "Soldout_Items", "ep": "/items/soldout", "params": {"branch": BRANCH}},
+        {"tab": "Soldout_History", "ep": "/items/soldout/history", "params": {"branch": BRANCH, "day": DAY_VAL}}
+    ]
 
-    print("\n4. Processing Supplier_List...")
-    df_suppliers = fetch_generic_endpoint("/v1/inventory/supplier/list")
-    push_to_sheet(sh, "Supplier_List", df_suppliers)
+    for target in catalog_targets:
+        tab = target["tab"]
+        ep = target["ep"]
+        params = target["params"]
+        print(f"Fetching {ep} -> Tab: '{tab}'...")
+        df = fetch_endpoint(ep, params)
+        push_to_sheet(sh, tab, df)
 
-    print("\n5. Processing Supplier_Items...")
-    df_sup_items = fetch_generic_endpoint("/v1/inventory/supplieritem/list")
-    push_to_sheet(sh, "Supplier_Items", df_sup_items)
-
-    print("\n🎉 Complete! All sheets updated with detailed values.")
+    print("\n🎉 Sync Complete! Inventory and Catalog endpoints populated in separate tabs.")
 
 if __name__ == "__main__":
     main()
