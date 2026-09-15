@@ -285,13 +285,15 @@ def fetch_sales_data(fetch_date):
             response_json = response.json()
 
             data = response_json.get("data", [])
-
+            
             if not data:
-                    print(
-                        f"⚠ No sales data returned | "
-                        f"Branch: {branch} | "
-                        f"Date: {fetch_date}"
-                    )
+            
+                print(
+                    f"⚠ No sales data returned | "
+                    f"Branch: {branch} | "
+                    f"Date: {fetch_date}"
+                )
+            
                 continue
 
             df = pd.json_normalize(data)
