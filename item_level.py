@@ -1683,6 +1683,39 @@ def create_product_mix_dashboard(
             )
         )
 
+        final_mix = final_mix.fillna(0)
+
+        final_mix["Today Growth %"] = np.where(
+            final_mix["LW Orders"] > 0,
+            (
+                final_mix["Today Orders"] /
+                final_mix["LW Orders"] - 1
+            ) * 100,
+            0
+        ).round(1)
+
+        final_mix["LW Growth %"] = np.where(
+            final_mix["L2W Orders"] > 0,
+            (
+                final_mix["LW Orders"] /
+                final_mix["L2W Orders"] - 1
+            ) * 100,
+            0
+        ).round(1)
+
+        final_mix = final_mix[
+            [
+                "Product Mix",
+                "Today Orders",
+                "LW Orders",
+                "L2W Orders",
+                "Today Dis %",
+                "LW Dis %",
+                "Today Growth %",
+                "LW Growth %"
+            ]
+        ]
+
         product_mix_dashboard[
             brand
         ] = final_mix
@@ -1831,6 +1864,46 @@ print(
 
 
 # =========================================================
+# FIX DASHBOARD COLUMNS - ALL THREE WINDOWS
+# =========================================================
+
+for df_name, df in [
+    ("CURRENT", current_sales),
+    ("LW", lw_sales),
+    ("L2W", l2w_sales)
+]:
+
+    for col in [
+        "Product Mix",
+        "Category Group",
+        "Item Group Name"
+    ]:
+
+        if col not in df.columns:
+
+            x_col = f"{col}_x"
+            y_col = f"{col}_y"
+
+            if x_col in df.columns:
+                df[col] = df[x_col]
+                if y_col in df.columns:
+                    df[col] = df[col].combine_first(df[y_col])
+
+            elif y_col in df.columns:
+                df[col] = df[y_col]
+
+        if col in df.columns:
+            df[col] = (
+                df[col]
+                .fillna("Others")
+                .astype(str)
+                .str.strip()
+            )
+
+    print(f"✅ {df_name} Dashboard Columns Checked")
+
+
+# =========================================================
 # CREATE PRODUCT MIX DASHBOARD
 # =========================================================
 
@@ -1902,7 +1975,7 @@ def create_product_mix_source_dashboard(
         
         print("==================================")
         
-        dashboard[source] = create_product_mix_source_dashboard(
+        dashboard[source] = create_product_mix_dashboard(
             curr,
             lw,
             l2w
@@ -2101,15 +2174,15 @@ def create_category_source_dashboard(
 
     for source in ["In Store", "Swiggy", "Zomato"]:
         curr = current_sales[
-            current_sales["Channel"].str.contains(source, na=False)
+            current_sales["Source"].astype(str).str.contains(source, case=False, na=False)
         ].copy()
 
         lw = lw_sales[
-            lw_sales["Channel"].str.contains(source, na=False)
+            lw_sales["Source"].astype(str).str.contains(source, case=False, na=False)
         ].copy()
 
         l2w = l2w_sales[
-            l2w_sales["Channel"].str.contains(source, na=False)
+            l2w_sales["Source"].astype(str).str.contains(source, case=False, na=False)
         ].copy()
 
         dashboard[source] = create_category_dashboard(
@@ -2197,7 +2270,8 @@ def create_region_product_mix_source_dashboard(
                 (current_sales["Region"] == region)
                 &
                 (
-                    current_sales["Channel"]
+                    current_sales["Source"]
+                    .astype(str)
                     .str.contains(
                         source,
                         na=False
@@ -2209,7 +2283,8 @@ def create_region_product_mix_source_dashboard(
                 (lw_sales["Region"] == region)
                 &
                 (
-                    lw_sales["Channel"]
+                    lw_sales["Source"]
+                    .astype(str)
                     .str.contains(
                         source,
                         na=False
@@ -2221,7 +2296,8 @@ def create_region_product_mix_source_dashboard(
                 (l2w_sales["Region"] == region)
                 &
                 (
-                    l2w_sales["Channel"]
+                    l2w_sales["Source"]
+                    .astype(str)
                     .str.contains(
                         source,
                         na=False
@@ -2575,7 +2651,7 @@ def create_item_dashboard(
                 **{
                     "Today Orders": (
                         "invoiceNumber",
-                        "count"
+                        "nunique"
                     ),
 
                     "Today Gross Rev": (
@@ -2610,7 +2686,7 @@ def create_item_dashboard(
                 **{
                     "LW Orders": (
                         "invoiceNumber",
-                        "count"
+                        "nunique"
                     ),
 
                     "LW Gross Rev": (
@@ -2645,7 +2721,7 @@ def create_item_dashboard(
                 **{
                     "L2W Orders": (
                         "invoiceNumber",
-                        "count"
+                        "nunique"
                     )
                 }
             )
@@ -3432,11 +3508,9 @@ def update_sheet(
 
     if df.empty:
 
-        ws.update(
-            values=data,
-            range_name=start_cell
+        print(
+            f"⚠ No data for sheet: {sheet_name}"
         )
-
         return
 
     data = (
@@ -4367,6 +4441,11 @@ msg.attach(
 # =========================================================
 
 try:
+
+    print("📧 Email User:", EMAIL_USER)
+    print("📧 Recipients:", all_recipients)
+    print("📧 Subject:", mail_subject)
+    print("📧 HTML Length:", len(summary_html))
 
     server = smtplib.SMTP(
         "smtp.gmail.com",
