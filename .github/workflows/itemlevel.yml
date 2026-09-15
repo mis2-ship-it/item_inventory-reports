@@ -1,7 +1,6 @@
 name: Hourly Item Level Report
 
 on:
-
   workflow_dispatch:
 
 jobs:
@@ -22,7 +21,8 @@ jobs:
 
       - name: Install Packages
         run: |
-          pip install pandas requests PyJWT gspread google-auth openpyxl
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run Item Level Report
         env:
@@ -33,5 +33,5 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
 
         run: |
-          echo "Running Soldout script..."
+          echo "Running Item Level Report..."
           python item_level.py
