@@ -287,7 +287,11 @@ def fetch_sales_data(fetch_date):
             data = response_json.get("data", [])
 
             if not data:
-                print("No Data:", branch)
+                    print(
+                        f"⚠ No sales data returned | "
+                        f"Branch: {branch} | "
+                        f"Date: {fetch_date}"
+                    )
                 continue
 
             df = pd.json_normalize(data)
@@ -388,7 +392,7 @@ def process_sales_data(df):
     final_df = df.copy()
 
     # =====================================================
-    # SAFE branchCode
+    # STANDARDIZE branchCode
     # =====================================================
 
     if "branchCode" not in final_df.columns:
@@ -405,31 +409,55 @@ def process_sales_data(df):
     )
 
     # =====================================================
-    # FIX CHANNEL COLUMN
+    # STANDARDIZE CHANNEL
     # =====================================================
 
     if "Channel" not in final_df.columns:
 
         if "channel" in final_df.columns:
-            final_df["Channel"] = final_df["channel"]
+
+            final_df["Channel"] = (
+                final_df["channel"]
+                .astype(str)
+                .str.strip()
+            )
+
+        else:
+
+            print("❌ Channel column missing")
+
+            final_df["Channel"] = ""
+
+    else:
+
+        final_df["Channel"] = (
+            final_df["Channel"]
+            .astype(str)
+            .str.strip()
+        )
 
     # =====================================================
-    # FILTER CHANNELS
+    # KEEP ONLY ONLINE CHANNELS
+    #
+    # Do NOT use exact channel names here.
+    # Rista channel naming can vary by store/brand.
     # =====================================================
 
-    allowed_channels = [
-        "Zomato Frozen Bottle",
-        "Zomato Boba Bar",
-        "Zomato Madno",
-        "Swiggy Frozen Bottle",
-        "Swiggy Boba Bar",
-        "Swiggy Madno",
-    ]
-
-    final_df = final_df[
+    channel_lower = (
         final_df["Channel"]
         .astype(str)
-        .isin(allowed_channels)
+        .str.strip()
+        .str.lower()
+    )
+
+    online_mask = (
+        channel_lower.str.contains("swiggy", na=False)
+        |
+        channel_lower.str.contains("zomato", na=False)
+    )
+
+    final_df = final_df[
+        online_mask
     ].copy()
 
     return final_df
@@ -1222,27 +1250,103 @@ for region, df in region_dashboards.items():
 # REGION + STORE DASHBOARD
 # =========================================================
 
+# =========================================================
+# REGION + STORE DASHBOARD
+# =========================================================
+#
+# IMPORTANT:
+# Build the store list from Help Sheet.
+#
+# This guarantees that every COCO store appears even when:
+# - FTD has no online orders
+# - MTD has no online orders
+# - KPT/O2D data is unavailable
+#
+# =========================================================
+
 region_store_html = ""
 
+# ---------------------------------------------------------
+# MASTER COCO STORE LIST
+# ---------------------------------------------------------
+
+master_stores = (
+    help_df[
+        [
+            "branchCode",
+            "Store Name",
+            "Region"
+        ]
+    ]
+    .drop_duplicates(subset=["branchCode"])
+    .copy()
+)
+
+master_stores["branchCode"] = (
+    master_stores["branchCode"]
+    .astype(str)
+    .str.strip()
+)
+
+master_stores["Store Name"] = (
+    master_stores["Store Name"]
+    .astype(str)
+    .str.strip()
+)
+
+master_stores["Region"] = (
+    master_stores["Region"]
+    .astype(str)
+    .str.strip()
+)
+
+# ---------------------------------------------------------
+# REGION LIST FROM HELP SHEET
+# ---------------------------------------------------------
+
 for region in sorted(
-    sales_df["Region"]
+    master_stores["Region"]
     .dropna()
     .unique()
 ):
+
+    # =====================================================
+    # REGION MASTER STORES
+    # =====================================================
+
+    region_stores = (
+        master_stores[
+            master_stores["Region"] == region
+        ]
+        .copy()
+    )
+
+    # =====================================================
+    # FTD DATA
+    # =====================================================
 
     temp = sales_df[
         sales_df["Region"] == region
     ].copy()
 
+    # =====================================================
+    # MTD DATA
+    # =====================================================
+
     mtd_temp = mtd_df[
-    mtd_df["Region"] == region
+        mtd_df["Region"] == region
     ].copy()
 
+    # =====================================================
     # SWIGGY
+    # =====================================================
+
     swiggy = temp[
         temp["Channel"]
+        .astype(str)
         .str.contains(
             "Swiggy",
+            case=False,
             na=False
         )
     ].copy()
@@ -1252,7 +1356,10 @@ for region in sorted(
     # =====================================================
 
     swiggy_store = (
-        swiggy.groupby("Store Name")
+        swiggy.groupby(
+            "branchCode",
+            as_index=False
+        )
         .agg(
             **{
                 "FTD Orders": (
@@ -1285,23 +1392,27 @@ for region in sorted(
                 )
             }
         )
-        .reset_index()
     )
-    
+
     # =====================================================
     # SWIGGY MTD
     # =====================================================
-    
+
     mtd_swiggy = mtd_temp[
         mtd_temp["Channel"]
+        .astype(str)
         .str.contains(
             "Swiggy",
+            case=False,
             na=False
         )
-    ]
-    
+    ].copy()
+
     mtd_swiggy_store = (
-        mtd_swiggy.groupby("Store Name")
+        mtd_swiggy.groupby(
+            "branchCode",
+            as_index=False
+        )
         .agg(
             **{
                 "MTD Orders": (
@@ -1334,33 +1445,51 @@ for region in sorted(
                 )
             }
         )
-        .reset_index()
-    )
-    
-    swiggy_store = (
-        swiggy_store.merge(
-            mtd_swiggy_store,
-            on="Store Name",
-            how="left"
-        )
-        .fillna(0)
-        .round(2)
     )
 
+    # =====================================================
+    # SWIGGY - LEFT JOIN TO MASTER STORE LIST
+    # =====================================================
+
+    swiggy_store = (
+        region_stores[
+            ["branchCode", "Store Name"]
+        ]
+        .merge(
+            swiggy_store,
+            on="branchCode",
+            how="left"
+        )
+        .merge(
+            mtd_swiggy_store,
+            on="branchCode",
+            how="left"
+        )
+    )
+
+    # =====================================================
     # ZOMATO
+    # =====================================================
+
     zomato = temp[
         temp["Channel"]
+        .astype(str)
         .str.contains(
             "Zomato",
+            case=False,
             na=False
         )
     ].copy()
+
     # =====================================================
     # ZOMATO FTD
     # =====================================================
-    
+
     zomato_store = (
-        zomato.groupby("Store Name")
+        zomato.groupby(
+            "branchCode",
+            as_index=False
+        )
         .agg(
             **{
                 "FTD Orders": (
@@ -1393,23 +1522,27 @@ for region in sorted(
                 )
             }
         )
-        .reset_index()
     )
-    
+
     # =====================================================
     # ZOMATO MTD
     # =====================================================
-    
+
     mtd_zomato = mtd_temp[
         mtd_temp["Channel"]
+        .astype(str)
         .str.contains(
             "Zomato",
+            case=False,
             na=False
         )
-    ]
-    
+    ].copy()
+
     mtd_zomato_store = (
-        mtd_zomato.groupby("Store Name")
+        mtd_zomato.groupby(
+            "branchCode",
+            as_index=False
+        )
         .agg(
             **{
                 "MTD Orders": (
@@ -1442,18 +1575,75 @@ for region in sorted(
                 )
             }
         )
-        .reset_index()
     )
-    
+
+    # =====================================================
+    # ZOMATO - LEFT JOIN TO MASTER STORE LIST
+    # =====================================================
+
     zomato_store = (
-        zomato_store.merge(
-            mtd_zomato_store,
-            on="Store Name",
+        region_stores[
+            ["branchCode", "Store Name"]
+        ]
+        .merge(
+            zomato_store,
+            on="branchCode",
             how="left"
         )
-        .fillna(0)
-        .round(2)
+        .merge(
+            mtd_zomato_store,
+            on="branchCode",
+            how="left"
+        )
     )
+
+    # =====================================================
+    # REPLACE MISSING KPI VALUES WITH ZERO
+    # =====================================================
+
+    numeric_columns = [
+        "FTD Orders",
+        "FTD KPT",
+        "FTD KPT P80",
+        "FTD KPT Median",
+        "FTD O2D",
+        "FTD O2D P80",
+        "FTD O2D Median",
+        "MTD Orders",
+        "MTD KPT",
+        "MTD KPT P80",
+        "MTD KPT Median",
+        "MTD O2D",
+        "MTD O2D P80",
+        "MTD O2D Median"
+    ]
+
+    for col in numeric_columns:
+
+        if col in swiggy_store.columns:
+            swiggy_store[col] = (
+                pd.to_numeric(
+                    swiggy_store[col],
+                    errors="coerce"
+                )
+                .fillna(0)
+            )
+
+        if col in zomato_store.columns:
+            zomato_store[col] = (
+                pd.to_numeric(
+                    zomato_store[col],
+                    errors="coerce"
+                )
+                .fillna(0)
+            )
+
+    swiggy_store = swiggy_store.round(2)
+    zomato_store = zomato_store.round(2)
+
+    # =====================================================
+    # DISPLAY
+    # =====================================================
 
     region_store_html += f"""
     <h2>{region}</h2>
