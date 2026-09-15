@@ -5,3 +5,4 @@ google-auth
 PyJWT
 numpy
 pytz
+openpyxl
