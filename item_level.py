@@ -1106,6 +1106,32 @@ sales_df["Channel Group"] = (
 )
 
 # =========================================================
+# CHANNEL GROUP VALIDATION
+# =========================================================
+
+print("\n========== CHANNEL GROUP VALIDATION ==========")
+
+print(
+    sales_df[
+        ["channel", "Channel Group"]
+    ]
+    .drop_duplicates()
+    .sort_values(
+        ["Channel Group", "channel"]
+    )
+    .to_string(index=False)
+)
+
+print("\nChannel Group Counts:")
+
+print(
+    sales_df["Channel Group"]
+    .value_counts(dropna=False)
+)
+
+print("==============================================")
+
+# =========================================================
 # COPY CHANNEL GROUP TO ALL DATASETS
 # =========================================================
 
@@ -1926,6 +1952,7 @@ for k, v in (
 
 
     print(current_sales[["Channel", "Source"]].head(20))
+    
 # =========================================================
 # PRODUCT MIX SOURCE DASHBOARD
 # =========================================================
@@ -1947,34 +1974,30 @@ def create_product_mix_source_dashboard(
         curr = current_sales[
             current_sales["Channel Group"]
             .astype(str)
-            .str.contains(source, case=False, na=False)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
-        
+
         lw = lw_sales[
             lw_sales["Channel Group"]
             .astype(str)
-            .str.contains(source, case=False, na=False)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
-        
+
         l2w = l2w_sales[
             l2w_sales["Channel Group"]
             .astype(str)
-            .str.contains(source, case=False, na=False)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
-        
-        print("\n========== COLUMN CHECK ==========")
-        
-        print("Current Sales Columns")
-        print(current_sales.columns.tolist())
-        
-        print("\nLW Sales Columns")
-        print(lw_sales.columns.tolist())
-        
-        print("\nL2W Sales Columns")
-        print(l2w_sales.columns.tolist())
-        
-        print("==================================")
-        
+
         dashboard[source] = create_product_mix_dashboard(
             curr,
             lw,
@@ -2172,17 +2195,37 @@ def create_category_source_dashboard(
 
     dashboard = {}
 
-    for source in ["In Store", "Swiggy", "Zomato"]:
+    for source in [
+        "In Store",
+        "Swiggy",
+        "Zomato"
+    ]:
+
         curr = current_sales[
-            current_sales["Source"].astype(str).str.contains(source, case=False, na=False)
+            current_sales["Channel Group"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
 
         lw = lw_sales[
-            lw_sales["Source"].astype(str).str.contains(source, case=False, na=False)
+            lw_sales["Channel Group"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
 
         l2w = l2w_sales[
-            l2w_sales["Source"].astype(str).str.contains(source, case=False, na=False)
+            l2w_sales["Channel Group"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
 
         dashboard[source] = create_category_dashboard(
@@ -2804,35 +2847,36 @@ def create_item_source_dashboard(
     ]:
 
         curr = current_sales[
-            current_sales["Channel"]
-            .str.contains(
-                source,
-                na=False
-            )
+            current_sales["Channel Group"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
 
         lw = lw_sales[
-            lw_sales["Channel"]
-            .str.contains(
-                source,
-                na=False
-            )
+            lw_sales["Channel Group"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
 
         l2w = l2w_sales[
-            l2w_sales["Channel"]
-            .str.contains(
-                source,
-                na=False
-            )
+            l2w_sales["Channel Group"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            ==
+            source.upper()
         ].copy()
 
-        dashboard[source] = (
-            create_item_dashboard(
-                curr,
-                lw,
-                l2w
-            )
+        dashboard[source] = create_item_dashboard(
+            curr,
+            lw,
+            l2w
         )
 
     return dashboard
@@ -2940,26 +2984,103 @@ for k, v in (
     )
 
 # =========================================================
-# REGION PRODUCT MIX SOURCE DASHBOARD
+# REGION + PRODUCT MIX SOURCE DASHBOARD
 # =========================================================
 
-region_product_mix_source_dashboard = (
-    create_region_product_mix_source_dashboard(
-        current_sales,
-        lw_sales,
-        l2w_sales
-    )
-)
-
-print("✅ Region Product Mix Source Dashboard Created")
-
-for k, v in (
-    region_product_mix_source_dashboard.items()
+def create_region_product_mix_source_dashboard(
+    current_sales,
+    lw_sales,
+    l2w_sales
 ):
-    print(
-        k,
-        len(v)
+
+    dashboard = {}
+
+    regions = sorted(
+        current_sales["Region"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
     )
+
+    sources = [
+        "In Store",
+        "Swiggy",
+        "Zomato"
+    ]
+
+    for region in regions:
+
+        dashboard[region] = {}
+
+        for source in sources:
+
+            curr = current_sales[
+                (
+                    current_sales["Region"]
+                    .astype(str)
+                    .str.strip()
+                    ==
+                    region
+                )
+                &
+                (
+                    current_sales["Channel Group"]
+                    .astype(str)
+                    .str.strip()
+                    .str.upper()
+                    ==
+                    source.upper()
+                )
+            ].copy()
+
+            lw = lw_sales[
+                (
+                    lw_sales["Region"]
+                    .astype(str)
+                    .str.strip()
+                    ==
+                    region
+                )
+                &
+                (
+                    lw_sales["Channel Group"]
+                    .astype(str)
+                    .str.strip()
+                    .str.upper()
+                    ==
+                    source.upper()
+                )
+            ].copy()
+
+            l2w = l2w_sales[
+                (
+                    l2w_sales["Region"]
+                    .astype(str)
+                    .str.strip()
+                    ==
+                    region
+                )
+                &
+                (
+                    l2w_sales["Channel Group"]
+                    .astype(str)
+                    .str.strip()
+                    .str.upper()
+                    ==
+                    source.upper()
+                )
+            ].copy()
+
+            dashboard[region][source] = (
+                create_product_mix_dashboard(
+                    curr,
+                    lw,
+                    l2w
+                )
+            )
+
+    return dashboard
 
 # =========================================================
 # DISCOUNT CODE EXTRACTION
