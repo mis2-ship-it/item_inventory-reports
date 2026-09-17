@@ -42,963 +42,160 @@ import os
 import re
 import json
 import time
+import subprocess
+from datetime import datetime, timedelta, date
 
-import jwt
-import requests
 import pandas as pd
-import numpy as np
+import requests
 import gspread
-
-from datetime import (
-    datetime,
-    timedelta
-)
-
-from zoneinfo import ZoneInfo
+import jwt
 
 from google.oauth2.service_account import Credentials
 
 
-print("=" * 70)
-print("🚀 ITEM LEVEL HISTORICAL DATA SCRIPT STARTED")
-print("=" * 70)
-
-
-# =========================================================
+# ============================================================
 # CONFIGURATION
-# =========================================================
+# ============================================================
 
-SPREADSHEET_ID = (
+SPREADSHEET_ID = os.getenv(
+    "SPREADSHEET_ID",
     "1ldgnNMdeubDx_ImtCC1uCD7FGz8gt_edmWEkmO_xRNk"
 )
 
-HISTORY_SHEET_NAME = (
-    "Item Level Historical Data"
+HELP_SHEET_NAME = "Help Sheet"
+ITEM_GROUP_SHEET_NAME = "Item Group"
+
+HISTORICAL_FOLDER = "historical_data"
+
+# ------------------------------------------------------------
+# Historical period
+# ------------------------------------------------------------
+#
+# Default:
+#   01-Apr-2026 -> current business date
+#
+# You can change these through GitHub Actions environment
+# variables later.
+#
+# Example:
+# HISTORY_START_DATE=2026-01-01
+# HISTORY_END_DATE=2026-09-17
+#
+
+HISTORY_START_DATE = os.getenv(
+    "HISTORY_START_DATE",
+    "2026-04-01"
 )
 
-HELP_SHEET_NAME = (
-    "Help Sheet"
+HISTORY_END_DATE = os.getenv(
+    "HISTORY_END_DATE",
+    ""
 )
 
-ITEM_GROUP_SHEET_NAME = (
-    "Item Group"
+# Rista
+API_BASE_URL = os.getenv(
+    "RISTA_API_BASE_URL",
+    "https://api.ristaapps.com"
 )
 
-IST = ZoneInfo(
-    "Asia/Kolkata"
+API_KEY = os.getenv("API_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+RISTA_ISSUER = os.getenv(
+    "RISTA_ISSUER",
+    "rista"
 )
 
+RISTA_API_VERSION = os.getenv(
+    "RISTA_API_VERSION",
+    "3"
+)
 
-# =========================================================
-# HISTORY CONFIGURATION
-# =========================================================
-#
-# IMPORTANT:
-#
-# First run:
-#   180 = approximately 6 months
-#
-# After the first successful load:
-#   Change this to 7 or keep 180.
-#
-# The script automatically removes and replaces
-# the dates it is fetching, so reruns are safe.
-#
-# =========================================================
+PAGE_SIZE = 5000
 
-HISTORY_DAYS = 180
+REQUEST_TIMEOUT = 120
+
+MAX_RETRIES = 4
+
+SLEEP_BETWEEN_BRANCHES = 0.15
 
 
-# =========================================================
-# RISTA AUTH
-# =========================================================
+# ============================================================
+# GENERAL HELPERS
+# ============================================================
 
-API_KEY = os.environ[
-    "API_KEY"
-]
+def normalize_header(value):
+    """
+    Convert headers such as:
 
-SECRET_KEY = os.environ[
-    "SECRET_KEY"
-]
+        Branch Code
+        branchcode
+        branch_code
+        branchCode
+
+    into a common comparison format.
+    """
+    return re.sub(
+        r"[^a-z0-9]",
+        "",
+        str(value).strip().lower()
+    )
 
 
-def get_token():
+def find_column(df, possible_names):
+    """
+    Find a dataframe column using case/space/underscore
+    insensitive matching.
+    """
 
-    payload = {
-
-        "iss": API_KEY,
-
-        "iat": int(
-            time.time()
-        )
-
+    normalized = {
+        normalize_header(col): col
+        for col in df.columns
     }
 
-    return jwt.encode(
-        payload,
-        SECRET_KEY,
-        algorithm="HS256"
-    )
+    for name in possible_names:
+        key = normalize_header(name)
 
+        if key in normalized:
+            return normalized[key]
 
-def get_headers():
+    return None
 
-    return {
 
-        "x-api-key": API_KEY,
+def safe_text(value):
+    if pd.isna(value):
+        return ""
 
-        "x-api-token":
-            get_token(),
+    return str(value).strip()
 
-        "content-type":
-            "application/json"
 
-    }
+def safe_number(series):
+    return pd.to_numeric(
+        series,
+        errors="coerce"
+    ).fillna(0)
 
 
-# =========================================================
-# GOOGLE AUTH
-# =========================================================
-
-creds = (
-    Credentials
-    .from_service_account_info(
-        json.loads(
-            os.environ[
-                "GOOGLE_CREDENTIALS"
-            ]
-        ),
-        scopes=[
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-    )
-)
-
-
-client = gspread.authorize(
-    creds
-)
-
-
-spreadsheet = (
-    client
-    .open_by_key(
-        SPREADSHEET_ID
-    )
-)
-
-
-print(
-    "✅ Connected Google Sheet"
-)
-
-
-# =========================================================
-# GET / CREATE SHEET
-# =========================================================
-
-def get_or_create_sheet(
-    sheet_name
-):
-
-    try:
-
-        return spreadsheet.worksheet(
-            sheet_name
-        )
-
-    except gspread.WorksheetNotFound:
-
-        print(
-            f"🆕 Creating sheet: {sheet_name}"
-        )
-
-        return spreadsheet.add_worksheet(
-            title=sheet_name,
-            rows=1000,
-            cols=30
-        )
-
-
-# =========================================================
-# HELP SHEET
-# =========================================================
-
-print("\n" + "=" * 70)
-print("📋 LOADING HELP SHEET")
-print("=" * 70)
-
-
-help_ws = spreadsheet.worksheet(
-    HELP_SHEET_NAME
-)
-
-
-help_data = (
-    help_ws
-    .get_all_values()
-)
-
-
-if not help_data:
-
-    print(
-        "❌ Help Sheet is empty"
-    )
-
-    raise SystemExit
-
-
-help_rows = []
-
-
-for row in help_data[1:]:
-
-    row = list(row)
-
-    if len(row) < 7:
-
-        row.extend(
-            [""] *
-            (
-                7 - len(row)
-            )
-        )
-
-    help_rows.append(
-        [
-            row[0],   # branchCode
-            row[1],   # Store Name
-            row[2],   # Ownership
-            row[3],   # Region
-            row[5],   # Channel
-            row[6],   # Source
-        ]
-    )
-
-
-help_df = pd.DataFrame(
-    help_rows,
-    columns=[
-        "branchCode",
-        "Store Name",
-        "Ownership",
-        "Region",
-        "Channel",
-        "Source"
-    ]
-)
-
-
-# =========================================================
-# CLEAN HELP SHEET
-# =========================================================
-
-help_df["branchCode"] = (
-    help_df["branchCode"]
-    .astype(str)
-    .str.strip()
-)
-
-
-help_df["Ownership"] = (
-    help_df["Ownership"]
-    .astype(str)
-    .str.upper()
-    .str.strip()
-)
-
-
-help_df["Store Name"] = (
-    help_df["Store Name"]
-    .astype(str)
-    .str.strip()
-)
-
-
-help_df["Region"] = (
-    help_df["Region"]
-    .astype(str)
-    .str.strip()
-)
-
-
-help_df["Channel"] = (
-    help_df["Channel"]
-    .astype(str)
-    .str.strip()
-)
-
-
-help_df["Source"] = (
-    help_df["Source"]
-    .astype(str)
-    .str.strip()
-)
-
-
-# =========================================================
-# COCO ONLY
-# =========================================================
-
-help_df = help_df[
-    help_df["Ownership"]
-    == "COCO"
-].copy()
-
-
-print(
-    "✅ COCO Stores:",
-    len(help_df)
-)
-
-
-# =========================================================
-# REQUIRED HELP COLUMNS
-# =========================================================
-
-required_help_cols = [
-
-    "branchCode",
-
-    "Store Name",
-
-    "Ownership",
-
-    "Region",
-
-    "Channel",
-
-    "Source"
-
-]
-
-
-missing_help_cols = [
-
-    c
-
-    for c in required_help_cols
-
-    if c not in help_df.columns
-
-]
-
-
-if missing_help_cols:
-
-    print(
-        "❌ Missing Help Sheet Columns:",
-        missing_help_cols
-    )
-
-    raise SystemExit
-
-
-# =========================================================
-# RENAME HELP COLUMNS
-# =========================================================
-
-help_df = help_df.rename(
-    columns={
-
-        "Channel":
-            "Help Channel",
-
-        "Source":
-            "Help Source"
-
-    }
-)
-
-
-# =========================================================
-# BRANCH LIST
-# =========================================================
-
-branches = (
-    help_df[
-        "branchCode"
-    ]
-    .dropna()
-    .astype(str)
-    .str.strip()
-    .unique()
-    .tolist()
-)
-
-
-print(
-    "🏪 COCO Branch Count:",
-    len(branches)
-)
-
-
-# =========================================================
-# ITEM GROUP
-# =========================================================
-
-print("\n" + "=" * 70)
-print("🍨 LOADING ITEM GROUP")
-print("=" * 70)
-
-
-item_ws = spreadsheet.worksheet(
-    ITEM_GROUP_SHEET_NAME
-)
-
-
-item_data = (
-    item_ws
-    .get_all_values()
-)
-
-
-if not item_data:
-
-    print(
-        "❌ Item Group is empty"
-    )
-
-    raise SystemExit
-
-
-item_headers = [
-
-    "Item Name",
-
-    "Item Group Name",
-
-    "Variant",
-
-    "Product Mix",
-
-    "Category Group"
-
-]
-
-
-item_rows = []
-
-
-for row in item_data[1:]:
-
-    row = list(row[:5])
-
-    if len(row) < 5:
-
-        row.extend(
-            [""] *
-            (
-                5 - len(row)
-            )
-        )
-
-    item_rows.append(
-        row
-    )
-
-
-item_df = pd.DataFrame(
-    item_rows,
-    columns=item_headers
-)
-
-
-# =========================================================
-# CLEAN ITEM GROUP
-# =========================================================
-
-item_df["Item Name"] = (
-    item_df["Item Name"]
-    .astype(str)
-    .str.strip()
-    .str.upper()
-)
-
-
-item_df["Item Group Name"] = (
-    item_df["Item Group Name"]
-    .astype(str)
-    .str.strip()
-)
-
-
-item_df["Product Mix"] = (
-    item_df["Product Mix"]
-    .astype(str)
-    .str.strip()
-)
-
-
-item_df["Category Group"] = (
-    item_df["Category Group"]
-    .astype(str)
-    .str.strip()
-)
-
-
-print(
-    "✅ Item Group Rows:",
-    len(item_df)
-)
-
-
-# =========================================================
-# RISTA SALES API
-# =========================================================
-
-SALES_URL = (
-    "https://api.ristaapps.com/v1/sales/page"
-)
-
-
-# =========================================================
-# FETCH ONE BUSINESS DATE
-# =========================================================
-
-def fetch_business_date(
-    business_date
-):
-
-    print("\n" + "-" * 70)
-
-    print(
-        "📅 Fetching Business Date:",
-        business_date
-    )
-
-    print("-" * 70)
-
-
-    all_sales = []
-
-
-    # -----------------------------------------------------
-    # BUSINESS WINDOW
-    #
-    # Existing item_level.py uses 9 AM business start.
-    #
-    # For historical full-day data:
-    #
-    # Start:
-    #   09:00 AM business date
-    #
-    # End:
-    #   08:59:59 AM next calendar date
-    #
-    # -----------------------------------------------------
-
-    window_start = datetime.combine(
-        business_date,
-        datetime.min.time()
-    ).replace(
-        hour=9,
-        minute=0,
-        second=0,
-        microsecond=0,
-        tzinfo=IST
-    )
-
-
-    window_end = (
-        window_start
-        + timedelta(
-            days=1
-        )
-        - timedelta(
-            seconds=1
-        )
-    )
-
-
-    print(
-        "Window:",
-        window_start,
-        "to",
-        window_end
-    )
-
-
-    # -----------------------------------------------------
-    # LOOP COCO BRANCHES
-    # -----------------------------------------------------
-
-    for branch in branches:
-
-        print(
-            "Fetching:",
-            branch
-        )
-
-
-        params = {
-
-            "branch":
-                branch,
-
-            "day":
-                business_date.strftime(
-                    "%Y-%m-%d"
-                ),
-
-            "page":
-                1,
-
-            "limit":
-                5000
-
-        }
-
-
-        try:
-
-            response = requests.get(
-
-                SALES_URL,
-
-                headers=get_headers(),
-
-                params=params,
-
-                timeout=180
-
-            )
-
-
-            print(
-                "Status:",
-                response.status_code
-            )
-
-
-            if response.status_code != 200:
-
-                print(
-                    "⚠️ API Error:",
-                    branch,
-                    response.text[:300]
-                )
-
-                continue
-
-
-            response_json = (
-                response.json()
-            )
-
-
-            data = (
-                response_json
-                .get(
-                    "data",
-                    []
-                )
-            )
-
-
-            if not data:
-
-                print(
-                    "No Data:",
-                    branch
-                )
-
-                continue
-
-
-            df = pd.json_normalize(
-                data
-            )
-
-
-            # -------------------------------------------------
-            # SAFE BRANCH CODE
-            # -------------------------------------------------
-
-            if (
-                "branchCode"
-                not in df.columns
-            ):
-
-                if (
-                    "branch"
-                    in df.columns
-                ):
-
-                    df[
-                        "branchCode"
-                    ] = df[
-                        "branch"
-                    ]
-
-
-            # -------------------------------------------------
-            # ORDER TIME
-            # -------------------------------------------------
-
-            if (
-                "createdDate"
-                not in df.columns
-            ):
-
-                print(
-                    "⚠️ createdDate missing:",
-                    branch
-                )
-
-                continue
-
-
-            df[
-                "Order Time"
-            ] = pd.to_datetime(
-
-                df[
-                    "createdDate"
-                ],
-
-                utc=True,
-
-                errors="coerce"
-
-            ).dt.tz_convert(
-                "Asia/Kolkata"
-            )
-
-
-            # -------------------------------------------------
-            # BUSINESS WINDOW FILTER
-            # -------------------------------------------------
-
-            df = df[
-                (
-                    df["Order Time"]
-                    >= window_start
-                )
-                &
-                (
-                    df["Order Time"]
-                    <= window_end
-                )
-            ].copy()
-
-
-            if df.empty:
-
-                print(
-                    "No rows inside business window:",
-                    branch
-                )
-
-                continue
-
-
-            # -------------------------------------------------
-            # BUSINESS DATE
-            # -------------------------------------------------
-
-            df[
-                "Business Date"
-            ] = (
-                business_date
-                .strftime(
-                    "%Y-%m-%d"
-                )
-            )
-
-
-            all_sales.append(
-                df
-            )
-
-
-        except Exception as e:
-
-            print(
-                f"❌ Error {branch}:",
-                str(e)
-            )
-
-
-    # =====================================================
-    # COMBINE
-    # =====================================================
-
-    if not all_sales:
-
-        print(
-            "❌ No data for:",
-            business_date
-        )
-
-        return pd.DataFrame()
-
-
-    final_df = pd.concat(
-        all_sales,
-        ignore_index=True
-    )
-
-
-    print(
-        "✅ Invoice Rows:",
-        len(final_df)
-    )
-
-
-    return final_df
-
-
-# =========================================================
-# FLATTEN ITEM DATA
-# =========================================================
-
-def flatten_items(
-    df
-):
-
-    if df.empty:
-
-        return pd.DataFrame()
-
-
-    if "items" not in df.columns:
-
-        print(
-            "❌ items column missing"
-        )
-
-        return pd.DataFrame()
-
-
-    print(
-        "📦 Flattening items..."
-    )
-
-
-    # -----------------------------------------------------
-    # EXPLODE
-    # -----------------------------------------------------
-
-    df = df.explode(
-        "items"
-    )
-
-
-    df = df[
-        df["items"].notna()
-    ].copy()
-
-
-    if df.empty:
-
-        return pd.DataFrame()
-
-
-    # -----------------------------------------------------
-    # NORMALIZE ITEM JSON
-    # -----------------------------------------------------
-
-    item_part = pd.json_normalize(
-        df["items"]
-    )
-
-
-    item_part.columns = [
-
-        f"item_{col}"
-
-        for col in
-        item_part.columns
-
-    ]
-
-
-    # -----------------------------------------------------
-    # RESET INDEX
-    # -----------------------------------------------------
-
-    df = (
-        df
-        .drop(
-            columns=[
-                "items"
-            ]
-        )
-        .reset_index(
-            drop=True
-        )
-    )
-
-
-    item_part = (
-        item_part
-        .reset_index(
-            drop=True
-        )
-    )
-
-
-    # -----------------------------------------------------
-    # COMBINE
-    # -----------------------------------------------------
-
-    result = pd.concat(
-        [
-            df,
-            item_part
-        ],
-        axis=1
-    )
-
-
-    print(
-        "✅ Item Rows:",
-        len(result)
-    )
-
-
-    return result
-
-
-# =========================================================
+# ============================================================
 # CHANNEL GROUP
-# =========================================================
+# ============================================================
 
-def channel_group(
-    value
-):
+def channel_group(value):
+    """
+    Convert Rista channel values into dashboard-standard
+    channel groups.
 
-    x = (
-        str(value)
-        .strip()
-        .upper()
-    )
+    IMPORTANT:
+    Handles Frozen Bottle In-Store correctly.
+    """
 
-
-    # -----------------------------------------------------
-    # SWIGGY
-    # -----------------------------------------------------
+    x = safe_text(value).upper()
 
     if "SWIGGY" in x:
-
         return "Swiggy"
 
-
-    # -----------------------------------------------------
-    # ZOMATO
-    # -----------------------------------------------------
-
     if "ZOMATO" in x:
-
         return "Zomato"
-
-
-    # -----------------------------------------------------
-    # IN STORE
-    # -----------------------------------------------------
 
     if (
         "POS" in x
@@ -1007,1268 +204,1994 @@ def channel_group(
         or "IN STORE" in x
         or "INSTORE" in x
     ):
-
         return "In Store"
-
-
-    # -----------------------------------------------------
-    # OWNLY
-    # -----------------------------------------------------
 
     if (
         "OWNLY" in x
         or "WEBSITE" in x
     ):
-
         return "Ownly"
-
-
-    # -----------------------------------------------------
-    # OTHERS
-    # -----------------------------------------------------
 
     return "Others"
 
 
-# =========================================================
-# SAFE COLUMNS
-# =========================================================
+# ============================================================
+# GOOGLE SHEETS AUTHENTICATION
+# ============================================================
 
-def ensure_columns(
-    df
-):
+def get_google_client():
 
-    defaults = {
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS")
 
-        "branchCode":
-            "",
+    if not credentials_json:
+        raise RuntimeError(
+            "GOOGLE_CREDENTIALS environment variable is missing."
+        )
 
-        "branchName":
-            "",
+    try:
+        credentials_info = json.loads(
+            credentials_json
+        )
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            "GOOGLE_CREDENTIALS is not valid JSON."
+        ) from e
 
-        "brandName":
-            "",
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/drive.readonly",
+    ]
 
-        "invoiceNumber":
-            "",
-
-        "channel":
-            "",
-
-        "status":
-            "",
-
-        "item_shortName":
-            "",
-
-        "item_quantity":
-            0,
-
-        "item_baseGrossAmount":
-            0,
-
-        "item_baseNetDiscountAmount":
-            0,
-
-        "item_baseNetAmount":
-            0
-
-    }
-
-
-    for col, default in defaults.items():
-
-        if col not in df.columns:
-
-            df[col] = default
-
-
-    return df
-
-
-# =========================================================
-# PROCESS ONE BUSINESS DATE
-# =========================================================
-
-def process_business_date(
-    business_date
-):
-
-    raw_df = fetch_business_date(
-        business_date
+    credentials = Credentials.from_service_account_info(
+        credentials_info,
+        scopes=scopes
     )
 
-
-    if raw_df.empty:
-
-        return pd.DataFrame()
+    return gspread.authorize(credentials)
 
 
-    # -----------------------------------------------------
-    # FLATTEN ITEMS
-    # -----------------------------------------------------
+# ============================================================
+# LOAD HELP SHEET
+# ============================================================
 
-    sales_df = flatten_items(
-        raw_df
+def load_help_sheet():
+
+    print("=" * 70)
+    print("Loading Help Sheet")
+    print("=" * 70)
+
+    client = get_google_client()
+
+    spreadsheet = client.open_by_key(
+        SPREADSHEET_ID
     )
 
-
-    if sales_df.empty:
-
-        return pd.DataFrame()
-
-
-    # -----------------------------------------------------
-    # SAFE COLUMNS
-    # -----------------------------------------------------
-
-    sales_df = ensure_columns(
-        sales_df
+    worksheet = spreadsheet.worksheet(
+        HELP_SHEET_NAME
     )
 
+    records = worksheet.get_all_records()
 
-    # -----------------------------------------------------
-    # CLEAN BRANCH
-    # -----------------------------------------------------
+    df = pd.DataFrame(records)
 
-    sales_df[
-        "branchCode"
-    ] = (
-        sales_df[
+    if df.empty:
+        raise RuntimeError(
+            "Help Sheet is empty."
+        )
+
+    print(
+        f"Help Sheet rows: {len(df):,}"
+    )
+
+    print(
+        "Help Sheet columns:",
+        list(df.columns)
+    )
+
+    branch_col = find_column(
+        df,
+        [
+            "branchcode",
+            "branch code",
             "branchCode"
         ]
+    )
+
+    store_col = find_column(
+        df,
+        [
+            "storename",
+            "store name",
+            "Store Name"
+        ]
+    )
+
+    ownership_col = find_column(
+        df,
+        [
+            "ownership",
+            "Store Type",
+            "store type"
+        ]
+    )
+
+    region_col = find_column(
+        df,
+        [
+            "region"
+        ]
+    )
+
+    channel_col = find_column(
+        df,
+        [
+            "channel"
+        ]
+    )
+
+    source_col = find_column(
+        df,
+        [
+            "source"
+        ]
+    )
+
+    required = {
+        "branchCode": branch_col,
+        "Store Name": store_col,
+        "Ownership": ownership_col,
+        "Region": region_col,
+        "Channel": channel_col,
+        "Source": source_col,
+    }
+
+    missing = [
+        name
+        for name, col in required.items()
+        if col is None
+    ]
+
+    if missing:
+        raise RuntimeError(
+            f"Help Sheet missing columns: {missing}"
+        )
+
+    result = pd.DataFrame()
+
+    result["branchCode"] = (
+        df[branch_col]
         .astype(str)
         .str.strip()
     )
 
+    result["Store Name"] = (
+        df[store_col]
+        .astype(str)
+        .str.strip()
+    )
 
-    # -----------------------------------------------------
-    # MERGE HELP SHEET
-    # -----------------------------------------------------
+    result["Ownership"] = (
+        df[ownership_col]
+        .astype(str)
+        .str.strip()
+    )
+
+    result["Region"] = (
+        df[region_col]
+        .astype(str)
+        .str.strip()
+    )
+
+    result["Help Channel"] = (
+        df[channel_col]
+        .astype(str)
+        .str.strip()
+    )
+
+    result["Source"] = (
+        df[source_col]
+        .astype(str)
+        .str.strip()
+    )
+
+    # --------------------------------------------------------
+    # COCO ONLY
+    # --------------------------------------------------------
+
+    result["Ownership Normalized"] = (
+        result["Ownership"]
+        .str.upper()
+        .str.strip()
+    )
+
+    result = result[
+        result["Ownership Normalized"] == "COCO"
+    ].copy()
+
+    result.drop(
+        columns=["Ownership Normalized"],
+        inplace=True
+    )
+
+    # Remove blank branch codes
+    result = result[
+        result["branchCode"].ne("")
+        & result["branchCode"].ne("NAN")
+    ].copy()
+
+    # Remove duplicate branches
+    result = result.drop_duplicates(
+        subset=["branchCode"],
+        keep="last"
+    )
+
+    print(
+        f"COCO branches: {len(result):,}"
+    )
+
+    return result
+
+
+# ============================================================
+# LOAD ITEM GROUP
+# ============================================================
+
+def load_item_group():
+
+    print("=" * 70)
+    print("Loading Item Group")
+    print("=" * 70)
+
+    client = get_google_client()
+
+    spreadsheet = client.open_by_key(
+        SPREADSHEET_ID
+    )
+
+    worksheet = spreadsheet.worksheet(
+        ITEM_GROUP_SHEET_NAME
+    )
+
+    records = worksheet.get_all_records()
+
+    df = pd.DataFrame(records)
+
+    if df.empty:
+        raise RuntimeError(
+            "Item Group sheet is empty."
+        )
+
+    print(
+        f"Item Group rows: {len(df):,}"
+    )
+
+    print(
+        "Item Group columns:",
+        list(df.columns)
+    )
+
+    item_name_col = find_column(
+        df,
+        [
+            "Item Name",
+            "itemname",
+            "item_shortName"
+        ]
+    )
+
+    item_group_col = find_column(
+        df,
+        [
+            "Item Group Name",
+            "itemgroupname"
+        ]
+    )
+
+    variant_col = find_column(
+        df,
+        [
+            "Variant"
+        ]
+    )
+
+    product_mix_col = find_column(
+        df,
+        [
+            "Product Mix",
+            "productmix"
+        ]
+    )
+
+    category_group_col = find_column(
+        df,
+        [
+            "Category Group",
+            "categorygroup"
+        ]
+    )
+
+    if item_name_col is None:
+        raise RuntimeError(
+            "Item Group sheet does not contain Item Name."
+        )
+
+    result = pd.DataFrame()
+
+    result["Item Name"] = (
+        df[item_name_col]
+        .astype(str)
+        .str.strip()
+    )
+
+    if item_group_col:
+        result["Item Group Name"] = (
+            df[item_group_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        result["Item Group Name"] = ""
+
+    if variant_col:
+        result["Variant"] = (
+            df[variant_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        result["Variant"] = ""
+
+    if product_mix_col:
+        result["Product Mix"] = (
+            df[product_mix_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        result["Product Mix"] = ""
+
+    if category_group_col:
+        result["Category Group"] = (
+            df[category_group_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        result["Category Group"] = ""
+
+    result = result[
+        result["Item Name"].ne("")
+        & result["Item Name"].ne("NAN")
+    ].copy()
+
+    # Avoid duplicate joins
+    result = result.drop_duplicates(
+        subset=["Item Name"],
+        keep="last"
+    )
+
+    print(
+        f"Usable Item Group rows: {len(result):,}"
+    )
+
+    return result
+
+
+# ============================================================
+# RISTA AUTHENTICATION
+# ============================================================
+
+def generate_token():
+
+    if not API_KEY:
+        raise RuntimeError(
+            "API_KEY environment variable is missing."
+        )
+
+    if not SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY environment variable is missing."
+        )
+
+    now = int(time.time())
+
+    payload = {
+        "iss": RISTA_ISSUER,
+        "iat": now,
+    }
+
+    token = jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm="HS256"
+    )
+
+    if isinstance(token, bytes):
+        token = token.decode("utf-8")
+
+    return token
+
+
+def get_headers():
+
+    return {
+        "x-api-key": API_KEY,
+        "x-api-token": generate_token(),
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+
+# ============================================================
+# RISTA API REQUEST
+# ============================================================
+
+def request_with_retry(
+    url,
+    params,
+    branch_code,
+    page
+):
+
+    last_error = None
+
+    for attempt in range(1, MAX_RETRIES + 1):
+
+        try:
+
+            response = requests.get(
+                url,
+                headers=get_headers(),
+                params=params,
+                timeout=REQUEST_TIMEOUT
+            )
+
+            print(
+                f"      Branch {branch_code} | "
+                f"Page {page} | "
+                f"Status {response.status_code}"
+            )
+
+            # Success
+            if response.status_code == 200:
+                return response
+
+            # Retry temporary errors
+            if response.status_code in [
+                429,
+                500,
+                502,
+                503,
+                504
+            ]:
+
+                wait_seconds = 2 ** (
+                    attempt - 1
+                )
+
+                print(
+                    f"      Retry {attempt}/{MAX_RETRIES} "
+                    f"after {wait_seconds}s"
+                )
+
+                time.sleep(
+                    wait_seconds
+                )
+
+                continue
+
+            # Permanent error
+            response.raise_for_status()
+
+        except Exception as e:
+
+            last_error = e
+
+            print(
+                f"      Request error: {e}"
+            )
+
+            if attempt < MAX_RETRIES:
+
+                wait_seconds = 2 ** (
+                    attempt - 1
+                )
+
+                time.sleep(
+                    wait_seconds
+                )
+
+    raise RuntimeError(
+        f"Rista request failed for "
+        f"{branch_code}, page {page}: "
+        f"{last_error}"
+    )
+
+
+# ============================================================
+# FETCH ONE BRANCH / BUSINESS DATE
+# ============================================================
+
+def fetch_branch_day(
+    branch_code,
+    business_date
+):
+
+    url = (
+        f"{API_BASE_URL.rstrip('/')}"
+        f"/v1/sales/page"
+    )
+
+    all_rows = []
+
+    page = 1
+
+    while True:
+
+        params = {
+            "branch": branch_code,
+            "day": business_date.strftime(
+                "%Y-%m-%d"
+            ),
+            "page": page,
+            "limit": PAGE_SIZE,
+        }
+
+        response = request_with_retry(
+            url=url,
+            params=params,
+            branch_code=branch_code,
+            page=page
+        )
+
+        payload = response.json()
+
+        if isinstance(payload, dict):
+
+            data = payload.get(
+                "data",
+                []
+            )
+
+        elif isinstance(payload, list):
+
+            data = payload
+
+        else:
+
+            data = []
+
+        if not data:
+            break
+
+        if not isinstance(data, list):
+            break
+
+        all_rows.extend(data)
+
+        # If less than page size, this is
+        # the final page.
+        if len(data) < PAGE_SIZE:
+            break
+
+        page += 1
+
+        # Safety protection
+        if page > 100:
+            print(
+                f"      WARNING: pagination exceeded "
+                f"100 pages for {branch_code}"
+            )
+            break
+
+    if all_rows:
+
+        df = pd.DataFrame(
+            all_rows
+        )
+
+    else:
+
+        df = pd.DataFrame()
+
+    return df
+
+
+# ============================================================
+# PROCESS BRANCH DATA
+# ============================================================
+
+def process_branch_data(
+    df,
+    branch_code,
+    business_date,
+    help_df,
+    item_group_df
+):
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # --------------------------------------------------------
+    # Status filter
+    # --------------------------------------------------------
+
+    status_col = find_column(
+        df,
+        [
+            "status"
+        ]
+    )
+
+    if status_col:
+
+        df = df[
+            df[status_col]
+            .astype(str)
+            .str.upper()
+            .str.strip()
+            .eq("CLOSED")
+        ].copy()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # --------------------------------------------------------
+    # Ensure branch code
+    # --------------------------------------------------------
+
+    branch_col = find_column(
+        df,
+        [
+            "branchCode",
+            "branchcode"
+        ]
+    )
+
+    if branch_col:
+
+        df["branchCode"] = (
+            df[branch_col]
+            .astype(str)
+            .str.strip()
+        )
+
+    else:
+
+        df["branchCode"] = branch_code
+
+    # --------------------------------------------------------
+    # Created date
+    # --------------------------------------------------------
+
+    created_col = find_column(
+        df,
+        [
+            "createdDate",
+            "created date"
+        ]
+    )
+
+    if created_col:
+
+        created = pd.to_datetime(
+            df[created_col],
+            errors="coerce",
+            utc=True
+        )
+
+        created = (
+            created
+            .dt.tz_convert("Asia/Kolkata")
+        )
+
+        df["Created Date"] = created
+
+        # ----------------------------------------------------
+        # Business date filter
+        #
+        # Business day:
+        # 09:00 AM -> next day 08:59:59 AM
+        # ----------------------------------------------------
+
+        start_dt = pd.Timestamp(
+            business_date
+        ).tz_localize(
+            "Asia/Kolkata"
+        ) + pd.Timedelta(
+            hours=9
+        )
+
+        end_dt = (
+            start_dt
+            + pd.Timedelta(
+                days=1
+            )
+            - pd.Timedelta(
+                seconds=1
+            )
+        )
+
+        df = df[
+            (df["Created Date"] >= start_dt)
+            & (df["Created Date"] <= end_dt)
+        ].copy()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # --------------------------------------------------------
+    # Basic order fields
+    # --------------------------------------------------------
+
+    invoice_col = find_column(
+        df,
+        [
+            "invoiceNumber",
+            "invoice number",
+            "invoiceNo"
+        ]
+    )
+
+    channel_col = find_column(
+        df,
+        [
+            "channel"
+        ]
+    )
+
+    brand_col = find_column(
+        df,
+        [
+            "brandName",
+            "brand"
+        ]
+    )
+
+    if invoice_col:
+        df["invoiceNumber"] = (
+            df[invoice_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        df["invoiceNumber"] = ""
+
+    if channel_col:
+        df["Channel"] = (
+            df[channel_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        df["Channel"] = ""
+
+    if brand_col:
+        df["Brand"] = (
+            df[brand_col]
+            .astype(str)
+            .str.strip()
+        )
+    else:
+        df["Brand"] = ""
+
+    # --------------------------------------------------------
+    # Flatten item list
+    # --------------------------------------------------------
+
+    items_col = find_column(
+        df,
+        [
+            "items"
+        ]
+    )
+
+    if items_col is None:
+        return pd.DataFrame()
+
+    item_rows = []
+
+    for _, order in df.iterrows():
+
+        items = order.get(
+            items_col,
+            []
+        )
+
+        if not isinstance(
+            items,
+            list
+        ):
+            continue
+
+        for item in items:
+
+            if not isinstance(
+                item,
+                dict
+            ):
+                continue
+
+            row = {
+                "branchCode": order.get(
+                    "branchCode",
+                    branch_code
+                ),
+
+                "invoiceNumber": order.get(
+                    "invoiceNumber",
+                    ""
+                ),
+
+                "Brand": order.get(
+                    "Brand",
+                    ""
+                ),
+
+                "Channel": order.get(
+                    "Channel",
+                    ""
+                ),
+
+                "Created Date": order.get(
+                    "Created Date",
+                    pd.NaT
+                ),
+
+                "Business Date": business_date,
+
+                "Item Name": item.get(
+                    "item_shortName",
+                    ""
+                ),
+
+                "Qty": item.get(
+                    "item_quantity",
+                    0
+                ),
+
+                "Gross": item.get(
+                    "item_baseGrossAmount",
+                    0
+                ),
+
+                "Discount": item.get(
+                    "item_baseNetDiscountAmount",
+                    0
+                ),
+
+                "Net Revenue": item.get(
+                    "item_baseNetAmount",
+                    0
+                ),
+            }
+
+            item_rows.append(
+                row
+            )
+
+    if not item_rows:
+        return pd.DataFrame()
+
+    result = pd.DataFrame(
+        item_rows
+    )
+
+    # --------------------------------------------------------
+    # Clean item fields
+    # --------------------------------------------------------
+
+    result["Item Name"] = (
+        result["Item Name"]
+        .astype(str)
+        .str.strip()
+    )
+
+    result = result[
+        result["Item Name"].ne("")
+        & result["Item Name"].ne("NAN")
+    ].copy()
+
+    # --------------------------------------------------------
+    # Numeric fields
+    # --------------------------------------------------------
+
+    result["Qty"] = safe_number(
+        result["Qty"]
+    )
+
+    result["Gross"] = safe_number(
+        result["Gross"]
+    )
+
+    result["Discount"] = safe_number(
+        result["Discount"]
+    )
+
+    result["Net Revenue"] = safe_number(
+        result["Net Revenue"]
+    )
+
+    # --------------------------------------------------------
+    # Channel Group
+    # --------------------------------------------------------
+
+    result["Channel Group"] = (
+        result["Channel"]
+        .apply(channel_group)
+    )
+
+    # --------------------------------------------------------
+    # Help Sheet mapping
+    # --------------------------------------------------------
 
     help_merge = help_df[
         [
             "branchCode",
             "Store Name",
+            "Ownership",
             "Region",
             "Help Channel",
-            "Help Source"
+            "Source",
         ]
     ].copy()
 
+    result["branchCode"] = (
+        result["branchCode"]
+        .astype(str)
+        .str.strip()
+    )
 
-    sales_df = sales_df.merge(
+    help_merge["branchCode"] = (
+        help_merge["branchCode"]
+        .astype(str)
+        .str.strip()
+    )
 
+    result = result.merge(
         help_merge,
-
         on="branchCode",
-
         how="left"
-
     )
 
+    # --------------------------------------------------------
+    # Item Group mapping
+    # --------------------------------------------------------
 
-    print(
-        "✅ Help Sheet Merged"
+    result = result.merge(
+        item_group_df,
+        on="Item Name",
+        how="left",
+        suffixes=(
+            "",
+            "_Map"
+        )
     )
 
+    # --------------------------------------------------------
+    # Product name
+    # --------------------------------------------------------
 
-    # -----------------------------------------------------
-    # NUMERIC
-    # -----------------------------------------------------
+    result["Item Group Name"] = (
+        result["Item Group Name"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
 
-    numeric_cols = [
+    result["Product Name"] = (
+        result["Item Group Name"]
+        .where(
+            result["Item Group Name"].ne(""),
+            result["Item Name"]
+        )
+    )
 
-        "item_quantity",
+    # --------------------------------------------------------
+    # Remove AddOns
+    # --------------------------------------------------------
 
-        "item_baseGrossAmount",
+    result["Product Mix"] = (
+        result["Product Mix"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
 
-        "item_baseNetDiscountAmount",
+    result = result[
+        ~result["Product Mix"]
+        .str.upper()
+        .eq("ADDONS")
+    ].copy()
 
-        "item_baseNetAmount"
+    # --------------------------------------------------------
+    # Discount %
+    # --------------------------------------------------------
 
+    result["Discount %"] = 0.0
+
+    mask = result["Gross"] != 0
+
+    result.loc[
+        mask,
+        "Discount %"
+    ] = (
+        result.loc[
+            mask,
+            "Discount"
+        ]
+        / result.loc[
+            mask,
+            "Gross"
+        ]
+        * 100
+    )
+
+    # --------------------------------------------------------
+    # Month
+    # --------------------------------------------------------
+
+    result["Month"] = pd.to_datetime(
+        result["Business Date"]
+    ).dt.strftime(
+        "%Y-%m"
+    )
+
+    # --------------------------------------------------------
+    # Column order
+    # --------------------------------------------------------
+
+    final_columns = [
+        "Business Date",
+        "Month",
+        "branchCode",
+        "Store Name",
+        "Ownership",
+        "Region",
+        "Brand",
+        "Channel",
+        "Channel Group",
+        "Help Channel",
+        "Source",
+        "invoiceNumber",
+        "Item Name",
+        "Item Group Name",
+        "Product Name",
+        "Variant",
+        "Product Mix",
+        "Category Group",
+        "Qty",
+        "Gross",
+        "Discount",
+        "Discount %",
+        "Net Revenue",
+        "Created Date",
     ]
 
+    for col in final_columns:
 
-    for col in numeric_cols:
+        if col not in result.columns:
+            result[col] = ""
 
-        sales_df[col] = pd.to_numeric(
+    result = result[
+        final_columns
+    ]
 
-            sales_df[col],
+    return result
 
-            errors="coerce"
 
-        ).fillna(0)
+# ============================================================
+# FETCH ONE BUSINESS DATE
+# ============================================================
 
-
-    # -----------------------------------------------------
-    # DISCOUNT POSITIVE
-    # -----------------------------------------------------
-
-    sales_df[
-        "item_baseNetDiscountAmount"
-    ] = (
-        sales_df[
-            "item_baseNetDiscountAmount"
-        ]
-        .abs()
-    )
-
-
-    # -----------------------------------------------------
-    # ITEM NAME
-    # -----------------------------------------------------
-
-    sales_df[
-        "item_shortName"
-    ] = (
-        sales_df[
-            "item_shortName"
-        ]
-        .astype(str)
-        .str.strip()
-        .str.upper()
-    )
-
-
-    # -----------------------------------------------------
-    # ITEM GROUP MERGE
-    # -----------------------------------------------------
-
-    item_merge = item_df[
-        [
-            "Item Name",
-            "Item Group Name",
-            "Product Mix",
-            "Category Group"
-        ]
-    ].copy()
-
-
-    sales_df = sales_df.merge(
-
-        item_merge,
-
-        left_on="item_shortName",
-
-        right_on="Item Name",
-
-        how="left"
-
-    )
-
-
-    print(
-        "✅ Item Group Merged"
-    )
-
-
-    # -----------------------------------------------------
-    # SAFE MAPPING FIELDS
-    # -----------------------------------------------------
-
-    for col in [
-
-        "Item Group Name",
-
-        "Product Mix",
-
-        "Category Group"
-
-    ]:
-
-        sales_df[col] = (
-
-            sales_df[col]
-
-            .fillna("Others")
-
-            .astype(str)
-
-            .str.strip()
-
-        )
-
-
-    # -----------------------------------------------------
-    # REMOVE ADDONS
-    # -----------------------------------------------------
-
-    before_addons = len(
-        sales_df
-    )
-
-
-    sales_df = sales_df[
-        sales_df[
-            "Product Mix"
-        ]
-        .astype(str)
-        .str.upper()
-        != "ADDONS"
-    ].copy()
-
-
-    print(
-        "✅ AddOns Removed:",
-        before_addons
-        - len(sales_df)
-    )
-
-
-    # -----------------------------------------------------
-    # CHANNEL GROUP
-    # -----------------------------------------------------
-
-    sales_df[
-        "Channel Group"
-    ] = (
-        sales_df[
-            "channel"
-        ]
-        .apply(
-            channel_group
-        )
-    )
-
-
-    print(
-        "✅ Channel Group Created"
-    )
-
-
-    # -----------------------------------------------------
-    # STATUS
-    # -----------------------------------------------------
-
-    sales_df[
-        "status"
-    ] = (
-        sales_df[
-            "status"
-        ]
-        .astype(str)
-        .str.upper()
-        .str.strip()
-    )
-
-
-    # -----------------------------------------------------
-    # CLOSED ONLY
-    # -----------------------------------------------------
-
-    sales_df = sales_df[
-        sales_df[
-            "status"
-        ]
-        == "CLOSED"
-    ].copy()
-
-
-    print(
-        "✅ Closed Item Rows:",
-        len(sales_df)
-    )
-
-
-    # -----------------------------------------------------
-    # BUSINESS DATE
-    # -----------------------------------------------------
-
-    sales_df[
-        "Business Date"
-    ] = business_date.strftime(
-        "%Y-%m-%d"
-    )
-
-
-    return sales_df
-
-
-# =========================================================
-# CONVERT TO HISTORY FORMAT
-# =========================================================
-
-def prepare_history(
-    df
+def fetch_business_date(
+    business_date,
+    help_df,
+    item_group_df
 ):
 
-    if df.empty:
+    print("\n")
+    print("=" * 70)
+    print(
+        f"BUSINESS DATE: "
+        f"{business_date}"
+    )
+    print("=" * 70)
 
-        return pd.DataFrame()
-
-
-    # -----------------------------------------------------
-    # CREATE SOURCE
-    # -----------------------------------------------------
-
-    df[
-        "Source"
-    ] = (
-        df[
-            "Help Source"
-        ]
-        .fillna("")
+    branch_codes = (
+        help_df["branchCode"]
+        .dropna()
         .astype(str)
         .str.strip()
+        .unique()
+        .tolist()
     )
 
+    daily_parts = []
 
-    # -----------------------------------------------------
-    # STORE
-    # -----------------------------------------------------
+    date_complete = True
 
-    df[
-        "Store Name"
-    ] = (
-        df[
-            "Store Name"
-        ]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
+    for index, branch_code in enumerate(
+        branch_codes,
+        start=1
+    ):
 
-
-    # -----------------------------------------------------
-    # REGION
-    # -----------------------------------------------------
-
-    df[
-        "Region"
-    ] = (
-        df[
-            "Region"
-        ]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-
-    # -----------------------------------------------------
-    # BRAND
-    # -----------------------------------------------------
-
-    df[
-        "Brand"
-    ] = (
-        df[
-            "brandName"
-        ]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-
-    # -----------------------------------------------------
-    # ORDERS
-    #
-    # Item-level rows can have multiple rows per invoice.
-    # Apps Script will use unique invoiceNumber for Orders.
-    # -----------------------------------------------------
-
-    df[
-        "Orders"
-    ] = 1
-
-
-    # -----------------------------------------------------
-    # FINAL COLUMNS
-    # -----------------------------------------------------
-
-    history_columns = [
-
-        "Business Date",
-
-        "invoiceNumber",
-
-        "branchCode",
-
-        "Store Name",
-
-        "Region",
-
-        "Brand",
-
-        "channel",
-
-        "Channel Group",
-
-        "Source",
-
-        "Item Name",
-
-        "Item Group Name",
-
-        "Product Mix",
-
-        "Category Group",
-
-        "Orders",
-
-        "item_quantity",
-
-        "item_baseGrossAmount",
-
-        "item_baseNetDiscountAmount",
-
-        "item_baseNetAmount"
-
-    ]
-
-
-    # -----------------------------------------------------
-    # ENSURE ALL
-    # -----------------------------------------------------
-
-    for col in history_columns:
-
-        if col not in df.columns:
-
-            df[col] = ""
-
-
-    history = df[
-        history_columns
-    ].copy()
-
-
-    # -----------------------------------------------------
-    # RENAME FOR WEB DASHBOARD
-    # -----------------------------------------------------
-
-    history = history.rename(
-
-        columns={
-
-            "channel":
-                "Channel",
-
-            "item_quantity":
-                "Qty",
-
-            "item_baseGrossAmount":
-                "Gross",
-
-            "item_baseNetDiscountAmount":
-                "Discount",
-
-            "item_baseNetAmount":
-                "Net Revenue"
-
-        }
-
-    )
-
-
-    # -----------------------------------------------------
-    # FINAL ORDER
-    # -----------------------------------------------------
-
-    history_columns_final = [
-
-        "Business Date",
-
-        "invoiceNumber",
-
-        "branchCode",
-
-        "Store Name",
-
-        "Region",
-
-        "Brand",
-
-        "Channel",
-
-        "Channel Group",
-
-        "Source",
-
-        "Item Name",
-
-        "Item Group Name",
-
-        "Product Mix",
-
-        "Category Group",
-
-        "Orders",
-
-        "Qty",
-
-        "Gross",
-
-        "Discount",
-
-        "Net Revenue"
-
-    ]
-
-
-    history = history[
-        history_columns_final
-    ]
-
-
-    return history
-
-
-# =========================================================
-# DATE RANGE
-# =========================================================
-
-ist_now = datetime.now(
-    IST
-)
-
-
-print("\n" + "=" * 70)
-
-print(
-    "🕒 Current IST:",
-    ist_now
-)
-
-print("=" * 70)
-
-
-# ---------------------------------------------------------
-# CURRENT BUSINESS DATE
-#
-# Existing item_level.py:
-# before 9 AM = previous business date
-# ---------------------------------------------------------
-
-if ist_now.hour < 9:
-
-    current_business_date = (
-        ist_now.date()
-        - timedelta(
-            days=1
+        print(
+            f"\n[{index}/{len(branch_codes)}] "
+            f"Fetching: {branch_code}"
         )
+
+        try:
+
+            raw_df = fetch_branch_day(
+                branch_code,
+                business_date
+            )
+
+            if raw_df.empty:
+
+                print(
+                    f"      No data: {branch_code}"
+                )
+
+                continue
+
+            processed_df = process_branch_data(
+                raw_df,
+                branch_code,
+                business_date,
+                help_df,
+                item_group_df
+            )
+
+            if not processed_df.empty:
+
+                daily_parts.append(
+                    processed_df
+                )
+
+                print(
+                    f"      Item rows: "
+                    f"{len(processed_df):,}"
+                )
+
+            else:
+
+                print(
+                    f"      No usable item data"
+                )
+
+        except Exception as e:
+
+            date_complete = False
+
+            print(
+                f"      ERROR for "
+                f"{branch_code}: {e}"
+            )
+
+        time.sleep(
+            SLEEP_BETWEEN_BRANCHES
+        )
+
+    if daily_parts:
+
+        daily_df = pd.concat(
+            daily_parts,
+            ignore_index=True
+        )
+
+    else:
+
+        daily_df = pd.DataFrame()
+
+    print("\n")
+    print(
+        f"Date {business_date} completed: "
+        f"{date_complete}"
     )
 
-else:
-
-    current_business_date = (
-        ist_now.date()
+    print(
+        f"Total item rows: "
+        f"{len(daily_df):,}"
     )
 
-
-# ---------------------------------------------------------
-# HISTORY START
-# ---------------------------------------------------------
-
-history_start = (
-    current_business_date
-    - timedelta(
-        days=HISTORY_DAYS - 1
-    )
-)
+    return daily_df, date_complete
 
 
-history_end = (
-    current_business_date
-)
+# ============================================================
+# READ EXISTING MONTHLY CSV
+# ============================================================
 
+def read_existing_month_file(
+    file_path
+):
 
-print(
-    "📅 History Start:",
-    history_start
-)
-
-print(
-    "📅 History End:",
-    history_end
-)
-
-print(
-    "📊 Number of Days:",
-    HISTORY_DAYS
-)
-
-
-# =========================================================
-# FETCH HISTORY
-# =========================================================
-
-all_history = []
-
-
-current_date = (
-    history_start
-)
-
-
-while current_date <= history_end:
+    if not os.path.exists(
+        file_path
+    ):
+        return pd.DataFrame()
 
     try:
 
-        processed = (
-            process_business_date(
-                current_date
+        df = pd.read_csv(
+            file_path,
+            low_memory=False
+        )
+
+        if df.empty:
+            return df
+
+        if "Business Date" in df.columns:
+
+            df["Business Date"] = (
+                pd.to_datetime(
+                    df["Business Date"],
+                    errors="coerce"
+                ).dt.date
             )
+
+        return df
+
+    except Exception as e:
+
+        raise RuntimeError(
+            f"Unable to read existing file "
+            f"{file_path}: {e}"
         )
 
 
-        if not processed.empty:
+# ============================================================
+# SAVE MONTHLY RAW FILE
+# ============================================================
 
-            history_part = (
-                prepare_history(
-                    processed
-                )
+def save_month_file(
+    month,
+    new_df,
+    refresh_dates
+):
+
+    os.makedirs(
+        HISTORICAL_FOLDER,
+        exist_ok=True
+    )
+
+    file_name = (
+        f"item_level_{month.replace('-', '_')}.csv"
+    )
+
+    file_path = os.path.join(
+        HISTORICAL_FOLDER,
+        file_name
+    )
+
+    print("\n")
+    print("=" * 70)
+    print(
+        f"UPDATING MONTH: {month}"
+    )
+    print("=" * 70)
+
+    existing_df = read_existing_month_file(
+        file_path
+    )
+
+    # --------------------------------------------------------
+    # Remove only the dates that we successfully refreshed.
+    #
+    # This is important:
+    # if API fails for one date, old data for that date
+    # is NOT deleted.
+    # --------------------------------------------------------
+
+    if not existing_df.empty:
+
+        if "Business Date" in existing_df.columns:
+
+            before_count = len(
+                existing_df
             )
 
+            existing_df = existing_df[
+                ~existing_df[
+                    "Business Date"
+                ].isin(
+                    refresh_dates
+                )
+            ].copy()
 
-            if not history_part.empty:
+            removed_count = (
+                before_count
+                - len(existing_df)
+            )
 
-                all_history.append(
-                    history_part
+            print(
+                f"Existing rows removed "
+                f"for refreshed dates: "
+                f"{removed_count:,}"
+            )
+
+    if new_df is None:
+        new_df = pd.DataFrame()
+
+    if not new_df.empty:
+
+        new_df = new_df.copy()
+
+        new_df["Business Date"] = (
+            pd.to_datetime(
+                new_df["Business Date"],
+                errors="coerce"
+            ).dt.date
+        )
+
+    # --------------------------------------------------------
+    # Combine
+    # --------------------------------------------------------
+
+    parts = []
+
+    if not existing_df.empty:
+        parts.append(
+            existing_df
+        )
+
+    if not new_df.empty:
+        parts.append(
+            new_df
+        )
+
+    if parts:
+
+        final_df = pd.concat(
+            parts,
+            ignore_index=True
+        )
+
+    else:
+
+        final_df = pd.DataFrame()
+
+    if final_df.empty:
+
+        print(
+            f"No data to save for {month}"
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # Sort
+    # --------------------------------------------------------
+
+    sort_columns = [
+        col
+        for col in [
+            "Business Date",
+            "Region",
+            "Store Name",
+            "Brand",
+            "Channel Group",
+            "Product Name",
+            "Item Name",
+        ]
+        if col in final_df.columns
+    ]
+
+    if sort_columns:
+
+        final_df = final_df.sort_values(
+            sort_columns,
+            kind="stable"
+        )
+
+    # --------------------------------------------------------
+    # Save
+    # --------------------------------------------------------
+
+    final_df.to_csv(
+        file_path,
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    file_size_mb = (
+        os.path.getsize(
+            file_path
+        )
+        / (
+            1024 * 1024
+        )
+    )
+
+    print(
+        f"Saved: {file_path}"
+    )
+
+    print(
+        f"Rows: {len(final_df):,}"
+    )
+
+    print(
+        f"File size: {file_size_mb:.2f} MB"
+    )
+
+    if file_size_mb > 90:
+
+        print(
+            "WARNING: Monthly CSV is above "
+            "90 MB. GitHub/App Script processing "
+            "may become heavy."
+        )
+
+
+# ============================================================
+# CREATE MONTHLY INDEX
+# ============================================================
+
+def create_index():
+
+    print("\n")
+    print("=" * 70)
+    print("Creating historical_data/index.json")
+    print("=" * 70)
+
+    os.makedirs(
+        HISTORICAL_FOLDER,
+        exist_ok=True
+    )
+
+    files = []
+
+    for file_name in sorted(
+        os.listdir(
+            HISTORICAL_FOLDER
+        )
+    ):
+
+        if not (
+            file_name.startswith(
+                "item_level_"
+            )
+            and file_name.endswith(
+                ".csv"
+            )
+        ):
+            continue
+
+        file_path = os.path.join(
+            HISTORICAL_FOLDER,
+            file_name
+        )
+
+        try:
+
+            df = pd.read_csv(
+                file_path,
+                usecols=[
+                    "Business Date"
+                ],
+                low_memory=False
+            )
+
+            dates = pd.to_datetime(
+                df["Business Date"],
+                errors="coerce"
+            ).dropna()
+
+            if not dates.empty:
+
+                min_date = (
+                    dates.min()
+                    .strftime("%Y-%m-%d")
                 )
 
+                max_date = (
+                    dates.max()
+                    .strftime("%Y-%m-%d")
+                )
 
-                print(
-                    "✅ Prepared:",
-                    current_date,
-                    "| Rows:",
-                    len(history_part)
+            else:
+
+                min_date = ""
+                max_date = ""
+
+            row_count = len(df)
+
+        except Exception as e:
+
+            print(
+                f"Warning reading "
+                f"{file_name}: {e}"
+            )
+
+            min_date = ""
+            max_date = ""
+            row_count = 0
+
+        files.append(
+            {
+                "month": file_name[
+                    len("item_level_")
+                    :-len(".csv")
+                ].replace(
+                    "_",
+                    "-"
+                ),
+                "file": file_name,
+                "minDate": min_date,
+                "maxDate": max_date,
+                "rows": row_count,
+            }
+        )
+
+    index_data = {
+        "generatedAt": datetime.now().isoformat(),
+        "folder": HISTORICAL_FOLDER,
+        "files": files,
+    }
+
+    index_path = os.path.join(
+        HISTORICAL_FOLDER,
+        "index.json"
+    )
+
+    with open(
+        index_path,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            index_data,
+            f,
+            indent=2
+        )
+
+    print(
+        f"Created: {index_path}"
+    )
+
+
+# ============================================================
+# GIT COMMIT + PUSH
+# ============================================================
+
+def git_push():
+
+    print("\n")
+    print("=" * 70)
+    print("PUSHING HISTORICAL DATA TO GITHUB")
+    print("=" * 70)
+
+    # Only push when running inside GitHub Actions
+    github_actions = (
+        os.getenv(
+            "GITHUB_ACTIONS",
+            ""
+        ).lower()
+        == "true"
+    )
+
+    if not github_actions:
+
+        print(
+            "Not running inside GitHub Actions."
+        )
+
+        print(
+            "Git push skipped."
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # Git identity
+    # --------------------------------------------------------
+
+    subprocess.run(
+        [
+            "git",
+            "config",
+            "user.name",
+            "github-actions[bot]"
+        ],
+        check=True
+    )
+
+    subprocess.run(
+        [
+            "git",
+            "config",
+            "user.email",
+            "41898282+github-actions[bot]@users.noreply.github.com"
+        ],
+        check=True
+    )
+
+    # --------------------------------------------------------
+    # Add historical data
+    # --------------------------------------------------------
+
+    subprocess.run(
+        [
+            "git",
+            "add",
+            HISTORICAL_FOLDER
+        ],
+        check=True
+    )
+
+    # --------------------------------------------------------
+    # Check changes
+    # --------------------------------------------------------
+
+    status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain"
+        ],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+
+    if not status.stdout.strip():
+
+        print(
+            "No GitHub changes detected."
+        )
+
+        return
+
+    print(
+        "Git changes:"
+    )
+
+    print(
+        status.stdout
+    )
+
+    # --------------------------------------------------------
+    # Commit
+    # --------------------------------------------------------
+
+    commit_message = (
+        "Update item level historical data "
+        + datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    )
+
+    subprocess.run(
+        [
+            "git",
+            "commit",
+            "-m",
+            commit_message
+        ],
+        check=True
+    )
+
+    # --------------------------------------------------------
+    # Push
+    # --------------------------------------------------------
+
+    subprocess.run(
+        [
+            "git",
+            "push"
+        ],
+        check=True
+    )
+
+    print(
+        "GitHub push completed successfully."
+    )
+
+
+# ============================================================
+# DATE RANGE
+# ============================================================
+
+def get_date_range():
+
+    start_date = datetime.strptime(
+        HISTORY_START_DATE,
+        "%Y-%m-%d"
+    ).date()
+
+    if HISTORY_END_DATE:
+
+        end_date = datetime.strptime(
+            HISTORY_END_DATE,
+            "%Y-%m-%d"
+        ).date()
+
+    else:
+
+        # Current business date.
+        #
+        # Business day starts at 09:00 AM.
+        # Before 09:00 AM, today's business date
+        # is still yesterday.
+
+        now_ist = (
+            pd.Timestamp.now(
+                tz="Asia/Kolkata"
+            )
+        )
+
+        if now_ist.hour < 9:
+
+            end_date = (
+                now_ist.date()
+                - timedelta(days=1)
+            )
+
+        else:
+
+            end_date = (
+                now_ist.date()
+            )
+
+    if start_date > end_date:
+
+        raise RuntimeError(
+            f"Invalid date range: "
+            f"{start_date} -> {end_date}"
+        )
+
+    return start_date, end_date
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+
+    print("\n")
+    print("=" * 80)
+    print("ITEM LEVEL HISTORICAL DATA")
+    print("=" * 80)
+
+    # --------------------------------------------------------
+    # Date range
+    # --------------------------------------------------------
+
+    start_date, end_date = get_date_range()
+
+    print(
+        f"Start Date: {start_date}"
+    )
+
+    print(
+        f"End Date:   {end_date}"
+    )
+
+    print(
+        f"Folder:     {HISTORICAL_FOLDER}"
+    )
+
+    # --------------------------------------------------------
+    # Create folder
+    # --------------------------------------------------------
+
+    os.makedirs(
+        HISTORICAL_FOLDER,
+        exist_ok=True
+    )
+
+    # --------------------------------------------------------
+    # Load mappings
+    # --------------------------------------------------------
+
+    help_df = load_help_sheet()
+
+    item_group_df = load_item_group()
+
+    # --------------------------------------------------------
+    # Process month-by-month
+    #
+    # Only one month's new data is held in memory at a time.
+    # This is important for large historical data.
+    # --------------------------------------------------------
+
+    current_month = None
+
+    month_parts = []
+
+    successful_dates = []
+
+    failed_dates = []
+
+    current_date = start_date
+
+    while current_date <= end_date:
+
+        month = current_date.strftime(
+            "%Y-%m"
+        )
+
+        # ----------------------------------------------------
+        # If month changes, save previous month.
+        # ----------------------------------------------------
+
+        if (
+            current_month is not None
+            and month != current_month
+        ):
+
+            if month_parts:
+
+                month_df = pd.concat(
+                    month_parts,
+                    ignore_index=True
+                )
+
+            else:
+
+                month_df = pd.DataFrame()
+
+            month_refresh_dates = [
+                d
+                for d in successful_dates
+                if d.strftime(
+                    "%Y-%m"
+                ) == current_month
+            ]
+
+            save_month_file(
+                current_month,
+                month_df,
+                month_refresh_dates
+            )
+
+            month_parts = []
+
+        current_month = month
+
+        # ----------------------------------------------------
+        # Fetch business date
+        # ----------------------------------------------------
+
+        daily_df, date_complete = (
+            fetch_business_date(
+                current_date,
+                help_df,
+                item_group_df
+            )
+        )
+
+        if date_complete:
+
+            successful_dates.append(
+                current_date
+            )
+
+            if not daily_df.empty:
+
+                month_parts.append(
+                    daily_df
                 )
 
         else:
 
-            print(
-                "⚠️ No usable data:",
+            failed_dates.append(
                 current_date
             )
 
+            print(
+                f"WARNING: {current_date} "
+                f"was NOT fully refreshed."
+            )
 
-    except Exception as e:
+            print(
+                "Existing GitHub data for this "
+                "date will be preserved."
+            )
+
+        current_date += timedelta(
+            days=1
+        )
+
+    # --------------------------------------------------------
+    # Save final month
+    # --------------------------------------------------------
+
+    if current_month is not None:
+
+        if month_parts:
+
+            month_df = pd.concat(
+                month_parts,
+                ignore_index=True
+            )
+
+        else:
+
+            month_df = pd.DataFrame()
+
+        month_refresh_dates = [
+            d
+            for d in successful_dates
+            if d.strftime(
+                "%Y-%m"
+            ) == current_month
+        ]
+
+        save_month_file(
+            current_month,
+            month_df,
+            month_refresh_dates
+        )
+
+    # --------------------------------------------------------
+    # Create index
+    # --------------------------------------------------------
+
+    create_index()
+
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
+
+    print("\n")
+    print("=" * 80)
+    print("HISTORICAL DATA SUMMARY")
+    print("=" * 80)
+
+    print(
+        f"Successful dates: "
+        f"{len(successful_dates):,}"
+    )
+
+    print(
+        f"Failed/incomplete dates: "
+        f"{len(failed_dates):,}"
+    )
+
+    if failed_dates:
 
         print(
-            "❌ Date Error:",
-            current_date,
-            str(e)
+            "\nFailed dates:"
         )
 
+        for d in failed_dates:
 
-    current_date += timedelta(
-        days=1
-    )
+            print(
+                f"  - {d}"
+            )
 
-
-# =========================================================
-# COMBINE FETCHED DATA
-# =========================================================
-
-if all_history:
-
-    new_history_df = pd.concat(
-        all_history,
-        ignore_index=True
-    )
-
-else:
-
-    new_history_df = pd.DataFrame()
-
-
-print("\n" + "=" * 70)
-
-print(
-    "📦 NEW HISTORY ROWS:",
-    len(new_history_df)
-)
-
-print("=" * 70)
-
-
-if new_history_df.empty:
-
-    print(
-        "❌ No historical data fetched."
-    )
-
-    raise SystemExit
-
-
-# =========================================================
-# CLEAN HISTORY
-# =========================================================
-
-new_history_df = (
-    new_history_df
-    .fillna("")
-)
-
-
-new_history_df[
-    "Business Date"
-] = (
-    new_history_df[
-        "Business Date"
-    ]
-    .astype(str)
-    .str[:10]
-)
-
-
-# =========================================================
-# NUMERIC HISTORY
-# =========================================================
-
-for col in [
-
-    "Orders",
-
-    "Qty",
-
-    "Gross",
-
-    "Discount",
-
-    "Net Revenue"
-
-]:
-
-    new_history_df[col] = pd.to_numeric(
-
-        new_history_df[col],
-
-        errors="coerce"
-
-    ).fillna(0)
-
-
-# =========================================================
-# REMOVE DUPLICATE ITEM ROWS
-#
-# Prevent duplicate data when same date is rerun.
-# =========================================================
-
-dedupe_cols = [
-
-    "Business Date",
-
-    "invoiceNumber",
-
-    "branchCode",
-
-    "Item Name",
-
-    "Qty",
-
-    "Gross",
-
-    "Discount",
-
-    "Net Revenue"
-
-]
-
-
-new_history_df = (
-    new_history_df
-    .drop_duplicates(
-        subset=dedupe_cols
-    )
-    .copy()
-)
-
-
-print(
-    "🧹 Rows after deduplication:",
-    len(new_history_df)
-)
-
-
-# =========================================================
-# GET HISTORY SHEET
-# =========================================================
-
-history_ws = get_or_create_sheet(
-    HISTORY_SHEET_NAME
-)
-
-
-# =========================================================
-# READ EXISTING HISTORY
-# =========================================================
-
-try:
-
-    existing_values = (
-        history_ws
-        .get_all_values()
-    )
-
-except Exception:
-
-    existing_values = []
-
-
-# =========================================================
-# HISTORY COLUMNS
-# =========================================================
-
-history_columns = [
-
-    "Business Date",
-
-    "invoiceNumber",
-
-    "branchCode",
-
-    "Store Name",
-
-    "Region",
-
-    "Brand",
-
-    "Channel",
-
-    "Channel Group",
-
-    "Source",
-
-    "Item Name",
-
-    "Item Group Name",
-
-    "Product Mix",
-
-    "Category Group",
-
-    "Orders",
-
-    "Qty",
-
-    "Gross",
-
-    "Discount",
-
-    "Net Revenue"
-
-]
-
-
-# =========================================================
-# EXISTING HISTORY
-# =========================================================
-
-if existing_values:
-
-    existing_header = [
-        str(x).strip()
-        for x in existing_values[0]
-    ]
-
-
-    existing_rows = (
-        existing_values[1:]
-    )
-
-
-    existing_df = pd.DataFrame(
-
-        existing_rows,
-
-        columns=existing_header
-
-    )
-
-
-    # -----------------------------------------------------
-    # ADD MISSING COLUMNS
-    # -----------------------------------------------------
-
-    for col in history_columns:
-
-        if col not in existing_df.columns:
-
-            existing_df[col] = ""
-
-
-    existing_df = existing_df[
-        history_columns
-    ].copy()
-
-
-    # -----------------------------------------------------
-    # REMOVE DATES BEING REFRESHED
-    # -----------------------------------------------------
-
-    refresh_dates = set(
-
-        new_history_df[
-            "Business Date"
-        ]
-        .astype(str)
-        .tolist()
-
-    )
-
-
-    existing_df = existing_df[
-        ~existing_df[
-            "Business Date"
-        ]
-        .astype(str)
-        .isin(
-            refresh_dates
+        print(
+            "\nIMPORTANT:"
         )
-    ].copy()
 
-
-else:
-
-    existing_df = pd.DataFrame(
-        columns=history_columns
-    )
-
-
-# =========================================================
-# COMBINE
-# =========================================================
-
-final_history_df = pd.concat(
-
-    [
-
-        existing_df,
-
-        new_history_df
-
-    ],
-
-    ignore_index=True
-
-)
-
-
-# =========================================================
-# CLEAN
-# =========================================================
-
-final_history_df = (
-    final_history_df
-    .fillna("")
-)
-
-
-# =========================================================
-# NUMERIC
-# =========================================================
-
-for col in [
-
-    "Orders",
-
-    "Qty",
-
-    "Gross",
-
-    "Discount",
-
-    "Net Revenue"
-
-]:
-
-    final_history_df[col] = (
-        pd.to_numeric(
-            final_history_df[col],
-            errors="coerce"
+        print(
+            "Incomplete dates were not removed "
+            "from existing monthly GitHub files."
         )
-        .fillna(0)
-    )
+
+    # --------------------------------------------------------
+    # Push
+    # --------------------------------------------------------
+
+    git_push()
+
+    print("\n")
+    print("=" * 80)
+    print("ITEM LEVEL HISTORICAL DATA COMPLETED")
+    print("=" * 80)
 
 
-# =========================================================
-# FINAL SORT
-# =========================================================
+# ============================================================
+# ENTRY POINT
+# ============================================================
 
-final_history_df = (
-    final_history_df
-    .sort_values(
-        [
-            "Business Date",
-
-            "Brand",
-
-            "Product Mix",
-
-            "Item Group Name"
-        ],
-
-        ascending=[
-            False,
-
-            True,
-
-            True,
-
-            True
-        ]
-    )
-    .reset_index(
-        drop=True
-    )
-)
-
-
-# =========================================================
-# WRITE GOOGLE SHEET
-# =========================================================
-
-print("\n" + "=" * 70)
-
-print(
-    "📤 WRITING ITEM LEVEL HISTORICAL DATA"
-)
-
-print("=" * 70)
-
-
-history_ws.clear()
-
-
-output_values = [
-
-    history_columns
-
-]
-
-
-output_values.extend(
-
-    final_history_df[
-        history_columns
-    ]
-    .values
-    .tolist()
-
-)
-
-
-history_ws.update(
-
-    "A1",
-
-    output_values,
-
-    value_input_option="USER_ENTERED"
-
-)
-
-
-# =========================================================
-# FORMAT HEADER
-# =========================================================
-
-try:
-
-    history_ws.format(
-        "A1:R1",
-        {
-            "textFormat": {
-                "bold": True
-            },
-
-            "horizontalAlignment":
-                "CENTER"
-        }
-    )
-
-except Exception as e:
-
-    print(
-        "⚠️ Header formatting skipped:",
-        str(e)
-    )
-
-
-# =========================================================
-# FINAL VALIDATION
-# =========================================================
-
-print("\n" + "=" * 70)
-
-print(
-    "✅ ITEM LEVEL HISTORICAL DATA COMPLETED"
-)
-
-print("=" * 70)
-
-
-print(
-    "📊 Total Rows:",
-    len(final_history_df)
-)
-
-
-if not final_history_df.empty:
-
-    print(
-        "📅 Minimum Date:",
-        final_history_df[
-            "Business Date"
-        ].min()
-    )
-
-    print(
-        "📅 Maximum Date:",
-        final_history_df[
-            "Business Date"
-        ].max()
-    )
-
-
-    print(
-        "🏪 Unique Stores:",
-        final_history_df[
-            "Store Name"
-        ].nunique()
-    )
-
-
-    print(
-        "🍨 Unique Items:",
-        final_history_df[
-            "Item Group Name"
-        ].nunique()
-    )
-
-
-    print(
-        "\n📡 Channel Group:"
-    )
-
-    print(
-        final_history_df[
-            "Channel Group"
-        ]
-        .value_counts(
-            dropna=False
-        )
-    )
-
-
-    print(
-        "\n📊 Date Coverage:"
-    )
-
-    print(
-        final_history_df[
-            "Business Date"
-        ]
-        .value_counts()
-        .sort_index(
-            ascending=False
-        )
-        .head(20)
-    )
+if __name__ == "__main__":
+    main()
 
 
 print("\n" + "=" * 70)
