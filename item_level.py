@@ -4398,6 +4398,22 @@ summary_html += """
 <h3>📍 Region + Product Mix Source Dashboard</h3>
 """
 
+# =========================================================
+# CREATE REGION + PRODUCT MIX SOURCE DASHBOARD
+# =========================================================
+
+region_product_mix_source_dashboard = (
+    create_region_product_mix_source_dashboard(
+        current_sales,
+        lw_sales,
+        l2w_sales
+    )
+)
+
+# =========================================================
+# REGION + PRODUCT MIX SOURCE DASHBOARD OUTPUT
+# =========================================================
+
 for region, source_data in (
     region_product_mix_source_dashboard.items()
 ):
