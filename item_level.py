@@ -1074,36 +1074,62 @@ print(
 
 def channel_group(x):
 
-    x = str(x).upper()
+    x = str(x).strip().upper()
 
+    # -----------------------------------------------------
+    # SWIGGY
+    # -----------------------------------------------------
     if "SWIGGY" in x:
         return "Swiggy"
 
+    # -----------------------------------------------------
+    # ZOMATO
+    # -----------------------------------------------------
     elif "ZOMATO" in x:
         return "Zomato"
 
+    # -----------------------------------------------------
+    # IN STORE
+    # -----------------------------------------------------
     elif (
         "POS" in x
-        or "DINE"
-        in x
+        or "DINE" in x
+        or "IN-STORE" in x
+        or "IN STORE" in x
+        or "INSTORE" in x
     ):
         return "In Store"
 
+    # -----------------------------------------------------
+    # OWNLY
+    # -----------------------------------------------------
     elif (
         "OWNLY" in x
-        or "WEBSITE"
-        in x
+        or "ownly" in x
     ):
         return "Ownly"
 
-    return "Others"
+    # -----------------------------------------------------
+    # WEBSITE
+    # -----------------------------------------------------
+    elif (
+        "WEBSITE" in x
+        or "Website" in x
+    ):
+        return "Website"
 
+    # -----------------------------------------------------
+    # OTHERS
+    # -----------------------------------------------------
+    return "Others"
 
 
 sales_df["Channel Group"] = (
     sales_df["channel"]
     .apply(channel_group)
 )
+
+print("✅ Channel Group Created")
 
 # =========================================================
 # CHANNEL GROUP VALIDATION
