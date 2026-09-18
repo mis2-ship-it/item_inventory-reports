@@ -1130,18 +1130,43 @@ def fetch_business_date(
                 item,
                 dict
             ):
-
+        
                 continue
-
-
+        
+        
+            # =================================================
+            # DEBUG FIRST ITEM STRUCTURE
+            # =================================================
+        
+            if len(item_rows) == 0:
+        
+                print("\n" + "=" * 70)
+                print("🔎 FIRST RISTA ITEM STRUCTURE")
+                print("=" * 70)
+        
+                print(
+                    "ITEM KEYS:"
+                )
+        
+                print(
+                    list(item.keys())
+                )
+        
+                print(
+                    "\nITEM DATA:"
+                )
+        
+                print(
+                    item
+                )
+        
+                print("=" * 70)
+        
+        
             # =================================================
             # ITEM LINE ID
-            #
-            # If Rista provides an item-level ID, use it.
-            # Otherwise create a stable line number inside
-            # the invoice.
             # =================================================
-            
+        
             sale_identifier = (
                 sale.get("invoiceNumber")
                 or sale.get("invoiceId")
@@ -1149,8 +1174,10 @@ def fetch_business_date(
                 or sale.get("number")
                 or ""
             )
-            
-            item_line_id = f"{sale_identifier}__LINE_{item_index + 1}"
+        
+            item_line_id = (
+                f"{sale_identifier}__LINE_{item_index + 1}"
+            )
 
 
             row = {
@@ -1219,11 +1246,8 @@ def fetch_business_date(
                         "status",
                         ""
                     ),
-                "Item Line ID": 
-                    sale.get(
-                        "item_line_id",
-                        ""
-                    ),
+                "Item Line ID":
+                    str(item_line_id),
 
                 "Item Name":
                     item.get(
