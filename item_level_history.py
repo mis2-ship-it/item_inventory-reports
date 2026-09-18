@@ -217,6 +217,8 @@ FINAL_COLUMNS = [
 
     "status",
 
+    "Item Line ID",
+
     "Item Name",
 
     "Item Group Name",
@@ -1140,31 +1142,25 @@ def fetch_business_date(
             # the invoice.
             # =================================================
 
-            item_id = (
-
-                item.get(
-                    "item_id"
-                )
-
-                or item.get(
-                    "itemId"
-                )
-
-                or item.get(
-                    "id"
-                )
-
+            sale_identifier = (
+                sale.get("invoiceNumber")
+                or sale.get("invoiceId")
+                or sale.get("id")
+                or sale.get("number")
                 or ""
-
             )
-
-
-            if not item_id:
-
-                item_id = (
-                    f"{sale.get('invoiceNumber', '')}"
-                    f"__LINE_{item_index + 1}"
-                )
+            
+            item_id = (
+                item.get("item_id")
+                or item.get("itemId")
+                or item.get("id")
+                or ""
+            )
+            
+            if item_id:
+                item_line_id = str(item_id).strip()
+            else:
+                item_line_id = f"{sale_identifier}__LINE_{item_index + 1}"
 
 
             row = {
@@ -1231,6 +1227,11 @@ def fetch_business_date(
                 "status":
                     sale.get(
                         "status",
+                        ""
+                    ),
+                "Item Line ID": 
+                    sale.get(
+                        "item_line_id,
                         ""
                     ),
 
@@ -1694,21 +1695,27 @@ def save_month_file(
     before = len(final_df)
 
 
+    dedupe_columns = [
+        "Business Date",
+        "branchCode",
+        "invoiceNumber",
+        "Item Line ID"
+    ]
+    
+    before_dedupe = len(final_df)
+    
     final_df = (
-
         final_df
-
         .drop_duplicates(
-
+            subset=dedupe_columns,
             keep="last"
-
         )
-
-        .reset_index(
-            drop=True
-        )
-
+        .reset_index(drop=True)
     )
+    
+    removed = before_dedupe - len(final_df)
+    
+    print(f"🧹 Item-line duplicates removed: {removed}")
 
 
     removed = (
