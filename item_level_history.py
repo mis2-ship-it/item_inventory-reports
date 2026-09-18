@@ -1141,14 +1141,6 @@ def fetch_business_date(
             # Otherwise create a stable line number inside
             # the invoice.
             # =================================================
-
-            sale_identifier = (
-                sale.get("invoiceNumber")
-                or sale.get("invoiceId")
-                or sale.get("id")
-                or sale.get("number")
-                or ""
-            )
             
             sale_identifier = (
                 sale.get("invoiceNumber")
@@ -1276,7 +1268,7 @@ def fetch_business_date(
                     ),
 
                 "_item_line_id":
-                    str(item_id)
+                    str(item_line_id)
 
             }
 
