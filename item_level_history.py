@@ -1231,7 +1231,7 @@ def fetch_business_date(
                     ),
                 "Item Line ID": 
                     sale.get(
-                        "item_line_id,
+                        "item_line_id",
                         ""
                     ),
 
