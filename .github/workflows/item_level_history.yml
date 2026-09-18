@@ -14,18 +14,34 @@ jobs:
 
     steps:
 
+      # =====================================================
+      # CHECKOUT REPOSITORY
+      # =====================================================
+
       - name: Checkout Repo
         uses: actions/checkout@v4
+
+      # =====================================================
+      # SETUP PYTHON
+      # =====================================================
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # =====================================================
+      # INSTALL PACKAGES
+      # =====================================================
+
       - name: Install Packages
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      # =====================================================
+      # RUN ITEM LEVEL HISTORY SCRIPT
+      # =====================================================
 
       - name: Run Item Level Historical Data
         env:
@@ -36,5 +52,71 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
 
         run: |
-          echo "Running Item Level Report..."
+          echo "=============================================="
+          echo "Running Item Level Historical Data..."
+          echo "=============================================="
+
           python item_level_history.py
+
+      # =====================================================
+      # CHECK GENERATED FILES
+      # =====================================================
+
+      - name: Check Generated Historical Files
+        run: |
+
+          echo "=============================================="
+          echo "Checking historical_data folder"
+          echo "=============================================="
+
+          ls -lah historical_data/
+
+          echo ""
+          echo "September file:"
+          ls -lah historical_data/item_level_2026_09.csv || true
+
+          echo ""
+          echo "CSV line count:"
+          wc -l historical_data/item_level_2026_09.csv || true
+
+      # =====================================================
+      # COMMIT AND PUSH CSV FILES
+      # =====================================================
+
+      - name: Commit Historical Data
+        run: |
+
+          echo "=============================================="
+          echo "Committing Historical Data"
+          echo "=============================================="
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add historical_data/
+
+          echo ""
+          echo "Git status:"
+          git status
+
+          if git diff --cached --quiet; then
+
+            echo ""
+            echo "ℹ️ No changes detected."
+
+          else
+
+            echo ""
+            echo "📦 Changes detected. Creating commit..."
+
+            git commit -m "Update item level historical data"
+
+            echo ""
+            echo "🚀 Pushing changes to GitHub..."
+
+            git push
+
+            echo ""
+            echo "✅ Historical data pushed successfully."
+
+          fi
