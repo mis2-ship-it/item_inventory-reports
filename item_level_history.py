@@ -1150,17 +1150,15 @@ def fetch_business_date(
                 or ""
             )
             
-            item_id = (
-                item.get("item_id")
-                or item.get("itemId")
-                or item.get("id")
+            sale_identifier = (
+                sale.get("invoiceNumber")
+                or sale.get("invoiceId")
+                or sale.get("id")
+                or sale.get("number")
                 or ""
             )
             
-            if item_id:
-                item_line_id = str(item_id).strip()
-            else:
-                item_line_id = f"{sale_identifier}__LINE_{item_index + 1}"
+            item_line_id = f"{sale_identifier}__LINE_{item_index + 1}"
 
 
             row = {
@@ -1692,9 +1690,10 @@ def save_month_file(
     # Instead, only remove exact duplicate rows.
     # =====================================================
 
-    before = len(final_df)
-
-
+    # =========================================================
+    # ITEM-LINE DEDUPLICATION
+    # =========================================================
+    
     dedupe_columns = [
         "Business Date",
         "branchCode",
@@ -1716,21 +1715,6 @@ def save_month_file(
     removed = before_dedupe - len(final_df)
     
     print(f"🧹 Item-line duplicates removed: {removed}")
-
-
-    removed = (
-
-        before
-        - len(final_df)
-
-    )
-
-
-    if removed:
-
-        print(
-            f"🧹 Exact duplicate rows removed: {removed}"
-        )
 
 
     # =====================================================
