@@ -1186,120 +1186,112 @@ def fetch_business_date(
                     business_date.strftime(
                         "%Y-%m-%d"
                     ),
-
+            
                 "branchCode":
                     sale.get(
                         "branchCode",
                         ""
                     ),
-
+            
                 "Store Name":
                     sale.get(
                         "Store Name",
                         ""
                     ),
-
+            
                 "Ownership":
                     sale.get(
                         "Ownership",
                         ""
                     ),
-
+            
                 "Region":
                     sale.get(
                         "Region",
                         ""
                     ),
-
+            
                 "Source":
                     sale.get(
                         "Source",
                         ""
                     ),
-
+            
                 "invoiceNumber":
                     sale.get(
                         "invoiceNumber",
                         ""
                     ),
-
+            
                 "createdDate":
                     sale.get(
                         "createdDate",
                         ""
                     ),
-
+            
                 "brandName":
                     sale.get(
                         "brandName",
                         ""
                     ),
-
+            
                 "channel":
                     sale.get(
                         "channel",
                         ""
                     ),
-
+            
                 "status":
                     sale.get(
                         "status",
                         ""
                     ),
+            
                 "Item Line ID":
                     str(item_line_id),
-
+            
                 "Item Name":
                     item.get(
                         "item_shortName",
                         ""
                     ),
-
+            
                 "Item Group Name":
                     "",
-
+            
                 "Variant":
                     "",
-
+            
                 "Product Mix":
                     "",
-
+            
                 "Category Group":
                     "",
-
+            
                 "Qty":
                     item.get(
                         "item_quantity",
                         0
                     ),
-
+            
                 "Gross Amount":
                     item.get(
                         "item_baseGrossAmount",
                         0
                     ),
-
+            
                 "Discount":
                     item.get(
                         "item_baseNetDiscountAmount",
                         0
                     ),
-
+            
                 "Net Amount":
                     item.get(
                         "item_baseNetAmount",
                         0
-                    ),
-
-                "_item_line_id":
-                    str(item_line_id)
-
+                    )
             }
-
-
-            item_rows.append(
-                row
-            )
 
 
     # =====================================================
