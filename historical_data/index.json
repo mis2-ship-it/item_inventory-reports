@@ -1,12 +1,12 @@
 {
-  "updated_at": "2026-09-18T09:50:35.491115+05:30",
+  "updated_at": "2026-09-18T12:58:36.841363+05:30",
   "files": [
     {
       "month": "2026_09",
       "file": "item_level_2026_09.csv",
-      "rows": 9584,
+      "rows": 19860,
       "columns": 21,
-      "size_bytes": 1360551
+      "size_bytes": 3022207
     }
   ]
 }
