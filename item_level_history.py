@@ -1619,193 +1619,141 @@ def save_month_file(
 ):
 
     file_path = os.path.join(
-
         HISTORY_FOLDER,
-
         f"item_level_{month}.csv"
-
     )
 
-
-    existing_df = load_month_file(
-        month
-    )
-
+    print("\n" + "=" * 70)
+    print(f"💾 SAVING MONTH FILE: {month}")
+    print("=" * 70)
 
     # =====================================================
-    # IF NO NEW DATA
+    # LOAD EXISTING MONTH FILE
+    # =====================================================
+
+    existing_df = load_month_file(month)
+
+    # =====================================================
+    # PREPARE NEW DATA
     # =====================================================
 
     if new_df is None:
-
         new_df = pd.DataFrame(
             columns=FINAL_COLUMNS
         )
 
+    new_df = new_df.copy()
 
     # =====================================================
-    # COMBINE
+    # ENSURE ALL EXPECTED COLUMNS EXIST
+    # =====================================================
+
+    for col in FINAL_COLUMNS:
+
+        if col not in new_df.columns:
+            new_df[col] = ""
+
+    new_df = new_df[
+        FINAL_COLUMNS
+    ].copy()
+
+    # =====================================================
+    # EXISTING FILE IS EMPTY
     # =====================================================
 
     if existing_df.empty:
 
         final_df = new_df.copy()
 
+        print(
+            f"📦 No existing data. Using new data: "
+            f"{len(final_df)} rows"
+        )
+
+    # =====================================================
+    # NEW DATA IS EMPTY
+    # =====================================================
+
     elif new_df.empty:
 
         final_df = existing_df.copy()
 
+        print(
+            f"📦 No new data. Keeping existing data: "
+            f"{len(final_df)} rows"
+        )
+
+    # =====================================================
+    # COMBINE EXISTING + NEW
+    # =====================================================
+
     else:
 
         final_df = pd.concat(
-
             [
-
                 existing_df,
-
                 new_df
-
             ],
-
             ignore_index=True
-
         )
 
+        print(
+            f"📦 Existing rows: {len(existing_df)}"
+        )
+
+        print(
+            f"📦 New rows: {len(new_df)}"
+        )
+
+        print(
+            f"📦 Combined rows: {len(final_df)}"
+        )
 
     # =====================================================
-    # IMPORTANT:
-    # DO NOT DEDUPE USING
-    # invoice + Item Name + createdDate
+    # IMPORTANT
     #
-    # That can remove legitimate repeated item lines.
+    # DO NOT REMOVE DUPLICATE ITEM LINES HERE.
     #
-    # Instead, only remove exact duplicate rows.
+    # The API item-level result already contains individual
+    # item lines. Identical item names/values can legitimately
+    # occur more than once in an invoice.
+    #
+    # For now, preserve every returned item-level row.
     # =====================================================
 
-    # =========================================================
-    # ITEM-LINE DEDUPLICATION
-    # =========================================================
-    
-    dedupe_columns = [
-        "Business Date",
-        "branchCode",
-        "invoiceNumber",
-        "Item Line ID"
-    ]
-    
-    before_dedupe = len(final_df)
-
-    # =========================================================
-    # DEBUG DUPLICATE ITEM LINE IDs
-    # =========================================================
-    
-    duplicate_check = final_df[
-        final_df.duplicated(
-            subset=[
-                "Business Date",
-                "branchCode",
-                "invoiceNumber",
-                "Item Line ID"
-            ],
-            keep=False
-        )
-    ].copy()
-    
-    if len(duplicate_check) > 0:
-        print("\n" + "=" * 70)
-        print("🔎 DUPLICATE ITEM LINE DEBUG")
-        print("=" * 70)
-    
-        print(
-            duplicate_check[
-                [
-                    "Business Date",
-                    "branchCode",
-                    "invoiceNumber",
-                    "Item Line ID",
-                    "Item Name",
-                    "Qty",
-                    "Gross Amount",
-                    "Discount",
-                    "Net Amount"
-                ]
-            ]
-            .sort_values(
-                [
-                    "invoiceNumber",
-                    "Item Line ID"
-                ]
-            )
-            .head(50)
-            .to_string(index=False)
-        )
-    
-        print("=" * 70)
-        print(
-            f"🔎 Duplicate rows found: {len(duplicate_check)}"
-        )
-        print("=" * 70)
-    
-    final_df = (
-        final_df
-        .drop_duplicates(
-            subset=dedupe_columns,
-            keep="last"
-        )
-        .reset_index(drop=True)
+    print(
+        f"📊 Final item-level rows before save: "
+        f"{len(final_df)}"
     )
-    
-    removed = before_dedupe - len(final_df)
-    
-    print(f"🧹 Item-line duplicates removed: {removed}")
-
 
     # =====================================================
     # SORT
     # =====================================================
 
     sort_columns = [
-
         "Business Date",
-
         "Store Name",
-
         "invoiceNumber",
-
-        "Item Name"
-
+        "Item Line ID"
     ]
-
 
     available_sort_columns = [
-
         col
-
         for col in sort_columns
-
         if col in final_df.columns
-
     ]
-
 
     if available_sort_columns:
 
         final_df = (
-
             final_df
-
             .sort_values(
-
                 available_sort_columns
-
             )
-
             .reset_index(
                 drop=True
             )
-
         )
-
 
     # =====================================================
     # ENSURE COLUMN ORDER
@@ -1817,44 +1765,73 @@ def save_month_file(
 
             final_df[col] = ""
 
-
     final_df = final_df[
         FINAL_COLUMNS
-    ]
-
+    ].copy()
 
     # =====================================================
-    # SAVE WITH HEADERS
+    # CREATE HISTORY FOLDER
+    # =====================================================
+
+    os.makedirs(
+        HISTORY_FOLDER,
+        exist_ok=True
+    )
+
+    # =====================================================
+    # SAVE CSV
     # =====================================================
 
     final_df.to_csv(
-
         file_path,
-
         index=False,
-
         encoding="utf-8-sig"
-
     )
 
+    # =====================================================
+    # VERIFY FILE WAS ACTUALLY WRITTEN
+    # =====================================================
+
+    if not os.path.exists(file_path):
+
+        raise RuntimeError(
+            f"CSV file was not created: {file_path}"
+        )
+
+    saved_size = os.path.getsize(
+        file_path
+    )
+
+    if saved_size <= 1:
+
+        raise RuntimeError(
+            f"CSV file appears empty: "
+            f"{file_path} | Size: {saved_size} bytes"
+        )
+
+    # =====================================================
+    # FINAL LOG
+    # =====================================================
 
     print(
         f"💾 Saved: {file_path}"
     )
 
-
     print(
         f"   Rows: {len(final_df)}"
     )
-
 
     print(
         f"   Columns: {len(final_df.columns)}"
     )
 
+    print(
+        f"   File Size: {saved_size:,} bytes"
+    )
+
+    print("=" * 70)
 
     return final_df
-
 
 # =========================================================
 # BUILD INDEX
