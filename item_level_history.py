@@ -270,7 +270,30 @@ def load_help_sheet():
         HELP_SHEET_NAME
     )
 
-    records = worksheet.get_all_records()
+    values = worksheet.get_all_values()
+
+    if not values:
+        raise RuntimeError(
+            "Item Group sheet is empty."
+        )
+    
+    headers = values[0]
+    
+    # Give blank headers unique temporary names
+    fixed_headers = []
+    
+    for i, header in enumerate(headers):
+        header = str(header).strip()
+    
+        if not header:
+            header = f"_blank_{i + 1}"
+    
+        fixed_headers.append(header)
+    
+    records = [
+        dict(zip(fixed_headers, row))
+        for row in values[1:]
+    ]
 
     df = pd.DataFrame(records)
 
