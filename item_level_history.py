@@ -1694,6 +1694,57 @@ def save_month_file(
     ]
     
     before_dedupe = len(final_df)
+
+    # =========================================================
+    # DEBUG DUPLICATE ITEM LINE IDs
+    # =========================================================
+    
+    duplicate_check = final_df[
+        final_df.duplicated(
+            subset=[
+                "Business Date",
+                "branchCode",
+                "invoiceNumber",
+                "Item Line ID"
+            ],
+            keep=False
+        )
+    ].copy()
+    
+    if len(duplicate_check) > 0:
+        print("\n" + "=" * 70)
+        print("🔎 DUPLICATE ITEM LINE DEBUG")
+        print("=" * 70)
+    
+        print(
+            duplicate_check[
+                [
+                    "Business Date",
+                    "branchCode",
+                    "invoiceNumber",
+                    "Item Line ID",
+                    "Item Name",
+                    "Qty",
+                    "Gross Amount",
+                    "Discount",
+                    "Net Amount"
+                ]
+            ]
+            .sort_values(
+                [
+                    "invoiceNumber",
+                    "Item Line ID"
+                ]
+            )
+            .head(50)
+            .to_string(index=False)
+        )
+    
+        print("=" * 70)
+        print(
+            f"🔎 Duplicate rows found: {len(duplicate_check)}"
+        )
+        print("=" * 70)
     
     final_df = (
         final_df
