@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import subprocess
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -34,7 +33,7 @@ IST = ZoneInfo("Asia/Kolkata")
 
 
 # =========================================================
-# DATE CONFIG
+# HISTORY DATE CONFIG
 # =========================================================
 
 HISTORY_START_DATE = os.getenv(
@@ -43,7 +42,7 @@ HISTORY_START_DATE = os.getenv(
 )
 
 HISTORY_END_DATE = os.getenv(
-    "2026-09-17",
+    "HISTORY_END_DATE",
     ""
 )
 
@@ -104,7 +103,7 @@ print("✅ Connected Google Sheet")
 
 
 # =========================================================
-# TIME
+# DATE SETUP
 # =========================================================
 
 ist_now = datetime.now(IST)
@@ -116,8 +115,8 @@ print(
 
 
 # =========================================================
-# BUSINESS DATE
-# 9 AM → NEXT 8:59 AM
+# CURRENT BUSINESS DATE
+# 9 AM → NEXT DAY 8:59 AM
 # =========================================================
 
 if ist_now.hour < 9:
@@ -191,6 +190,55 @@ os.makedirs(
 
 
 # =========================================================
+# FINAL CSV COLUMN ORDER
+# =========================================================
+
+FINAL_COLUMNS = [
+
+    "Business Date",
+
+    "branchCode",
+
+    "Store Name",
+
+    "Ownership",
+
+    "Region",
+
+    "Source",
+
+    "invoiceNumber",
+
+    "createdDate",
+
+    "brandName",
+
+    "channel",
+
+    "status",
+
+    "Item Name",
+
+    "Item Group Name",
+
+    "Variant",
+
+    "Product Mix",
+
+    "Category Group",
+
+    "Qty",
+
+    "Gross Amount",
+
+    "Discount",
+
+    "Net Amount"
+
+]
+
+
+# =========================================================
 # HELP SHEET
 # =========================================================
 
@@ -226,26 +274,44 @@ for row in help_data[1:]:
             [""] * (7 - len(row))
         )
 
+
     help_rows.append([
+
         row[0],  # A branchCode
+
         row[1],  # B Store Name
+
         row[2],  # C Ownership
+
         row[3],  # D Region
+
         row[5],  # F Channel
+
         row[6],  # G Source
+
     ])
 
 
 help_df = pd.DataFrame(
+
     help_rows,
+
     columns=[
+
         "branchCode",
+
         "Store Name",
+
         "Ownership",
+
         "Region",
+
         "Channel",
+
         "Source"
+
     ]
+
 )
 
 
@@ -256,21 +322,31 @@ help_df = pd.DataFrame(
 for col in help_df.columns:
 
     help_df[col] = (
+
         help_df[col]
+
         .astype(str)
+
         .str.strip()
+
     )
 
 
 help_df["Ownership"] = (
+
     help_df["Ownership"]
+
     .str.upper()
+
 )
 
 
 help_df["branchCode"] = (
+
     help_df["branchCode"]
+
     .str.strip()
+
 )
 
 
@@ -279,7 +355,9 @@ help_df["branchCode"] = (
 # =========================================================
 
 help_df = help_df[
+
     help_df["Ownership"] == "COCO"
+
 ].copy()
 
 
@@ -290,31 +368,45 @@ print(
 
 
 # =========================================================
-# REQUIRED COLUMNS
+# REQUIRED HELP COLUMNS
 # =========================================================
 
 required_help_columns = [
+
     "branchCode",
+
     "Store Name",
+
     "Ownership",
+
     "Region",
+
     "Channel",
+
     "Source"
+
 ]
 
 
 missing_help_columns = [
+
     col
+
     for col in required_help_columns
+
     if col not in help_df.columns
+
 ]
 
 
 if missing_help_columns:
 
     raise RuntimeError(
+
         "Missing Help Sheet columns: "
+
         + str(missing_help_columns)
+
     )
 
 
@@ -323,22 +415,46 @@ if missing_help_columns:
 # =========================================================
 
 branch_master = (
+
     help_df
+
     .drop_duplicates(
+
         subset=["branchCode"]
+
     )
-    .set_index("branchCode")
+
+    .set_index(
+
+        "branchCode"
+
+    )
+
 )
 
 
 branches = (
+
     help_df["branchCode"]
+
     .dropna()
+
     .loc[
-        lambda x: x.astype(str).str.strip() != ""
+
+        lambda x:
+
+        x.astype(str)
+
+        .str.strip()
+
+        != ""
+
     ]
+
     .unique()
+
     .tolist()
+
 )
 
 
@@ -349,7 +465,7 @@ print(
 
 
 # =========================================================
-# ITEM GROUP SHEET
+# ITEM GROUP
 # =========================================================
 
 print("\n" + "=" * 60)
@@ -373,15 +489,20 @@ if not item_data:
 
 # =========================================================
 # ONLY A:E
-# THIS ALSO AVOIDS BLANK HEADER PROBLEM
 # =========================================================
 
 item_headers = [
+
     "Item Name",
+
     "Item Group Name",
+
     "Variant",
+
     "Product Mix",
+
     "Category Group"
+
 ]
 
 
@@ -394,18 +515,27 @@ for row in item_data[1:]:
 
     row = row[:5]
 
+
     if len(row) < 5:
 
         row.extend(
+
             [""] * (5 - len(row))
+
         )
 
-    normalized_rows.append(row)
+
+    normalized_rows.append(
+        row
+    )
 
 
 item_df = pd.DataFrame(
+
     normalized_rows,
+
     columns=item_headers
+
 )
 
 
@@ -416,33 +546,50 @@ item_df = pd.DataFrame(
 for col in item_df.columns:
 
     item_df[col] = (
+
         item_df[col]
+
         .astype(str)
+
         .str.strip()
+
     )
 
 
 item_df["Item Name"] = (
+
     item_df["Item Name"]
+
     .str.upper()
+
 )
 
 
-# Remove completely blank item names
+# Remove blank item names
 
 item_df = item_df[
+
     item_df["Item Name"].str.strip() != ""
+
 ].copy()
 
 
-# Remove duplicate item mappings
+# =========================================================
+# KEEP FIRST MAPPING
+# =========================================================
 
 item_df = (
+
     item_df
+
     .drop_duplicates(
+
         subset=["Item Name"],
+
         keep="first"
+
     )
+
 )
 
 
@@ -458,13 +605,17 @@ print(
 
 
 # =========================================================
-# ITEM GROUP LOOKUP
+# ITEM LOOKUP
 # =========================================================
 
 item_lookup = (
+
     item_df
+
     .set_index("Item Name")
+
     .to_dict("index")
+
 )
 
 
@@ -476,37 +627,50 @@ def channel_group(value):
 
     x = str(value).strip().upper()
 
+
     if "SWIGGY" in x:
 
         return "Swiggy"
+
 
     if "ZOMATO" in x:
 
         return "Zomato"
 
+
     if (
+
         "POS" in x
+
         or "DINE" in x
+
         or "IN-STORE" in x
+
         or "IN STORE" in x
+
         or "INSTORE" in x
+
     ):
 
         return "In Store"
 
+
     if (
+
         "OWNLY" in x
+
         or "WEBSITE" in x
+
     ):
 
         return "Ownly"
+
 
     return "Others"
 
 
 # =========================================================
 # BUSINESS WINDOW
-# 09:00 AM → NEXT DAY 08:59:59 AM
 # =========================================================
 
 def get_business_window(
@@ -514,35 +678,36 @@ def get_business_window(
 ):
 
     start_dt = datetime(
+
         business_date.year,
+
         business_date.month,
+
         business_date.day,
+
         9,
+
         0,
+
         0,
+
         tzinfo=IST
+
     )
+
 
     end_dt = (
+
         start_dt
+
         + timedelta(days=1)
+
         - timedelta(seconds=1)
+
     )
+
 
     return start_dt, end_dt
-
-
-# =========================================================
-# RISTA DATE FORMAT
-# =========================================================
-
-def rista_day(
-    business_date
-):
-
-    return business_date.strftime(
-        "%Y-%m-%d"
-    )
 
 
 # =========================================================
@@ -553,13 +718,17 @@ def fetch_business_date(
     business_date
 ):
 
-    start_dt, end_dt = get_business_window(
-        business_date
+    start_dt, end_dt = (
+        get_business_window(
+            business_date
+        )
     )
 
-    day = rista_day(
-        business_date
+
+    day = business_date.strftime(
+        "%Y-%m-%d"
     )
+
 
     print("\n" + "-" * 60)
 
@@ -582,7 +751,7 @@ def fetch_business_date(
 
 
     # =====================================================
-    # LOOP COCO BRANCHES
+    # LOOP BRANCHES
     # =====================================================
 
     for branch in branches:
@@ -638,6 +807,10 @@ def fetch_business_date(
                 )
 
 
+                # =================================================
+                # API ERROR
+                # =================================================
+
                 if response.status_code != 200:
 
                     print(
@@ -645,12 +818,19 @@ def fetch_business_date(
                         response.text[:500]
                     )
 
+
                     raise RuntimeError(
-                        f"Rista request failed for "
-                        f"{branch} "
-                        f"date={day} "
-                        f"page={page} "
+
+                        f"Rista request failed "
+
+                        f"for branch={branch}, "
+
+                        f"date={day}, "
+
+                        f"page={page}, "
+
                         f"status={response.status_code}"
+
                     )
 
 
@@ -660,8 +840,14 @@ def fetch_business_date(
 
 
                 data = (
+
                     response_json
-                    .get("data", [])
+
+                    .get(
+                        "data",
+                        []
+                    )
+
                 )
 
 
@@ -689,9 +875,6 @@ def fetch_business_date(
                 # PAGINATION
                 # =================================================
 
-                # Rista can return less than the limit
-                # when there are no more records.
-
                 if len(data) < 5000:
 
                     break
@@ -713,13 +896,15 @@ def fetch_business_date(
         if branch_rows:
 
             print(
-                f"   ✅ Branch records:",
+                "   ✅ Branch records:",
                 len(branch_rows)
             )
+
 
             all_sales.extend(
                 branch_rows
             )
+
 
         else:
 
@@ -729,7 +914,7 @@ def fetch_business_date(
 
 
     # =====================================================
-    # NO DATA
+    # NO SALES
     # =====================================================
 
     if not all_sales:
@@ -738,7 +923,9 @@ def fetch_business_date(
             f"⚠️ No sales for {business_date}"
         )
 
-        return pd.DataFrame()
+        return pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
 
 
     # =====================================================
@@ -765,20 +952,28 @@ def fetch_business_date(
         if "branch" in sales_df.columns:
 
             sales_df["branchCode"] = (
+
                 sales_df["branch"]
+
             )
 
         else:
 
             raise RuntimeError(
-                "branchCode not found in Rista sales data."
+
+                "branchCode not found in Rista data."
+
             )
 
 
     sales_df["branchCode"] = (
+
         sales_df["branchCode"]
+
         .astype(str)
+
         .str.strip()
+
     )
 
 
@@ -789,14 +984,22 @@ def fetch_business_date(
     if "status" in sales_df.columns:
 
         sales_df["status"] = (
+
             sales_df["status"]
+
             .astype(str)
+
             .str.upper()
+
             .str.strip()
+
         )
 
+
         sales_df = sales_df[
+
             sales_df["status"] == "CLOSED"
+
         ].copy()
 
 
@@ -808,7 +1011,9 @@ def fetch_business_date(
 
     if sales_df.empty:
 
-        return pd.DataFrame()
+        return pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
 
 
     # =====================================================
@@ -816,56 +1021,81 @@ def fetch_business_date(
     # =====================================================
 
     sales_df["Store Name"] = (
+
         sales_df["branchCode"]
+
         .map(
             branch_master["Store Name"]
         )
+
     )
 
 
     sales_df["Ownership"] = (
+
         sales_df["branchCode"]
+
         .map(
             branch_master["Ownership"]
         )
+
     )
 
 
     sales_df["Region"] = (
+
         sales_df["branchCode"]
+
         .map(
             branch_master["Region"]
         )
+
     )
 
 
     sales_df["Help Channel"] = (
+
         sales_df["branchCode"]
+
         .map(
             branch_master["Channel"]
         )
+
     )
 
 
     sales_df["Source"] = (
+
         sales_df["branchCode"]
+
         .map(
             branch_master["Source"]
         )
+
     )
 
 
+    # =====================================================
+    # SOURCE MAPPING
+    # =====================================================
+
     sales_df["Source"] = (
+
         sales_df["Source"]
+
         .fillna(
             sales_df["Help Channel"]
         )
+
     )
 
 
     sales_df["Source"] = (
+
         sales_df["Source"]
+
         .apply(channel_group)
+
     )
 
 
@@ -892,7 +1122,7 @@ def fetch_business_date(
             continue
 
 
-        for item in items:
+        for item_index, item in enumerate(items):
 
             if not isinstance(
                 item,
@@ -900,6 +1130,41 @@ def fetch_business_date(
             ):
 
                 continue
+
+
+            # =================================================
+            # ITEM LINE ID
+            #
+            # If Rista provides an item-level ID, use it.
+            # Otherwise create a stable line number inside
+            # the invoice.
+            # =================================================
+
+            item_id = (
+
+                item.get(
+                    "item_id"
+                )
+
+                or item.get(
+                    "itemId"
+                )
+
+                or item.get(
+                    "id"
+                )
+
+                or ""
+
+            )
+
+
+            if not item_id:
+
+                item_id = (
+                    f"{sale.get('invoiceNumber', '')}"
+                    f"__LINE_{item_index + 1}"
+                )
 
 
             row = {
@@ -975,6 +1240,18 @@ def fetch_business_date(
                         ""
                     ),
 
+                "Item Group Name":
+                    "",
+
+                "Variant":
+                    "",
+
+                "Product Mix":
+                    "",
+
+                "Category Group":
+                    "",
+
                 "Qty":
                     item.get(
                         "item_quantity",
@@ -997,7 +1274,10 @@ def fetch_business_date(
                     item.get(
                         "item_baseNetAmount",
                         0
-                    )
+                    ),
+
+                "_item_line_id":
+                    str(item_id)
 
             }
 
@@ -1017,11 +1297,19 @@ def fetch_business_date(
             "⚠️ No item-level records."
         )
 
-        return pd.DataFrame()
+        return pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
 
 
     item_sales_df = pd.DataFrame(
         item_rows
+    )
+
+
+    print(
+        "📊 Item-Level Rows:",
+        len(item_sales_df)
     )
 
 
@@ -1030,10 +1318,15 @@ def fetch_business_date(
     # =====================================================
 
     item_sales_df["Item Name"] = (
+
         item_sales_df["Item Name"]
+
         .astype(str)
+
         .str.strip()
+
         .str.upper()
+
     )
 
 
@@ -1042,62 +1335,110 @@ def fetch_business_date(
     # =====================================================
 
     item_sales_df["Item Group Name"] = (
+
         item_sales_df["Item Name"]
+
         .map(
+
             lambda x:
+
             item_lookup.get(
+
                 x,
+
                 {}
+
             ).get(
+
                 "Item Group Name",
+
                 ""
+
             )
+
         )
+
     )
 
 
     item_sales_df["Variant"] = (
+
         item_sales_df["Item Name"]
+
         .map(
+
             lambda x:
+
             item_lookup.get(
+
                 x,
+
                 {}
+
             ).get(
+
                 "Variant",
+
                 ""
+
             )
+
         )
+
     )
 
 
     item_sales_df["Product Mix"] = (
+
         item_sales_df["Item Name"]
+
         .map(
+
             lambda x:
+
             item_lookup.get(
+
                 x,
+
                 {}
+
             ).get(
+
                 "Product Mix",
+
                 ""
+
             )
+
         )
+
     )
 
 
     item_sales_df["Category Group"] = (
+
         item_sales_df["Item Name"]
+
         .map(
+
             lambda x:
+
             item_lookup.get(
+
                 x,
+
                 {}
+
             ).get(
+
                 "Category Group",
+
                 ""
+
             )
+
         )
+
     )
 
 
@@ -1130,77 +1471,36 @@ def fetch_business_date(
 
 
     # =====================================================
-    # FINAL COLUMN ORDER
+    # ENSURE FINAL COLUMNS
     # =====================================================
 
-    final_columns = [
-
-        "Business Date",
-
-        "branchCode",
-
-        "Store Name",
-
-        "Ownership",
-
-        "Region",
-
-        "Source",
-
-        "invoiceNumber",
-
-        "createdDate",
-
-        "brandName",
-
-        "channel",
-
-        "status",
-
-        "Item Name",
-
-        "Item Group Name",
-
-        "Variant",
-
-        "Product Mix",
-
-        "Category Group",
-
-        "Qty",
-
-        "Gross Amount",
-
-        "Discount",
-
-        "Net Amount"
-
-    ]
-
-
-    for col in final_columns:
+    for col in FINAL_COLUMNS:
 
         if col not in item_sales_df.columns:
 
             item_sales_df[col] = ""
 
 
-    item_sales_df = item_sales_df[
-        final_columns
-    ]
+    # =====================================================
+    # FINAL DATA
+    # =====================================================
+
+    final_df = item_sales_df[
+        FINAL_COLUMNS
+    ].copy()
 
 
     print(
-        "📊 Item-Level Rows:",
-        len(item_sales_df)
+        "✅ Final Item-Level Rows:",
+        len(final_df)
     )
 
 
-    return item_sales_df
+    return final_df
 
 
 # =========================================================
-# LOAD EXISTING MONTH FILE
+# SAFE READ EXISTING MONTH FILE
 # =========================================================
 
 def load_month_file(
@@ -1220,40 +1520,106 @@ def load_month_file(
         file_path
     ):
 
-        return pd.DataFrame()
+        print(
+            f"📄 No existing file: {file_path}"
+        )
+
+        return pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
 
 
-    print(
-        f"📂 Existing file found: {file_path}"
+    # =====================================================
+    # CHECK FILE SIZE
+    # =====================================================
+
+    file_size = os.path.getsize(
+        file_path
     )
+
+
+    if file_size == 0:
+
+        print(
+            f"⚠️ Existing file is empty: {file_path}"
+        )
+
+        return pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
 
 
     try:
 
-        df = pd.read_csv(
-            file_path
+        existing_df = pd.read_csv(
+
+            file_path,
+
+            low_memory=False
+
         )
+
+
+        if existing_df.empty:
+
+            print(
+                "⚠️ Existing CSV contains no rows."
+            )
+
+            return pd.DataFrame(
+                columns=FINAL_COLUMNS
+            )
+
+
+        # =================================================
+        # ENSURE EXPECTED COLUMNS
+        # =================================================
+
+        for col in FINAL_COLUMNS:
+
+            if col not in existing_df.columns:
+
+                existing_df[col] = ""
+
+
+        existing_df = existing_df[
+            FINAL_COLUMNS
+        ].copy()
+
 
         print(
             "   Existing rows:",
-            len(df)
+            len(existing_df)
         )
 
-        return df
+
+        return existing_df
+
+
+    except pd.errors.EmptyDataError:
+
+        print(
+            f"⚠️ Empty CSV detected: {file_path}"
+        )
+
+
+        return pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
 
 
     except Exception as e:
 
-        print(
-            "⚠️ Could not read existing file:",
-            e
-        )
+        raise RuntimeError(
 
-        return pd.DataFrame()
+            f"Could not read existing file "
+            f"{file_path}: {e}"
+
+        )
 
 
 # =========================================================
-# SAVE MONTH
+# SAVE MONTH FILE
 # =========================================================
 
 def save_month_file(
@@ -1275,6 +1641,21 @@ def save_month_file(
     )
 
 
+    # =====================================================
+    # IF NO NEW DATA
+    # =====================================================
+
+    if new_df is None:
+
+        new_df = pd.DataFrame(
+            columns=FINAL_COLUMNS
+        )
+
+
+    # =====================================================
+    # COMBINE
+    # =====================================================
+
     if existing_df.empty:
 
         final_df = new_df.copy()
@@ -1288,8 +1669,11 @@ def save_month_file(
         final_df = pd.concat(
 
             [
+
                 existing_df,
+
                 new_df
+
             ],
 
             ignore_index=True
@@ -1298,60 +1682,48 @@ def save_month_file(
 
 
     # =====================================================
-    # REMOVE DUPLICATES
+    # IMPORTANT:
+    # DO NOT DEDUPE USING
+    # invoice + Item Name + createdDate
+    #
+    # That can remove legitimate repeated item lines.
+    #
+    # Instead, only remove exact duplicate rows.
     # =====================================================
 
-    duplicate_columns = [
-
-        "Business Date",
-
-        "branchCode",
-
-        "invoiceNumber",
-
-        "Item Name",
-
-        "createdDate"
-
-    ]
+    before = len(final_df)
 
 
-    available_duplicate_columns = [
+    final_df = (
 
-        col
+        final_df
 
-        for col in duplicate_columns
+        .drop_duplicates(
 
-        if col in final_df.columns
+            keep="last"
 
-    ]
-
-
-    if available_duplicate_columns:
-
-        before = len(final_df)
-
-
-        final_df = (
-            final_df
-            .drop_duplicates(
-                subset=available_duplicate_columns,
-                keep="last"
-            )
         )
 
-
-        removed = (
-            before
-            - len(final_df)
+        .reset_index(
+            drop=True
         )
 
+    )
 
-        if removed:
 
-            print(
-                f"🧹 Removed duplicates: {removed}"
-            )
+    removed = (
+
+        before
+        - len(final_df)
+
+    )
+
+
+    if removed:
+
+        print(
+            f"🧹 Exact duplicate rows removed: {removed}"
+        )
 
 
     # =====================================================
@@ -1385,18 +1757,40 @@ def save_month_file(
     if available_sort_columns:
 
         final_df = (
+
             final_df
+
             .sort_values(
+
                 available_sort_columns
+
             )
+
             .reset_index(
                 drop=True
             )
+
         )
 
 
     # =====================================================
-    # SAVE
+    # ENSURE COLUMN ORDER
+    # =====================================================
+
+    for col in FINAL_COLUMNS:
+
+        if col not in final_df.columns:
+
+            final_df[col] = ""
+
+
+    final_df = final_df[
+        FINAL_COLUMNS
+    ]
+
+
+    # =====================================================
+    # SAVE WITH HEADERS
     # =====================================================
 
     final_df.to_csv(
@@ -1414,8 +1808,14 @@ def save_month_file(
         f"💾 Saved: {file_path}"
     )
 
+
     print(
         f"   Rows: {len(final_df)}"
+    )
+
+
+    print(
+        f"   Columns: {len(final_df.columns)}"
     )
 
 
@@ -1428,13 +1828,21 @@ def save_month_file(
 
 def build_index():
 
+    print("\n")
+    print("=" * 60)
+    print("BUILDING HISTORY INDEX")
+    print("=" * 60)
+
+
     files = []
 
 
     for filename in sorted(
+
         os.listdir(
             HISTORY_FOLDER
         )
+
     ):
 
         if not filename.startswith(
@@ -1460,36 +1868,96 @@ def build_index():
         )
 
 
+        file_size = os.path.getsize(
+            file_path
+        )
+
+
+        # =================================================
+        # EMPTY FILE
+        # =================================================
+
+        if file_size == 0:
+
+            print(
+                f"⚠️ Skipping empty file: {filename}"
+            )
+
+            continue
+
+
         try:
 
             df = pd.read_csv(
-                file_path
+
+                file_path,
+
+                low_memory=False
+
             )
 
 
+            # =================================================
+            # MONTH NAME
+            # =================================================
+
             month = filename[
+
                 len("item_level_"):
+
                 -len(".csv")
+
             ]
 
 
             files.append({
 
-                "month": month,
+                "month":
+                    month,
 
-                "file": filename,
+                "file":
+                    filename,
 
-                "rows": len(df)
+                "rows":
+                    len(df),
+
+                "columns":
+                    len(df.columns),
+
+                "size_bytes":
+                    file_size
 
             })
+
+
+            print(
+
+                f"✅ {filename} "
+                f"| Rows: {len(df)}"
+
+            )
+
+
+        except pd.errors.EmptyDataError:
+
+            print(
+                f"⚠️ Empty CSV: {filename}"
+            )
 
 
         except Exception as e:
 
             print(
-                f"⚠️ Index skipped {filename}: {e}"
+
+                f"⚠️ Index skipped "
+                f"{filename}: {e}"
+
             )
 
+
+    # =====================================================
+    # INDEX JSON
+    # =====================================================
 
     index_data = {
 
@@ -1537,6 +2005,12 @@ def build_index():
     )
 
 
+    print(
+        "📊 Monthly files:",
+        len(files)
+    )
+
+
 # =========================================================
 # MAIN
 # =========================================================
@@ -1544,19 +2018,27 @@ def build_index():
 def main():
 
     print("\n")
+
     print("=" * 70)
-    print("ITEM LEVEL HISTORICAL DATA")
+
+    print(
+        "ITEM LEVEL HISTORICAL DATA"
+    )
+
     print("=" * 70)
+
 
     print(
         "Start Date:",
         history_start_date
     )
 
+
     print(
         "End Date:",
         history_end_date
     )
+
 
     print(
         "Folder:",
@@ -1581,21 +2063,26 @@ def main():
         try:
 
             daily_df = fetch_business_date(
+
                 current_date
+
             )
 
 
             # =================================================
-            # IMPORTANT:
-            # If API returns no data, do NOT destroy
-            # existing historical data.
+            # SAVE ONLY IF API RETURNED DATA
             # =================================================
 
             if daily_df.empty:
 
                 print(
-                    f"⚠️ No new data for {current_date}"
+                    f"⚠️ No item data for {current_date}"
                 )
+
+
+                # Do NOT overwrite existing
+                # historical data.
+
 
             else:
 
@@ -1611,6 +2098,7 @@ def main():
         except Exception as e:
 
             print("\n")
+
             print("=" * 70)
 
             print(
@@ -1623,6 +2111,7 @@ def main():
             )
 
             print("=" * 70)
+
 
             raise
 
@@ -1640,8 +2129,13 @@ def main():
 
 
     print("\n")
+
     print("=" * 70)
-    print("✅ HISTORICAL ITEM DATA COMPLETED")
+
+    print(
+        "✅ HISTORICAL ITEM DATA COMPLETED"
+    )
+
     print("=" * 70)
 
 
@@ -1652,4 +2146,3 @@ def main():
 if __name__ == "__main__":
 
     main()
-
