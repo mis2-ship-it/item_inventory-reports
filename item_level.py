@@ -422,6 +422,10 @@ def fetch_sales_window(
             branch
         )
 
+        # -------------------------------------------------
+        # RISTA "DAY" PARAMETER
+        # -------------------------------------------------
+
         params = {
             "branch": branch,
 
@@ -432,7 +436,11 @@ def fetch_sales_window(
             "page": 1,
             "limit": 5000
         }
-        print("Params:", params)
+
+        print(
+            "Params:",
+            params
+        )
 
         try:
 
@@ -474,16 +482,20 @@ def fetch_sales_window(
                     "No Data:",
                     branch
                 )
+
                 continue
 
             df = pd.json_normalize(
                 data
             )
 
+            print(
+                f"   Raw rows from Rista: {len(df)}"
+            )
 
-            # =========================================
+            # =================================================
             # SAFE BRANCH CODE
-            # =========================================
+            # =================================================
 
             if (
                 "branchCode"
@@ -501,13 +513,110 @@ def fetch_sales_window(
                         "branch"
                     ]
 
-            # =========================================
+            # =================================================
+            # FILTER BY EXACT TIME WINDOW
+            # =================================================
+
+            if "createdDate" not in df.columns:
+
+                print(
+                    f"⚠️ createdDate not found for {branch}"
+                )
+
+                continue
+
+            # -------------------------------------------------
+            # CONVERT RISTA CREATED DATE TO IST
+            # -------------------------------------------------
+
+            df["_createdDate_IST"] = pd.to_datetime(
+                df["createdDate"],
+                errors="coerce",
+                utc=True
+            ).dt.tz_convert(
+                "Asia/Kolkata"
+            )
+
+            # -------------------------------------------------
+            # REMOVE INVALID DATES
+            # -------------------------------------------------
+
+            invalid_dates = (
+                df["_createdDate_IST"]
+                .isna()
+                .sum()
+            )
+
+            if invalid_dates > 0:
+
+                print(
+                    f"   ⚠️ Invalid createdDate rows: "
+                    f"{invalid_dates}"
+                )
+
+            df = df[
+                df["_createdDate_IST"].notna()
+            ].copy()
+
+            # -------------------------------------------------
+            # EXACT TIME FILTER
+            #
+            # IMPORTANT:
+            # Rista "day" returns the complete day.
+            # We therefore filter here.
+            # -------------------------------------------------
+
+            before_filter = len(df)
+
+            df = df[
+                (
+                    df["_createdDate_IST"]
+                    >= start_datetime
+                )
+                &
+                (
+                    df["_createdDate_IST"]
+                    <= end_datetime
+                )
+            ].copy()
+
+            after_filter = len(df)
+
+            print(
+                f"   📊 Rows before time filter: "
+                f"{before_filter}"
+            )
+
+            print(
+                f"   ✅ Rows after time filter: "
+                f"{after_filter}"
+            )
+
+            # -------------------------------------------------
+            # REMOVE TEMPORARY DATE COLUMN
+            # -------------------------------------------------
+
+            df.drop(
+                columns=[
+                    "_createdDate_IST"
+                ],
+                inplace=True,
+                errors="ignore"
+            )
+
+            # =================================================
             # TAG DATASET
-            # =========================================
+            # =================================================
 
             df["DATASET"] = tag
 
-            all_sales.append(df)
+            # =================================================
+            # ADD TO RESULT
+            # =================================================
+
+            all_sales.append(
+                df
+            )
 
         except Exception as e:
 
@@ -534,26 +643,39 @@ def fetch_sales_window(
     )
 
     print(
-        f"✅ {tag} Rows:",
+        f"\n✅ {tag} Final Rows:",
         len(final_df)
     )
 
     return final_df
+
 
 # =========================================================
 # BUSINESS WINDOW
 # =========================================================
 
 from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
 
-ist_now = datetime.now(
-    ZoneInfo("Asia/Kolkata")
+ist = ZoneInfo(
+    "Asia/Kolkata"
 )
 
-print("🕒 Current Time:", ist_now)
+ist_now = datetime.now(
+    ist
+)
+
+print(
+    "🕒 Current Time:",
+    ist_now
+)
+
 
 # =========================================================
 # BUSINESS DATE
+#
+# Business day:
+# 09:00 AM → 08:59:59 AM next day
 # =========================================================
 
 if ist_now.hour < 9:
@@ -574,39 +696,18 @@ print(
     business_date
 )
 
+
 # =========================================================
 # CURRENT WINDOW
-# 9 AM → CURRENT HOUR
-# SUPPORTS AFTER MIDNIGHT
-# =========================================================
-
-from zoneinfo import ZoneInfo
-from datetime import datetime, timedelta
-
-ist = ZoneInfo("Asia/Kolkata")
-
-ist_now = datetime.now(ist)
-
-# =========================================================
-# BUSINESS DATE LOGIC
-# AFTER MIDNIGHT → STILL SAME BUSINESS DAY
-# =========================================================
-
-if ist_now.hour < 9:
-
-    business_date = (
-        ist_now.date()
-        - timedelta(days=1)
-    )
-
-else:
-
-    business_date = (
-        ist_now.date()
-    )
-
-# =========================================================
-# WINDOW START
+#
+# 09:00 AM → CURRENT TIME
+#
+# Example:
+# 08:24 AM
+#
+# 17-Sep 09:00
+# →
+# 18-Sep 08:24:59
 # =========================================================
 
 current_window_start = datetime.combine(
@@ -616,12 +717,9 @@ current_window_start = datetime.combine(
     hour=9,
     minute=0,
     second=0,
+    microsecond=0,
     tzinfo=ist
 )
-
-# =========================================================
-# WINDOW END
-# =========================================================
 
 current_window_end = ist_now.replace(
     minute=59,
@@ -629,8 +727,12 @@ current_window_end = ist_now.replace(
     microsecond=0
 )
 
+
 # =========================================================
 # LAST WEEK WINDOW
+#
+# EXACT SAME TIME WINDOW
+# 7 DAYS EARLIER
 # =========================================================
 
 lw_window_start = (
@@ -643,21 +745,71 @@ lw_window_end = (
     - timedelta(days=7)
 )
 
+
+# =========================================================
+# LAST 2 WEEKS WINDOW
+#
+# EXACT SAME TIME WINDOW
+# 14 DAYS EARLIER
+# =========================================================
+
+l2w_window_start = (
+    current_window_start
+    - timedelta(days=14)
+)
+
+l2w_window_end = (
+    current_window_end
+    - timedelta(days=14)
+)
+
+
+# =========================================================
+# PRINT WINDOWS
+# =========================================================
+
 print(
-    "🟢 Current Window:",
+    "\n" +
+    "=" * 70
+)
+
+print(
+    "🟢 CURRENT WINDOW:"
+)
+
+print(
     current_window_start,
-    "to",
+    "→",
     current_window_end
 )
 
 print(
-    "🟡 LW Window:",
+    "\n🟡 LAST WEEK WINDOW:"
+)
+
+print(
     lw_window_start,
-    "to",
+    "→",
     lw_window_end
 )
+
+print(
+    "\n🔵 LAST 2 WEEKS WINDOW:"
+)
+
+print(
+    l2w_window_start,
+    "→",
+    l2w_window_end
+)
+
+print(
+    "=" * 70
+)
+
+
 # =========================================================
-# FETCH DATA
+# FETCH CURRENT
 # =========================================================
 
 current_df = fetch_sales_window(
@@ -666,14 +818,21 @@ current_df = fetch_sales_window(
     "CURRENT"
 )
 
+
+# =========================================================
+# FETCH LAST WEEK
+# =========================================================
+
 lw_df = fetch_sales_window(
     lw_window_start,
     lw_window_end,
     "LW"
 )
 
-l2w_window_start = current_window_start - timedelta(days=14)
-l2w_window_end = current_window_end - timedelta(days=14)
+
+# =========================================================
+# FETCH LAST 2 WEEKS
+# =========================================================
 
 l2w_df = fetch_sales_window(
     l2w_window_start,
@@ -4076,7 +4235,7 @@ print("📄 Creating Summary HTML...")
 # TIME WINDOW
 # =========================================================
 
-from datetime import datetime
+from datetime import zoneinfo
 from zoneinfo import ZoneInfo
 
 ist = ZoneInfo("Asia/Kolkata")
