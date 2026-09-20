@@ -1145,45 +1145,50 @@ def fetch_business_date(
         # =================================================
     
         for item_index, item in enumerate(items):
-
+    
             if not isinstance(
                 item,
                 dict
             ):
                 continue
-        
+    
+    
+            # =================================================
+            # DEBUG FIRST ITEM
+            # =================================================
+    
             if not debug_item_printed:
-        
+    
                 print("\n" + "=" * 80)
-        
+    
                 print(
                     "🔎 FIRST RISTA ITEM STRUCTURE"
                 )
-        
+    
                 print("=" * 80)
-        
+    
                 print(
                     "\nITEM KEYS:"
                 )
-        
+    
                 print(
                     list(
                         item.keys()
                     )
                 )
-        
+    
                 print(
                     "\nITEM DATA:"
                 )
-        
+    
                 print(
                     repr(item)
                 )
-        
+    
                 print(
                     "\n" + "=" * 80
                 )
-        
+    
                 debug_item_printed = True
     
     
@@ -1228,14 +1233,13 @@ def fetch_business_date(
     
             # =================================================
             # CREATE ITEM ROW
-            #
-            # ITEM VALUES ARE TEMPORARILY EMPTY.
-            #
-            # WE WILL MAP THEM AFTER SEEING THE
-            # ACTUAL RISTA ITEM JSON.
             # =================================================
     
             row = {
+    
+                # ---------------------------------------------
+                # SALE LEVEL INFORMATION
+                # ---------------------------------------------
     
                 "Business Date":
                     business_date.strftime(
@@ -1302,8 +1306,9 @@ def fetch_business_date(
                         ""
                     ),
     
+    
                 # ---------------------------------------------
-                # ITEM LINE ID
+                # UNIQUE ITEM LINE ID
                 # ---------------------------------------------
     
                 "Item Line ID":
@@ -1311,140 +1316,66 @@ def fetch_business_date(
                         item_line_id
                     ),
     
+    
                 # ---------------------------------------------
-                # ITEM MAPPING
+                # RISTA ITEM FIELDS
                 # ---------------------------------------------
     
-               row = {
-
-                    "Business Date":
-                        business_date.strftime(
-                            "%Y-%m-%d"
-                        ),
-                
-                    "branchCode":
-                        sale.get(
-                            "branchCode",
-                            ""
-                        ),
-                
-                    "Store Name":
-                        sale.get(
-                            "Store Name",
-                            ""
-                        ),
-                
-                    "Ownership":
-                        sale.get(
-                            "Ownership",
-                            ""
-                        ),
-                
-                    "Region":
-                        sale.get(
-                            "Region",
-                            ""
-                        ),
-                
-                    "Source":
-                        sale.get(
-                            "Source",
-                            ""
-                        ),
-                
-                    "invoiceNumber":
-                        sale.get(
-                            "invoiceNumber",
-                            ""
-                        ),
-                
-                    "createdDate":
-                        sale.get(
-                            "createdDate",
-                            ""
-                        ),
-                
-                    "brandName":
-                        sale.get(
-                            "brandName",
-                            ""
-                        ),
-                
-                    "channel":
-                        sale.get(
-                            "channel",
-                            ""
-                        ),
-                
-                    "status":
-                        sale.get(
-                            "status",
-                            ""
-                        ),
-                
-                    # ---------------------------------------------
-                    # UNIQUE ITEM LINE ID
-                    # ---------------------------------------------
-                
-                    "Item Line ID":
-                        str(
-                            item_line_id
-                        ),
-                
-                    # ---------------------------------------------
-                    # RISTA ITEM FIELDS
-                    # ---------------------------------------------
-                
-                    "Item Name":
-                        str(
-                            item.get(
-                                "shortName",
-                                ""
-                            )
-                        ).strip(),
-                
-                    "Item Group Name":
-                        "",
-                
-                    "Variant":
-                        str(
-                            item.get(
-                                "variants",
-                                ""
-                            )
-                        ).strip(),
-                
-                    "Product Mix":
-                        "",
-                
-                    "Category Group":
-                        "",
-                
-                    "Qty":
+                "Item Name":
+                    str(
                         item.get(
-                            "quantity",
-                            0
-                        ),
-                
-                    "Gross Amount":
-                        item.get(
-                            "baseGrossAmount",
-                            0
-                        ),
-                
-                    "Discount":
-                        item.get(
-                            "baseNetDiscountAmount",
-                            0
-                        ),
-                
-                    "Net Amount":
-                        item.get(
-                            "baseNetAmount",
-                            0
+                            "shortName",
+                            ""
                         )
-                
-                }
+                    ).strip(),
+    
+                "Item Group Name":
+                    "",
+    
+                "Variant":
+                    str(
+                        item.get(
+                            "variants",
+                            ""
+                        )
+                    ).strip(),
+    
+                "Product Mix":
+                    "",
+    
+                "Category Group":
+                    "",
+    
+    
+                # ---------------------------------------------
+                # ITEM NUMERIC VALUES
+                # ---------------------------------------------
+    
+                "Qty":
+                    item.get(
+                        "quantity",
+                        0
+                    ),
+    
+                "Gross Amount":
+                    item.get(
+                        "baseGrossAmount",
+                        0
+                    ),
+    
+                "Discount":
+                    item.get(
+                        "baseNetDiscountAmount",
+                        0
+                    ),
+    
+                "Net Amount":
+                    item.get(
+                        "baseNetAmount",
+                        0
+                    )
+    
+            }
     
     
             # =================================================
