@@ -1104,48 +1104,46 @@ def fetch_business_date(
     # =====================================================
     # FLATTEN ITEMS
     # =====================================================
-
+    
     item_rows = []
-
-
+    
+    # =====================================================
+    # DEBUG FLAG
+    # =====================================================
+    
+    debug_item_printed = False
+    
+    
+    # =====================================================
+    # LOOP SALES
+    # =====================================================
+    
     for _, sale in sales_df.iterrows():
-
+    
+        # =================================================
+        # GET ITEMS FROM SALE
+        # =================================================
+    
         items = sale.get(
             "items",
             []
         )
-
-
+    
+        # -------------------------------------------------
+        # SAFETY CHECK
+        # -------------------------------------------------
+    
         if not isinstance(
             items,
             list
         ):
-
             continue
-
-        # =====================================================
-        # DEBUG - FIRST ITEM STRUCTURE
-        # =====================================================
-        
-        if len(item_rows) == 0:
-        
-            print("\n" + "=" * 80)
-            print("🔎 FIRST RISTA ITEM STRUCTURE")
-            print("=" * 80)
-        
-            print("\nITEM KEYS:")
-            print(
-                list(
-                    item.keys()
-                )
-            )
-        
-            print("\nITEM DATA:")
-            print(item)
-        
-            print("\n" + "=" * 80)
-
-
+    
+    
+        # =================================================
+        # LOOP ITEM LINES
+        # =================================================
+    
         for item_index, item in enumerate(items):
 
             if not isinstance(
@@ -1154,161 +1152,210 @@ def fetch_business_date(
             ):
                 continue
         
-        
-            # =====================================================
-            # DEBUG - FIRST ITEM STRUCTURE
-            # =====================================================
-        
-            if len(item_rows) == 0:
+            if not debug_item_printed:
         
                 print("\n" + "=" * 80)
-                print("🔎 FIRST RISTA ITEM STRUCTURE")
+        
+                print(
+                    "🔎 FIRST RISTA ITEM STRUCTURE"
+                )
+        
                 print("=" * 80)
         
-                print("\nITEM KEYS:")
+                print(
+                    "\nITEM KEYS:"
+                )
+        
                 print(
                     list(
                         item.keys()
                     )
                 )
         
-                print("\nITEM DATA:")
-                print(item)
+                print(
+                    "\nITEM DATA:"
+                )
         
-                print("\n" + "=" * 80)
+                print(
+                    repr(item)
+                )
         
+                print(
+                    "\n" + "=" * 80
+                )
         
-            # =====================================================
-            # ITEM LINE ID
-            # =====================================================
-        
+                debug_item_printed = True
+    
+    
+            # =================================================
+            # SALE IDENTIFIER
+            # =================================================
+    
             sale_identifier = (
-                sale.get("invoiceNumber")
-                or sale.get("invoiceId")
-                or sale.get("id")
-                or sale.get("number")
+    
+                sale.get(
+                    "invoiceNumber"
+                )
+    
+                or sale.get(
+                    "invoiceId"
+                )
+    
+                or sale.get(
+                    "id"
+                )
+    
+                or sale.get(
+                    "number"
+                )
+    
                 or ""
+    
             )
-        
+    
+    
+            # =================================================
+            # ITEM LINE ID
+            # =================================================
+    
             item_line_id = (
-                f"{sale_identifier}__LINE_{item_index + 1}"
+    
+                f"{sale_identifier}"
+                f"__LINE_{item_index + 1}"
+    
             )
-
-
+    
+    
+            # =================================================
+            # CREATE ITEM ROW
+            #
+            # ITEM VALUES ARE TEMPORARILY EMPTY.
+            #
+            # WE WILL MAP THEM AFTER SEEING THE
+            # ACTUAL RISTA ITEM JSON.
+            # =================================================
+    
             row = {
-
+    
                 "Business Date":
                     business_date.strftime(
                         "%Y-%m-%d"
                     ),
-            
+    
                 "branchCode":
                     sale.get(
                         "branchCode",
                         ""
                     ),
-            
+    
                 "Store Name":
                     sale.get(
                         "Store Name",
                         ""
                     ),
-            
+    
                 "Ownership":
                     sale.get(
                         "Ownership",
                         ""
                     ),
-            
+    
                 "Region":
                     sale.get(
                         "Region",
                         ""
                     ),
-            
+    
                 "Source":
                     sale.get(
                         "Source",
                         ""
                     ),
-            
+    
                 "invoiceNumber":
                     sale.get(
                         "invoiceNumber",
                         ""
                     ),
-            
+    
                 "createdDate":
                     sale.get(
                         "createdDate",
                         ""
                     ),
-            
+    
                 "brandName":
                     sale.get(
                         "brandName",
                         ""
                     ),
-            
+    
                 "channel":
                     sale.get(
                         "channel",
                         ""
                     ),
-            
+    
                 "status":
                     sale.get(
                         "status",
                         ""
                     ),
-            
+    
+                # ---------------------------------------------
+                # ITEM LINE ID
+                # ---------------------------------------------
+    
                 "Item Line ID":
-                    str(item_line_id),
-            
-                "Item Name":
-                    item.get(
-                        "item_shortName",
-                        ""
+                    str(
+                        item_line_id
                     ),
-            
+    
+                # ---------------------------------------------
+                # ITEM MAPPING
+                # ---------------------------------------------
+    
+                "Item Name":
+                    "",
+    
                 "Item Group Name":
                     "",
-            
+    
                 "Variant":
                     "",
-            
+    
                 "Product Mix":
                     "",
-            
+    
                 "Category Group":
                     "",
-            
+    
+                # ---------------------------------------------
+                # ITEM NUMBERS
+                # ---------------------------------------------
+    
                 "Qty":
-                    item.get(
-                        "item_quantity",
-                        0
-                    ),
-            
+                    0,
+    
                 "Gross Amount":
-                    item.get(
-                        "item_baseGrossAmount",
-                        0
-                    ),
-            
+                    0,
+    
                 "Discount":
-                    item.get(
-                        "item_baseNetDiscountAmount",
-                        0
-                    ),
-            
+                    0,
+    
                 "Net Amount":
-                    item.get(
-                        "item_baseNetAmount",
-                        0
-                    )
+                    0
+    
             }
-
-
+    
+    
+            # =================================================
+            # APPEND ITEM ROW
+            # =================================================
+    
+            item_rows.append(
+                row
+            )
     # =====================================================
     # NO ITEM DATA
     # =====================================================
@@ -1340,15 +1387,10 @@ def fetch_business_date(
     # =====================================================
 
     item_sales_df["Item Name"] = (
-
         item_sales_df["Item Name"]
-
         .astype(str)
-
         .str.strip()
-
         .str.upper()
-
     )
 
 
@@ -1357,29 +1399,17 @@ def fetch_business_date(
     # =====================================================
 
     item_sales_df["Item Group Name"] = (
-
         item_sales_df["Item Name"]
-
         .map(
-
             lambda x:
-
             item_lookup.get(
-
                 x,
-
                 {}
-
             ).get(
-
                 "Item Group Name",
-
                 ""
-
             )
-
         )
-
     )
 
 
