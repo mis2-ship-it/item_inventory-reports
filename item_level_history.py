@@ -1315,38 +1315,136 @@ def fetch_business_date(
                 # ITEM MAPPING
                 # ---------------------------------------------
     
-                "Item Name":
-                    "",
-    
-                "Item Group Name":
-                    "",
-    
-                "Variant":
-                    "",
-    
-                "Product Mix":
-                    "",
-    
-                "Category Group":
-                    "",
-    
-                # ---------------------------------------------
-                # ITEM NUMBERS
-                # ---------------------------------------------
-    
-                "Qty":
-                    0,
-    
-                "Gross Amount":
-                    0,
-    
-                "Discount":
-                    0,
-    
-                "Net Amount":
-                    0
-    
-            }
+               row = {
+
+                    "Business Date":
+                        business_date.strftime(
+                            "%Y-%m-%d"
+                        ),
+                
+                    "branchCode":
+                        sale.get(
+                            "branchCode",
+                            ""
+                        ),
+                
+                    "Store Name":
+                        sale.get(
+                            "Store Name",
+                            ""
+                        ),
+                
+                    "Ownership":
+                        sale.get(
+                            "Ownership",
+                            ""
+                        ),
+                
+                    "Region":
+                        sale.get(
+                            "Region",
+                            ""
+                        ),
+                
+                    "Source":
+                        sale.get(
+                            "Source",
+                            ""
+                        ),
+                
+                    "invoiceNumber":
+                        sale.get(
+                            "invoiceNumber",
+                            ""
+                        ),
+                
+                    "createdDate":
+                        sale.get(
+                            "createdDate",
+                            ""
+                        ),
+                
+                    "brandName":
+                        sale.get(
+                            "brandName",
+                            ""
+                        ),
+                
+                    "channel":
+                        sale.get(
+                            "channel",
+                            ""
+                        ),
+                
+                    "status":
+                        sale.get(
+                            "status",
+                            ""
+                        ),
+                
+                    # ---------------------------------------------
+                    # UNIQUE ITEM LINE ID
+                    # ---------------------------------------------
+                
+                    "Item Line ID":
+                        str(
+                            item_line_id
+                        ),
+                
+                    # ---------------------------------------------
+                    # RISTA ITEM FIELDS
+                    # ---------------------------------------------
+                
+                    "Item Name":
+                        str(
+                            item.get(
+                                "shortName",
+                                ""
+                            )
+                        ).strip(),
+                
+                    "Item Group Name":
+                        "",
+                
+                    "Variant":
+                        str(
+                            item.get(
+                                "variants",
+                                ""
+                            )
+                        ).strip(),
+                
+                    "Product Mix":
+                        "",
+                
+                    "Category Group":
+                        "",
+                
+                    "Qty":
+                        item.get(
+                            "quantity",
+                            0
+                        ),
+                
+                    "Gross Amount":
+                        item.get(
+                            "baseGrossAmount",
+                            0
+                        ),
+                
+                    "Discount":
+                        item.get(
+                            "baseNetDiscountAmount",
+                            0
+                        ),
+                
+                    "Net Amount":
+                        item.get(
+                            "baseNetAmount",
+                            0
+                        )
+                
+                }
     
     
             # =================================================
@@ -1411,86 +1509,47 @@ def fetch_business_date(
             )
         )
     )
-
-
+    
     item_sales_df["Variant"] = (
-
         item_sales_df["Item Name"]
-
         .map(
-
             lambda x:
-
             item_lookup.get(
-
                 x,
-
                 {}
-
             ).get(
-
                 "Variant",
-
                 ""
-
             )
-
         )
-
     )
-
-
+    
     item_sales_df["Product Mix"] = (
-
         item_sales_df["Item Name"]
-
         .map(
-
             lambda x:
-
             item_lookup.get(
-
                 x,
-
                 {}
-
             ).get(
-
                 "Product Mix",
-
                 ""
-
             )
-
         )
-
     )
-
-
+    
     item_sales_df["Category Group"] = (
-
         item_sales_df["Item Name"]
-
         .map(
-
             lambda x:
-
             item_lookup.get(
-
                 x,
-
                 {}
-
             ).get(
-
                 "Category Group",
-
                 ""
-
             )
-
         )
-
     )
 
 
