@@ -38,7 +38,7 @@ IST = ZoneInfo("Asia/Kolkata")
 
 HISTORY_START_DATE = os.getenv(
     "HISTORY_START_DATE",
-    "2026-09-17"
+    "2026-09-20"
 )
 
 HISTORY_END_DATE = os.getenv(
