@@ -1123,6 +1123,28 @@ def fetch_business_date(
 
             continue
 
+        # =====================================================
+        # DEBUG - FIRST ITEM STRUCTURE
+        # =====================================================
+        
+        if len(item_rows) == 0:
+        
+            print("\n" + "=" * 80)
+            print("🔎 FIRST RISTA ITEM STRUCTURE")
+            print("=" * 80)
+        
+            print("\nITEM KEYS:")
+            print(
+                list(
+                    item.keys()
+                )
+            )
+        
+            print("\nITEM DATA:")
+            print(item)
+        
+            print("\n" + "=" * 80)
+
 
         for item_index, item in enumerate(items):
 
@@ -1130,42 +1152,35 @@ def fetch_business_date(
                 item,
                 dict
             ):
-        
                 continue
         
         
-            # =================================================
-            # DEBUG FIRST ITEM STRUCTURE
-            # =================================================
+            # =====================================================
+            # DEBUG - FIRST ITEM STRUCTURE
+            # =====================================================
         
             if len(item_rows) == 0:
         
-                print("\n" + "=" * 70)
+                print("\n" + "=" * 80)
                 print("🔎 FIRST RISTA ITEM STRUCTURE")
-                print("=" * 70)
+                print("=" * 80)
         
+                print("\nITEM KEYS:")
                 print(
-                    "ITEM KEYS:"
+                    list(
+                        item.keys()
+                    )
                 )
         
-                print(
-                    list(item.keys())
-                )
+                print("\nITEM DATA:")
+                print(item)
         
-                print(
-                    "\nITEM DATA:"
-                )
-        
-                print(
-                    item
-                )
-        
-                print("=" * 70)
+                print("\n" + "=" * 80)
         
         
-            # =================================================
+            # =====================================================
             # ITEM LINE ID
-            # =================================================
+            # =====================================================
         
             sale_identifier = (
                 sale.get("invoiceNumber")
