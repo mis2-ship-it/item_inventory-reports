@@ -434,6 +434,35 @@ branch_master = (
 
 )
 
+# =========================================================
+# CHANNEL → SOURCE MASTER
+# =========================================================
+
+channel_map = {}
+
+for _, row in help_df.iterrows():
+
+    channel = (
+        str(row["Channel"])
+        .strip()
+        .upper()
+    )
+
+    source = (
+        str(row["Source"])
+        .strip()
+    )
+
+    if channel:
+
+        channel_map[channel] = source
+
+
+print(
+    "✅ Channel → Source Mapping:",
+    len(channel_map)
+)
+
 
 branches = (
 
@@ -1097,36 +1126,92 @@ def fetch_business_date(
     )
 
 
-    # =====================================================
-    # HELP CHANNEL
-    # =====================================================
+    # ---------------------------------------------------------
+    # ORIGINAL RISTA CHANNEL
+    # ---------------------------------------------------------
+    
+    sales_df["channel"] = (
+        sales_df["channel"]
+        .astype(str)
+        .str.strip()
+    )
+    
+    
+    # ---------------------------------------------------------
+    # HELP SHEET CHANNEL MAPPING
+    # ---------------------------------------------------------
     
     sales_df["Help Channel"] = (
-    
+
         sales_df["branchCode"]
     
         .map(
             branch_master["Channel"]
         )
     
+        .fillna("")
+    
+        .astype(str)
+    
+        .str.strip()
+    
+        .str.upper()
+    
     )
     
     
-    # =====================================================
-    # SOURCE MAPPING
-    # CHANNEL → SOURCE GROUP
-    # =====================================================
+    # ---------------------------------------------------------
+    # SOURCE FROM CHANNEL MAP
+    # ---------------------------------------------------------
     
     sales_df["Source"] = (
     
         sales_df["Help Channel"]
     
-        .apply(
-            channel_group
+        .map(
+            channel_map
         )
     
     )
-
+    
+    
+    # ---------------------------------------------------------
+    # IF HELP CHANNEL IS NOT AVAILABLE,
+    # USE RISTA CHANNEL
+    # ---------------------------------------------------------
+    
+    sales_df["Source"] = (
+    
+        sales_df["Source"]
+    
+        .fillna(
+    
+            sales_df["channel"]
+    
+            .apply(
+                channel_group
+            )
+    
+        )
+    
+    )
+    
+    
+    # ---------------------------------------------------------
+    # CLEAN SOURCE
+    # ---------------------------------------------------------
+    
+    sales_df["Source"] = (
+    
+        sales_df["Source"]
+    
+        .fillna("Others")
+    
+        .astype(str)
+    
+        .str.strip()
+    
+    )
 
     # =====================================================
     # FLATTEN ITEMS
