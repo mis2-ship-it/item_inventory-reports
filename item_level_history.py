@@ -625,77 +625,94 @@ item_lookup = (
 # CHANNEL GROUP / SOURCE
 # =========================================================
 
+CHANNEL_SOURCE_MAP = {
+
+    # -----------------------------------------------------
+    # OTHERS
+    # -----------------------------------------------------
+
+    "BITSILA-FROZEN BOTTLE":
+        "Others",
+
+    "MAGICPIN - FROZEN BOTTLE":
+        "Others",
+
+    "MAGICPIN - MADNO":
+        "Others",
+
+    # -----------------------------------------------------
+    # IN STORE
+    # -----------------------------------------------------
+
+    "FROZEN BOTTLE IN-STORE":
+        "In Store",
+
+    "LUBOV PICK-UP":
+        "In Store",
+
+    # -----------------------------------------------------
+    # WEBSITE
+    # -----------------------------------------------------
+
+    "LUBOV WEBSITE":
+        "Website",
+
+    # -----------------------------------------------------
+    # OWNLY
+    # -----------------------------------------------------
+
+    "OWNLY - FROZEN BOTTLE":
+        "Ownly",
+
+    "OWNLY - MADNO":
+        "Ownly",
+
+    # -----------------------------------------------------
+    # SWIGGY
+    # -----------------------------------------------------
+
+    "SWIGGY BOBA BAR":
+        "Swiggy",
+
+    "SWIGGY FROZEN BOTTLE":
+        "Swiggy",
+
+    "SWIGGY LUBOV":
+        "Swiggy",
+
+    "SWIGGY MADNO":
+        "Swiggy",
+
+    # -----------------------------------------------------
+    # ZOMATO
+    # -----------------------------------------------------
+
+    "ZOMATO BOBA BAR":
+        "Zomato",
+
+    "ZOMATO FROZEN BOTTLE":
+        "Zomato",
+
+    "ZOMATO LUBOV":
+        "Zomato",
+
+    "ZOMATO MADNO":
+        "Zomato"
+}
+
+
 def channel_group(value):
 
-    x = str(value).strip().upper()
+    x = (
+        str(value)
+        .strip()
+        .upper()
+    )
 
-    # =====================================================
-    # SWIGGY
-    # =====================================================
-
-    if x in [
-        "SWIGGY BOBA BAR",
-        "SWIGGY FROZEN BOTTLE",
-        "SWIGGY LUBOV",
-        "SWIGGY MADNO"
-    ]:
-        return "Swiggy"
-
-    # =====================================================
-    # ZOMATO
-    # =====================================================
-
-    if x in [
-        "ZOMATO BOBA BAR",
-        "ZOMATO FROZEN BOTTLE",
-        "ZOMATO LUBOV",
-        "ZOMATO MADNO"
-    ]:
-        return "Zomato"
-
-    # =====================================================
-    # OWNLY
-    # =====================================================
-
-    if x in [
-        "OWNLY - FROZEN BOTTLE",
-        "OWNLY - MADNO"
-    ]:
-        return "Ownly"
-
-    # =====================================================
-    # IN STORE
-    # =====================================================
-
-    if x in [
-        "FROZEN BOTTLE IN-STORE",
-        "LUBOV PICK-UP"
-    ]:
-        return "In Store"
-
-    # =====================================================
-    # WEBSITE
-    # =====================================================
-
-    if x == "LUBOV WEBSITE":
-        return "Website"
-
-    # =====================================================
-    # OTHERS
-    # =====================================================
-
-    if x in [
-        "BITSILA-FROZEN BOTTLE",
-        "MAGICPIN - FROZEN BOTTLE",
-        "MAGICPIN - MADNO"
-    ]:
-        return "Others"
-
-    # =====================================================
-    # FALLBACK
-    # =====================================================
-
-    return "Others"
+    return CHANNEL_SOURCE_MAP.get(
+        x,
+        "Others"
+    )
 # =========================================================
 # BUSINESS WINDOW
 # =========================================================
