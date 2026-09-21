@@ -1097,49 +1097,34 @@ def fetch_business_date(
     )
 
 
+    # =====================================================
+    # HELP CHANNEL
+    # =====================================================
+    
     sales_df["Help Channel"] = (
-
+    
         sales_df["branchCode"]
-
+    
         .map(
             branch_master["Channel"]
         )
-
+    
     )
-
-
-    sales_df["Source"] = (
-
-        sales_df["branchCode"]
-
-        .map(
-            branch_master["Source"]
-        )
-
-    )
-
-
+    
+    
     # =====================================================
     # SOURCE MAPPING
+    # CHANNEL → SOURCE GROUP
     # =====================================================
-
+    
     sales_df["Source"] = (
-
-        sales_df["Source"]
-
-        .fillna(
-            sales_df["Help Channel"]
+    
+        sales_df["Help Channel"]
+    
+        .apply(
+            channel_group
         )
-
-    )
-
-
-    sales_df["Source"] = (
-
-        sales_df["Source"]
-
-        .apply(channel_group)
-
+    
     )
 
 
