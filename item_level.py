@@ -15,7 +15,7 @@
 # - Toing is identified from Rista sales-page tags and shown separately.
 # - Other sources continue to use Help Sheet Source mapping.
 # - Ownly is included everywhere except Region dashboards.
-# - Discount % is ALWAYS item_discountAmount / item_grossAmount * 100.
+# - Discount % is ALWAYS item_netDiscountAmount / item_grossAmount * 100.
 # - Orders are ALWAYS unique invoiceNumber.
 # =========================================================
 
@@ -435,8 +435,8 @@ def ensure_columns(df):
         "tags": "",
         "item_shortName": "",
         "item_quantity": 0,
-        "item_baseNetAmount": 0,
-        "item_discountAmount": 0,
+        "item_netAmount": 0,
+        "item_netDiscountAmount": 0,
         "item_grossAmount": 0,
         "item_discounts": "",
         "discounts": "",
@@ -468,8 +468,8 @@ def clean_numeric(df, columns):
 
 numeric_columns = [
     "item_quantity",
-    "item_baseNetAmount",
-    "item_discountAmount",
+    "item_netAmount",
+    "item_netDiscountAmount",
     "item_grossAmount",
 ]
 
@@ -849,7 +849,7 @@ def discount_pct(df):
     """
 
     gross = safe_sum(df, "item_grossAmount")
-    discount = abs(safe_sum(df, "item_discountAmount"))
+    discount = abs(safe_sum(df, "item_netDiscountAmount"))
 
     if gross <= 0:
         return 0.0
@@ -906,8 +906,8 @@ def create_source_summary(today_df, lw_df):
 
     for source, today, lw in source_sets:
 
-        today_rev = safe_sum(today, "item_baseNetAmount")
-        lw_rev = safe_sum(lw, "item_baseNetAmount")
+        today_rev = safe_sum(today, "item_netAmount")
+        lw_rev = safe_sum(lw, "item_netAmount")
 
         rows.append({
             "Source Group": source,
@@ -957,8 +957,8 @@ def create_brand_source_analysis(today_df, lw_df):
             ],
         ]:
 
-            today_rev = safe_sum(today, "item_baseNetAmount")
-            lw_rev = safe_sum(lw, "item_baseNetAmount")
+            today_rev = safe_sum(today, "item_netAmount")
+            lw_rev = safe_sum(lw, "item_netAmount")
             today_dis = discount_pct(today)
             lw_dis = discount_pct(lw)
 
@@ -1085,17 +1085,17 @@ def create_category_dashboard(today_df, lw_df):
             "Category Group": category,
             "Orders": unique_orders(today),
             "Qty_Sold": round(safe_sum(today, "item_quantity"), 2),
-            "Net_Rev": round(safe_sum(today, "item_baseNetAmount"), 2),
-            "Discount": round(abs(safe_sum(today, "item_discountAmount")), 2),
+            "Net_Rev": round(safe_sum(today, "item_netAmount"), 2),
+            "Discount": round(abs(safe_sum(today, "item_netDiscountAmount")), 2),
             "Dis %": discount_pct(today),
-            "LW_Net_Rev": round(safe_sum(lw, "item_baseNetAmount"), 2),
+            "LW_Net_Rev": round(safe_sum(lw, "item_netAmount"), 2),
             "LW_Qty": round(safe_sum(lw, "item_quantity"), 2),
             "LW_Orders": unique_orders(lw),
-            "LW_Discount": round(abs(safe_sum(lw, "item_discountAmount")), 2),
+            "LW_Discount": round(abs(safe_sum(lw, "item_netDiscountAmount")), 2),
             "LW Dis %": discount_pct(lw),
             "Growth %": growth_pct(
-                safe_sum(today, "item_baseNetAmount"),
-                safe_sum(lw, "item_baseNetAmount"),
+                safe_sum(today, "item_netAmount"),
+                safe_sum(lw, "item_netAmount"),
             ),
         })
 
@@ -1365,8 +1365,8 @@ def create_discount_dashboard(
             today_orders = unique_orders(today)
             lw_orders = unique_orders(lw)
 
-            today_net = safe_sum(today, "item_baseNetAmount")
-            lw_net = safe_sum(lw, "item_baseNetAmount")
+            today_net = safe_sum(today, "item_netAmount")
+            lw_net = safe_sum(lw, "item_netAmount")
 
             rows.append({
                 code_column: code,
@@ -1374,7 +1374,7 @@ def create_discount_dashboard(
                 "Qty_Sold": round(safe_sum(today, "item_quantity"), 2),
                 "Net_Rev": round(today_net, 2),
                 "Discount_Given": round(
-                    abs(safe_sum(today, "item_discountAmount")),
+                    abs(safe_sum(today, "item_netDiscountAmount")),
                     2,
                 ),
                 "Dis %": discount_pct(today),
@@ -1386,7 +1386,7 @@ def create_discount_dashboard(
                 "LW_Qty": round(safe_sum(lw, "item_quantity"), 2),
                 "LW_Net_Rev": round(lw_net, 2),
                 "LW_Discount": round(
-                    abs(safe_sum(lw, "item_discountAmount")),
+                    abs(safe_sum(lw, "item_netDiscountAmount")),
                     2,
                 ),
                 "LW Dis %": discount_pct(lw),
@@ -1757,7 +1757,7 @@ h4 {{
 </div>
 
 <p class="note">
-Discount % is calculated using item_discountAmount / item_grossAmount × 100.
+Discount % is calculated using item_netDiscountAmount / item_grossAmount × 100.
 Orders are calculated using unique invoiceNumber.
 Toing is identified separately from Rista sales tags and is not included in Swiggy.
 Ownly is excluded from the Region dashboards as requested.
