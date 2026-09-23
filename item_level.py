@@ -548,13 +548,20 @@ print("✅ CLOSED LW ROWS:", len(lw_sales))
 # HELP SHEET MAPPING
 # =========================================================
 
+# IMPORTANT:
+# The Help Sheet contains multiple channel rows for the same branch.
+# Therefore DO NOT merge Channel / Source by branchCode. Doing that
+# keeps only one channel for a branch and misclassifies Swiggy/Zomato/In Store.
+#
+# Help Sheet is used only for branch/store/region/ownership mapping.
+# The authoritative Channel for source reporting comes from the Rista
+# sales-page field: API column `channel`.
+
 help_merge = help_df[
     [
         "branchCode",
         "Store Name",
         "Region",
-        "Channel",
-        "Source",
         "Ownership",
     ]
 ].drop_duplicates("branchCode")
@@ -570,6 +577,16 @@ lw_sales = lw_sales.merge(
     on="branchCode",
     how="left",
 )
+
+# Use the Rista API channel as the ONLY channel for source classification.
+# Do not use Help Sheet Source for this calculation.
+for df in [current_sales, lw_sales]:
+    df["Channel"] = (
+        df["channel"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
 
 
 # =========================================================
@@ -705,24 +722,33 @@ CHANNEL_SOURCE_MAP = {
 }
 
 
+def normalize_channel(value):
+    """Normalize a Rista channel for exact authorized mapping."""
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("–", "-")
+        .replace("—", "-")
+        .replace("_", "-")
+        .replace("  ", " ")
+    )
+
+
 def create_source_group(df):
     df = df.copy()
 
-    channel = (
-        df["Channel"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-        .str.lower()
-    )
+    # IMPORTANT: source classification comes from the Rista API `channel`
+    # field, NOT Help Sheet Source/Channel.
+    channel = df["channel"].apply(normalize_channel)
 
-    # Map ONLY the approved channels above.
-    # Unlisted channels are explicitly excluded from source-wise
-    # reporting instead of being grouped under "Others".
+    # Exact authorized channel map only.
+    # An unmapped channel becomes NaN and is excluded from all source-wise
+    # dashboards. It is NEVER converted to "Others".
     df["Source Group"] = channel.map(CHANNEL_SOURCE_MAP)
 
-    # Toing must be identified from Rista tags and shown separately.
-    # This overrides the normal channel mapping.
+    # Toing is a special Rista-tag classification and must remain separate
+    # even when the underlying channel is a Swiggy channel.
     toing_mask = df["tags"].apply(has_toing_tag)
     df.loc[toing_mask, "Source Group"] = "Toing"
 
@@ -905,6 +931,10 @@ def brand_filter(df, brand_filter):
 
 
 def source_filter(df, source):
+    # Source-wise reporting is restricted to the requested SOURCES list.
+    if source not in SOURCES:
+        return df.iloc[0:0].copy()
+
     return df[
         df["Source Group"]
         .astype(str)
@@ -955,15 +985,14 @@ def create_source_summary(today_df, lw_df):
 
     result = pd.DataFrame(rows)
 
-    # Source-wise reporting intentionally includes ONLY the five
-    # requested mapped sources plus Toing. HOGR, Magicpin, Others
-    # and Website are excluded from source-wise dashboards.
+    # Strict source-only check. No HOGR / Magicpin / Others / Website
+    # values can enter this dashboard because only SOURCES are iterated.
     print("\nSOURCE-WISE REPORTING CHECK")
     print("Included Sources:", SOURCES)
-    print("Excluded Channels:", [
-        channel for channel in CHANNEL_SOURCE_MAP.values()
-        if channel not in SOURCES and channel != "Toing"
-    ])
+    print("Current Source Groups:")
+    print(today_df["Source Group"].value_counts(dropna=False))
+    print("LW Source Groups:")
+    print(lw_df["Source Group"].value_counts(dropna=False))
 
     return result
 
@@ -1808,7 +1837,7 @@ Discount % = item_netDiscountAmount / item_grossAmount × 100.
 Orders are calculated using unique invoiceNumber.
 Toing is identified separately from Rista sales tags and is not included in Swiggy.
 Ownly is excluded from the Region dashboards as requested.
-Only approved Channel mappings are included in source-wise dashboards. HOGR, Magicpin, Others and Website are excluded.
+Source-wise dashboards use only the approved Rista Channel mappings for In Store, Swiggy, Zomato and Ownly, plus Toing from Rista tags. HOGR, Magicpin, Others and Website are excluded.
 </p>
 
 </body>
