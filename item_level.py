@@ -883,6 +883,26 @@ def source_filter(df, source):
     ].copy()
 
 
+def other_source_filter(df):
+    """Rows whose mapped source is outside the requested six source groups.
+
+    We do NOT silently move sources such as Magicpin/Others into Ownly.
+    Keeping them separate makes the displayed source totals reconcile to Overall.
+    """
+    if df.empty:
+        return df.copy()
+
+    allowed = {x.upper() for x in SOURCES}
+
+    return df[
+        ~df["Source Group"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+        .isin(allowed)
+    ].copy()
+
+
 # =========================================================
 # 1. SOURCE SUMMARY
 # =========================================================
@@ -892,7 +912,7 @@ def create_source_summary(today_df, lw_df):
     rows = []
 
     source_sets = [
-        (today_df, lw_df),
+        ("Overall", today_df, lw_df),
     ]
 
     for source in SOURCES:
@@ -903,6 +923,14 @@ def create_source_summary(today_df, lw_df):
                 source_filter(lw_df, source),
             )
         )
+
+    # Any source not in the six requested groups is kept visible so that
+    # source totals reconcile exactly to Overall. Example: Magicpin.
+    other_today = other_source_filter(today_df)
+    other_lw = other_source_filter(lw_df)
+
+    if not other_today.empty or not other_lw.empty:
+        source_sets.append(("Other Sources", other_today, other_lw))
 
     for source, today, lw in source_sets:
 
@@ -922,7 +950,31 @@ def create_source_summary(today_df, lw_df):
             ),
         })
 
-    return pd.DataFrame(rows)
+    result = pd.DataFrame(rows)
+
+    # Hard reconciliation check. This catches source mapping/data issues before email.
+    displayed = result[result["Source Group"] != "Overall"]
+    today_diff = round(
+        result.loc[result["Source Group"] == "Overall", "Today Rev"].iloc[0]
+        - displayed["Today Rev"].sum(),
+        2,
+    )
+    lw_diff = round(
+        result.loc[result["Source Group"] == "Overall", "LW Rev"].iloc[0]
+        - displayed["LW Rev"].sum(),
+        2,
+    )
+
+    print("\nSOURCE RECONCILIATION")
+    print("Today difference:", today_diff)
+    print("LW difference:", lw_diff)
+
+    if today_diff != 0 or lw_diff != 0:
+        raise RuntimeError(
+            f"Source revenue does not reconcile. Today={today_diff}, LW={lw_diff}"
+        )
+
+    return result
 
 
 source_summary = create_source_summary(
@@ -944,18 +996,26 @@ def create_brand_source_analysis(today_df, lw_df):
         today_brand = brand_filter(today_df, brand_filter_value)
         lw_brand = brand_filter(lw_df, brand_filter_value)
 
-        # Total row first - matches the requested layout.
-        for label, today, lw in [
+        source_sets = [
             ("Total", today_brand, lw_brand),
-            *[
+        ]
+
+        for source in SOURCES:
+            source_sets.append(
                 (
                     source,
                     source_filter(today_brand, source),
                     source_filter(lw_brand, source),
                 )
-                for source in SOURCES
-            ],
-        ]:
+            )
+
+        other_today = other_source_filter(today_brand)
+        other_lw = other_source_filter(lw_brand)
+
+        if not other_today.empty or not other_lw.empty:
+            source_sets.append(("Other Sources", other_today, other_lw))
+
+        for label, today, lw in source_sets:
 
             today_rev = safe_sum(today, "item_netAmount")
             lw_rev = safe_sum(lw, "item_netAmount")
@@ -1032,11 +1092,13 @@ def create_overall_category_dashboard(today_df, lw_df):
 
     columns = [
         "Category",
+        "Overall",
         "In Store",
         "Swiggy",
         "Zomato",
         "Toing",
         "Ownly",
+        "LW % for Overall",
         "LW % In Store",
         "LW % Swiggy",
         "LW % Zomato",
@@ -1046,7 +1108,7 @@ def create_overall_category_dashboard(today_df, lw_df):
 
     return (
         pd.DataFrame(rows, columns=columns)
-        .sort_values(ascending=False)
+        .sort_values("Overall", ascending=False)
         .reset_index(drop=True)
     )
 
@@ -1177,11 +1239,13 @@ def create_brand_category_orders(today_df, lw_df):
 
     columns = [
         "Brand Name by Category",
+        "Overall",
         "In Store",
         "Swiggy",
         "Zomato",
         "Toing",
         "Ownly",
+        "LW % for Overall",
         "LW % In Store",
         "LW % Swiggy",
         "LW % Zomato",
@@ -1191,7 +1255,7 @@ def create_brand_category_orders(today_df, lw_df):
 
     return (
         pd.DataFrame(rows, columns=columns)
-        .sort_values(ascending=False)
+        .sort_values("Overall", ascending=False)
         .reset_index(drop=True)
     )
 
@@ -1289,6 +1353,7 @@ def create_brand_region_category_orders(today_df, lw_df):
 
         columns = [
             "Brand Name by Category",
+            "Overall",
             *REGIONS,
             "LW % for Overall",
             *[f"LW % {r}" for r in REGIONS],
@@ -1296,7 +1361,7 @@ def create_brand_region_category_orders(today_df, lw_df):
 
         dashboards[mode] = (
             pd.DataFrame(rows, columns=columns)
-            .sort_values(ascending=False)
+            .sort_values("Overall", ascending=False)
             .reset_index(drop=True)
         )
 
@@ -1752,10 +1817,13 @@ h4 {{
 </div>
 
 <p class="note">
-Discount % is calculated using item_netDiscountAmount / item_grossAmount × 100.
+Net Revenue is calculated using item_netAmount.
+Discount amount is calculated using item_netDiscountAmount.
+Discount % = item_netDiscountAmount / item_grossAmount × 100.
 Orders are calculated using unique invoiceNumber.
 Toing is identified separately from Rista sales tags and is not included in Swiggy.
 Ownly is excluded from the Region dashboards as requested.
+Other Sources is shown only when the Help Sheet contains a source outside the requested six groups, so Source totals reconcile exactly to Overall.
 </p>
 
 </body>
@@ -1775,7 +1843,7 @@ EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
 
 # Keep your existing recipients here.
 to_mails = [
-    "faraz@frozenbottle.in, vivek@frozenbottle.in, mis3@frozenbottle.in",
+    "mis2@frozenbottle.in",
 ]
 
 cc_mails = [
