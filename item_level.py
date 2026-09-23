@@ -1908,7 +1908,7 @@ EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
 
 # Keep your existing recipients here.
 to_mails = [
-    "mis2@frozenbottle.in",
+    "vivek@frozenbottle.in, faraz@frozenbottle.in, mis3@frozenbottle.in",
 ]
 
 cc_mails = [
