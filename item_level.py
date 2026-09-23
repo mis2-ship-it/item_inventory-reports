@@ -13,7 +13,8 @@
 #
 # Source rules:
 # - Toing is identified from Rista sales-page tags and shown separately.
-# - Other sources continue to use Help Sheet Source mapping.
+# - Source-wise dashboards use ONLY the approved Channel -> Source map below.
+# - HOGR, Magicpin, Others and Website are excluded from source-wise dashboards.
 # - Ownly is included everywhere except Region dashboards.
 # - Discount % is ALWAYS item_netDiscountAmount / item_grossAmount * 100.
 # - Orders are ALWAYS unique invoiceNumber.
@@ -668,31 +669,61 @@ def has_toing_tag(value):
     )
 
 
-def normalize_source(value):
-    text = str(value).strip()
-    lower = text.lower()
+# =========================================================
+# AUTHORITATIVE CHANNEL -> SOURCE MAP
+# =========================================================
+# Only these channels are allowed in source-wise dashboards.
+# Any channel not listed here is intentionally excluded from
+# Source Summary, Brand Source Analysis, source-wise category
+# dashboards and discount-source dashboards.
+#
+# Toing is a special case: if the Rista sales-page tags contain
+# "toing" / "Toing", the row is classified as Toing separately.
+# =========================================================
 
-    mapping = {
-        "in store": "In Store",
-        "instore": "In Store",
-        "in-store": "In Store",
-        "swiggy": "Swiggy",
-        "zomato": "Zomato",
-        "ownly": "Ownly",
-        "website": "Ownly",
-    }
-
-    return mapping.get(lower, text if text else "Others")
+CHANNEL_SOURCE_MAP = {
+    "hogr dine-in": "HOGR",
+    "frozen bottle in-store": "In Store",
+    "boba bar in-store": "In Store",
+    "madno in-store": "In Store",
+    "magicpin - frozen bottle": "Magicpin",
+    "magicpin - madno": "Magicpin",
+    "bitsila-frozen bottle": "Others",
+    "lubov pick-up": "Others",
+    "ownly - frozen bottle": "Ownly",
+    "ownly - madno": "Ownly",
+    "ownly - boba bar": "Ownly",
+    "swiggy frozen bottle": "Swiggy",
+    "swiggy boba bar": "Swiggy",
+    "swiggy madno": "Swiggy",
+    "swiggy lubov": "Swiggy",
+    "lubov website": "Website",
+    "zomato boba bar": "Zomato",
+    "zomato frozen bottle": "Zomato",
+    "zomato madno": "Zomato",
+    "zomato lubov": "Zomato",
+}
 
 
 def create_source_group(df):
     df = df.copy()
 
-    mapped_source = df["Source"].apply(normalize_source)
+    channel = (
+        df["Channel"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
 
+    # Map ONLY the approved channels above.
+    # Unlisted channels are explicitly excluded from source-wise
+    # reporting instead of being grouped under "Others".
+    df["Source Group"] = channel.map(CHANNEL_SOURCE_MAP)
+
+    # Toing must be identified from Rista tags and shown separately.
+    # This overrides the normal channel mapping.
     toing_mask = df["tags"].apply(has_toing_tag)
-
-    df["Source Group"] = mapped_source
     df.loc[toing_mask, "Source Group"] = "Toing"
 
     return df
@@ -883,26 +914,6 @@ def source_filter(df, source):
     ].copy()
 
 
-def other_source_filter(df):
-    """Rows whose mapped source is outside the requested six source groups.
-
-    We do NOT silently move sources such as Magicpin/Others into Ownly.
-    Keeping them separate makes the displayed source totals reconcile to Overall.
-    """
-    if df.empty:
-        return df.copy()
-
-    allowed = {x.upper() for x in SOURCES}
-
-    return df[
-        ~df["Source Group"]
-        .astype(str)
-        .str.strip()
-        .str.upper()
-        .isin(allowed)
-    ].copy()
-
-
 # =========================================================
 # 1. SOURCE SUMMARY
 # =========================================================
@@ -924,14 +935,6 @@ def create_source_summary(today_df, lw_df):
             )
         )
 
-    # Any source not in the six requested groups is kept visible so that
-    # source totals reconcile exactly to Overall. Example: Magicpin.
-    other_today = other_source_filter(today_df)
-    other_lw = other_source_filter(lw_df)
-
-    if not other_today.empty or not other_lw.empty:
-        source_sets.append(("Other Sources", other_today, other_lw))
-
     for source, today, lw in source_sets:
 
         today_rev = safe_sum(today, "item_netAmount")
@@ -952,27 +955,15 @@ def create_source_summary(today_df, lw_df):
 
     result = pd.DataFrame(rows)
 
-    # Hard reconciliation check. This catches source mapping/data issues before email.
-    displayed = result[result["Source Group"] != "Overall"]
-    today_diff = round(
-        result.loc[result["Source Group"] == "Overall", "Today Rev"].iloc[0]
-        - displayed["Today Rev"].sum(),
-        2,
-    )
-    lw_diff = round(
-        result.loc[result["Source Group"] == "Overall", "LW Rev"].iloc[0]
-        - displayed["LW Rev"].sum(),
-        2,
-    )
-
-    print("\nSOURCE RECONCILIATION")
-    print("Today difference:", today_diff)
-    print("LW difference:", lw_diff)
-
-    if today_diff != 0 or lw_diff != 0:
-        raise RuntimeError(
-            f"Source revenue does not reconcile. Today={today_diff}, LW={lw_diff}"
-        )
+    # Source-wise reporting intentionally includes ONLY the five
+    # requested mapped sources plus Toing. HOGR, Magicpin, Others
+    # and Website are excluded from source-wise dashboards.
+    print("\nSOURCE-WISE REPORTING CHECK")
+    print("Included Sources:", SOURCES)
+    print("Excluded Channels:", [
+        channel for channel in CHANNEL_SOURCE_MAP.values()
+        if channel not in SOURCES and channel != "Toing"
+    ])
 
     return result
 
@@ -1008,12 +999,6 @@ def create_brand_source_analysis(today_df, lw_df):
                     source_filter(lw_brand, source),
                 )
             )
-
-        other_today = other_source_filter(today_brand)
-        other_lw = other_source_filter(lw_brand)
-
-        if not other_today.empty or not other_lw.empty:
-            source_sets.append(("Other Sources", other_today, other_lw))
 
         for label, today, lw in source_sets:
 
@@ -1823,7 +1808,7 @@ Discount % = item_netDiscountAmount / item_grossAmount × 100.
 Orders are calculated using unique invoiceNumber.
 Toing is identified separately from Rista sales tags and is not included in Swiggy.
 Ownly is excluded from the Region dashboards as requested.
-Other Sources is shown only when the Help Sheet contains a source outside the requested six groups, so Source totals reconcile exactly to Overall.
+Only approved Channel mappings are included in source-wise dashboards. HOGR, Magicpin, Others and Website are excluded.
 </p>
 
 </body>
