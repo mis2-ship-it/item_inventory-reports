@@ -892,7 +892,7 @@ def create_source_summary(today_df, lw_df):
     rows = []
 
     source_sets = [
-        ("Overall", today_df, lw_df),
+        (today_df, lw_df),
     ]
 
     for source in SOURCES:
@@ -1032,13 +1032,11 @@ def create_overall_category_dashboard(today_df, lw_df):
 
     columns = [
         "Category",
-        "Overall",
         "In Store",
         "Swiggy",
         "Zomato",
         "Toing",
         "Ownly",
-        "LW % for Overall",
         "LW % In Store",
         "LW % Swiggy",
         "LW % Zomato",
@@ -1048,7 +1046,7 @@ def create_overall_category_dashboard(today_df, lw_df):
 
     return (
         pd.DataFrame(rows, columns=columns)
-        .sort_values("Overall", ascending=False)
+        .sort_values(ascending=False)
         .reset_index(drop=True)
     )
 
@@ -1179,13 +1177,11 @@ def create_brand_category_orders(today_df, lw_df):
 
     columns = [
         "Brand Name by Category",
-        "Overall",
         "In Store",
         "Swiggy",
         "Zomato",
         "Toing",
         "Ownly",
-        "LW % for Overall",
         "LW % In Store",
         "LW % Swiggy",
         "LW % Zomato",
@@ -1195,7 +1191,7 @@ def create_brand_category_orders(today_df, lw_df):
 
     return (
         pd.DataFrame(rows, columns=columns)
-        .sort_values("Overall", ascending=False)
+        .sort_values(ascending=False)
         .reset_index(drop=True)
     )
 
@@ -1293,7 +1289,6 @@ def create_brand_region_category_orders(today_df, lw_df):
 
         columns = [
             "Brand Name by Category",
-            "Overall",
             *REGIONS,
             "LW % for Overall",
             *[f"LW % {r}" for r in REGIONS],
@@ -1301,7 +1296,7 @@ def create_brand_region_category_orders(today_df, lw_df):
 
         dashboards[mode] = (
             pd.DataFrame(rows, columns=columns)
-            .sort_values("Overall", ascending=False)
+            .sort_values(ascending=False)
             .reset_index(drop=True)
         )
 
