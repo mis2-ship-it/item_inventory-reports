@@ -1833,16 +1833,19 @@ print("📧 HTML Length:", len(summary_html))
 EMAIL_USER = os.environ["EMAIL_USER"]
 EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
 
-# Keep your existing recipients here.
 to_mails = [
-    "vivek@frozenbottle.in, faraz@frozenbottle.in, mis3@frozenbottle.in",
+    "vivek@frozenbottle.in",
+    "faraz@frozenbottle.in",
+    "mis3@frozenbottle.in",
 ]
 
 cc_mails = [
     "mis2@frozenbottle.in",
 ]
 
+# Combine all recipients for the SMTP sending function
 all_recipients = to_mails + cc_mails
+
 
 mail_subject = (
     f"Hourly Item Level Sales Dashboard - {business_date}"
