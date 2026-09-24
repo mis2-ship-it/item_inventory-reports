@@ -14,7 +14,8 @@
 # Source rules:
 # - Toing is identified from Rista sales-page tags and shown separately.
 # - Source-wise dashboards use ONLY the approved Channel -> Source map below.
-# - HOGR, Magicpin, Others and Website are excluded from source-wise dashboards.
+# - Help Sheet Channel/Source is not used for source classification.
+# - Unlisted channels are excluded from source-wise dashboards.
 # - Ownly is included everywhere except Region dashboards.
 # - Discount % is ALWAYS item_netDiscountAmount / item_grossAmount * 100.
 # - Orders are ALWAYS unique invoiceNumber.
@@ -437,7 +438,6 @@ def ensure_columns(df):
         "item_shortName": "",
         "item_quantity": 0,
         "item_netAmount": 0,
-        "chargeAmount": 0,
         "item_netDiscountAmount": 0,
         "item_grossAmount": 0,
         "item_discounts": "",
@@ -471,7 +471,6 @@ def clean_numeric(df, columns):
 numeric_columns = [
     "item_quantity",
     "item_netAmount",
-    "chargeAmount",
     "item_netDiscountAmount",
     "item_grossAmount",
 ]
@@ -547,92 +546,18 @@ print("✅ CLOSED LW ROWS:", len(lw_sales))
 
 
 # =========================================================
-# CHARGE AMOUNT ALLOCATION
-# =========================================================
-# Rista chargeAmount is an invoice-level amount. After item
-# flattening, the same chargeAmount may appear on every item row.
-# Allocate it across the invoice's item rows so it is counted
-# exactly once per invoice.
-
-def allocate_charge_amount(df):
-
-    df = df.copy()
-
-    df["chargeAmount"] = pd.to_numeric(
-        df["chargeAmount"],
-        errors="coerce",
-    ).fillna(0)
-
-    df["_item_net_base"] = pd.to_numeric(
-        df["item_netAmount"],
-        errors="coerce",
-    ).fillna(0)
-
-    df["Charge Allocated"] = 0.0
-
-    valid = df["invoiceNumber"].astype(str).str.strip() != ""
-
-    for invoice, idx in df.loc[valid].groupby(
-        "invoiceNumber",
-        sort=False,
-    ).groups.items():
-
-        idx = list(idx)
-        invoice_rows = df.loc[idx]
-
-        # Invoice-level charge must be taken only once.
-        charge = float(invoice_rows["chargeAmount"].iloc[0])
-
-        if charge == 0:
-            continue
-
-        item_base = invoice_rows["_item_net_base"].clip(lower=0)
-        base_total = float(item_base.sum())
-
-        if base_total > 0:
-            allocation = (item_base / base_total) * charge
-        else:
-            allocation = pd.Series(0.0, index=invoice_rows.index)
-            allocation.iloc[0] = charge
-
-        df.loc[idx, "Charge Allocated"] = allocation.values
-
-    df["Net Revenue"] = (
-        df["item_netAmount"]
-        + df["Charge Allocated"]
-    )
-
-    return df.drop(
-        columns=["_item_net_base"],
-        errors="ignore",
-    )
-
-
-current_sales = allocate_charge_amount(current_sales)
-lw_sales = allocate_charge_amount(lw_sales)
-
-print("✅ Charge Amount Added Once Per Invoice")
-print(
-    "CURRENT Net Revenue:",
-    round(float(current_sales["Net Revenue"].sum()), 2),
-)
-print(
-    "LW Net Revenue:",
-    round(float(lw_sales["Net Revenue"].sum()), 2),
-)
-
-
-# =========================================================
 # HELP SHEET MAPPING
 # =========================================================
+
+# Help Sheet is used only for branch/store/region/ownership mapping.
+# Channel/Source classification is handled below by the single
+# authorized CHANNEL_SOURCE_MAP.
 
 help_merge = help_df[
     [
         "branchCode",
         "Store Name",
         "Region",
-        "Channel",
-        "Source",
         "Ownership",
     ]
 ].drop_duplicates("branchCode")
@@ -725,7 +650,6 @@ def tags_text(value):
 
     text = str(value)
 
-    # Try a Python/JSON representation when possible.
     if text.startswith("[") or text.startswith("{"):
         try:
             parsed = ast.literal_eval(text)
@@ -748,15 +672,13 @@ def has_toing_tag(value):
 
 
 # =========================================================
-# AUTHORITATIVE CHANNEL -> SOURCE MAP
+# AUTHORIZED CHANNEL -> SOURCE MAP
 # =========================================================
-# Only these channels are allowed in source-wise dashboards.
-# Any channel not listed here is intentionally excluded from
-# Source Summary, Brand Source Analysis, source-wise category
-# dashboards and discount-source dashboards.
-#
-# Toing is a special case: if the Rista sales-page tags contain
-# "toing" / "Toing", the row is classified as Toing separately.
+# Keep ONLY the explicitly authorized channels below.
+# The Help Sheet Channel/Source columns are NOT used for source
+# classification. Unlisted Rista channels remain unmapped (NaN)
+# and are excluded from source-wise dashboards.
+# Toing is identified separately from Rista sales-page tags.
 # =========================================================
 
 CHANNEL_SOURCE_MAP = {
@@ -784,25 +706,27 @@ CHANNEL_SOURCE_MAP = {
 }
 
 
+def normalize_channel(value):
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("–", "-")
+        .replace("—", "-")
+        .replace("_", "-")
+        .replace("  ", " ")
+    )
+
 
 def create_source_group(df):
     df = df.copy()
 
-    channel = (
-        df["Channel"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-        .str.lower()
-    )
+    channel = df["channel"].apply(normalize_channel)
 
-    # Map ONLY the approved channels above.
-    # Unlisted channels are explicitly excluded from source-wise
-    # reporting instead of being grouped under "Others".
+    # ONLY authorized channels are mapped.
     df["Source Group"] = channel.map(CHANNEL_SOURCE_MAP)
 
-    # Toing must be identified from Rista tags and shown separately.
-    # This overrides the normal channel mapping.
+    # Toing is a separate override based on Rista tags.
     toing_mask = df["tags"].apply(has_toing_tag)
     df.loc[toing_mask, "Source Group"] = "Toing"
 
@@ -985,6 +909,10 @@ def brand_filter(df, brand_filter):
 
 
 def source_filter(df, source):
+    # Source-wise reporting is restricted to the requested SOURCES list.
+    if source not in SOURCES:
+        return df.iloc[0:0].copy()
+
     return df[
         df["Source Group"]
         .astype(str)
@@ -1017,8 +945,8 @@ def create_source_summary(today_df, lw_df):
 
     for source, today, lw in source_sets:
 
-        today_rev = safe_sum(today, "Net Revenue")
-        lw_rev = safe_sum(lw, "Net Revenue")
+        today_rev = safe_sum(today, "item_netAmount")
+        lw_rev = safe_sum(lw, "item_netAmount")
 
         rows.append({
             "Source Group": source,
@@ -1035,15 +963,14 @@ def create_source_summary(today_df, lw_df):
 
     result = pd.DataFrame(rows)
 
-    # Source-wise reporting intentionally includes ONLY the five
-    # requested mapped sources plus Toing. HOGR, Magicpin, Others
-    # and Website are excluded from source-wise dashboards.
+    # Strict source-only check. No HOGR / Magicpin / Others / Website
+    # values can enter this dashboard because only SOURCES are iterated.
     print("\nSOURCE-WISE REPORTING CHECK")
     print("Included Sources:", SOURCES)
-    print("Excluded Channels:", [
-        channel for channel in CHANNEL_SOURCE_MAP.values()
-        if channel not in SOURCES and channel != "Toing"
-    ])
+    print("Current Source Groups:")
+    print(today_df["Source Group"].value_counts(dropna=False))
+    print("LW Source Groups:")
+    print(lw_df["Source Group"].value_counts(dropna=False))
 
     return result
 
@@ -1082,8 +1009,8 @@ def create_brand_source_analysis(today_df, lw_df):
 
         for label, today, lw in source_sets:
 
-            today_rev = safe_sum(today, "Net Revenue")
-            lw_rev = safe_sum(lw, "Net Revenue")
+            today_rev = safe_sum(today, "item_netAmount")
+            lw_rev = safe_sum(lw, "item_netAmount")
             today_dis = discount_pct(today)
             lw_dis = discount_pct(lw)
 
@@ -1210,17 +1137,17 @@ def create_category_dashboard(today_df, lw_df):
             "Category Group": category,
             "Orders": unique_orders(today),
             "Qty_Sold": round(safe_sum(today, "item_quantity"), 2),
-            "Net_Rev": round(safe_sum(today, "Net Revenue"), 2),
+            "Net_Rev": round(safe_sum(today, "item_netAmount"), 2),
             "Discount": round(abs(safe_sum(today, "item_netDiscountAmount")), 2),
             "Dis %": discount_pct(today),
-            "LW_Net_Rev": round(safe_sum(lw, "Net Revenue"), 2),
+            "LW_Net_Rev": round(safe_sum(lw, "item_netAmount"), 2),
             "LW_Qty": round(safe_sum(lw, "item_quantity"), 2),
             "LW_Orders": unique_orders(lw),
             "LW_Discount": round(abs(safe_sum(lw, "item_netDiscountAmount")), 2),
             "LW Dis %": discount_pct(lw),
             "Growth %": growth_pct(
-                safe_sum(today, "Net Revenue"),
-                safe_sum(lw, "Net Revenue"),
+                safe_sum(today, "item_netAmount"),
+                safe_sum(lw, "item_netAmount"),
             ),
         })
 
@@ -1490,8 +1417,8 @@ def create_discount_dashboard(
             today_orders = unique_orders(today)
             lw_orders = unique_orders(lw)
 
-            today_net = safe_sum(today, "Net Revenue")
-            lw_net = safe_sum(lw, "Net Revenue")
+            today_net = safe_sum(today, "item_netAmount")
+            lw_net = safe_sum(lw, "item_netAmount")
 
             rows.append({
                 code_column: code,
@@ -1882,13 +1809,13 @@ h4 {{
 </div>
 
 <p class="note">
-Net Revenue = item_netAmount + chargeAmount. chargeAmount is allocated once per invoice after item flattening to prevent duplication.
+Net Revenue is calculated using item_netAmount.
 Discount amount is calculated using item_netDiscountAmount.
 Discount % = item_netDiscountAmount / item_grossAmount × 100.
 Orders are calculated using unique invoiceNumber.
 Toing is identified separately from Rista sales tags and is not included in Swiggy.
 Ownly is excluded from the Region dashboards as requested.
-Only approved Channel mappings are included in source-wise dashboards. HOGR, Magicpin, Others and Website are excluded.
+Source-wise dashboards use only the approved Rista Channel mappings for In Store, Swiggy, Zomato and Ownly, plus Toing from Rista tags. HOGR, Magicpin, Others and Website are excluded.
 </p>
 
 </body>
