@@ -5,44 +5,36 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-orderflow-dashboard:
+
+  order-flow-alert:
 
     runs-on: ubuntu-latest
 
     steps:
 
-      # ===================================================
-      # CHECKOUT REPO
-      # ===================================================
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ===================================================
-      # PYTHON SETUP
-      # ===================================================
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      # ===================================================
-      # INSTALL DEPENDENCIES
-      # ===================================================
-      - name: Install Packages
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas requests PyJWT gspread google-auth
+          pip install pandas requests PyJWT
 
-      # ===================================================
-      # RUN SCRIPT
-      # ===================================================
-      - name: Order Flow Alert
+      - name: Run hourly order flow
         env:
           API_KEY: ${{ secrets.API_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          RISTA_API_BASE: ${{ secrets.RISTA_API_BASE }}
+
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_CC: ${{ secrets.EMAIL_CC }}
 
         run: |
           echo "Running script..."
