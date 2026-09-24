@@ -1,3 +1,33 @@
+# =========================================================
+# HOURLY ORDER FLOW PERFORMANCE
+# RISTA ONLY
+#
+# COCO stores from branchLabels
+# Region from taxArea
+# In-Store = Offline
+# All other channels = Online
+#
+# Report:
+#   Swiggy Orders : Frozen Bottle | Madno | Boba Bar
+#   Zomato Orders : Frozen Bottle | Madno | Boba Bar
+#
+# Every hour:
+#   1. ALERT stores
+#   2. NORMAL stores
+#
+# Alert:
+#   Current hour successful orders = 0
+#   AND previous hour successful orders > 0
+#   OR current hour has Cancel / Reject / Void
+#
+# Orders = unique invoiceNumber
+# =========================================================
+
+
+# =========================================================
+# IMPORTS
+# =========================================================
+
 import os
 import re
 import smtplib
@@ -6,20 +36,20 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from zoneinfo import ZoneInfo
 
+import jwt
 import pandas as pd
 import requests
-import jwt
 
 
 # =========================================================
-# CONFIG
+# CONFIGURATION
 # =========================================================
 
 IST = ZoneInfo("Asia/Kolkata")
 
 API_BASE = os.getenv(
     "RISTA_API_BASE",
-    "https://api.ristaapps.com/v1",
+    "https://api.ristaapps.com/v1"
 )
 
 API_KEY = os.getenv("API_KEY")
@@ -30,14 +60,9 @@ EMAIL_PASS = os.getenv("EMAIL_PASS")
 EMAIL_TO = os.getenv("EMAIL_TO", "")
 EMAIL_CC = os.getenv("EMAIL_CC", "")
 
-OUTLET_MASTER_FILE = os.getenv(
-    "OUTLET_MASTER_FILE",
-    "outlet_master.csv",
-)
-
 
 # =========================================================
-# BUSINESS CONFIG
+# REPORT CONFIGURATION
 # =========================================================
 
 REGIONS = [
@@ -53,30 +78,10 @@ BRANDS = [
     "Boba Bar",
 ]
 
-CHANNELS = [
+SOURCES = [
     "Swiggy",
     "Zomato",
 ]
-
-
-# =========================================================
-# AUTHORIZED CHANNEL → SOURCE MAP
-# =========================================================
-
-CHANNEL_SOURCE_MAP = {
-
-    # Swiggy
-    "swiggy frozen bottle": "Swiggy",
-    "swiggy boba bar": "Swiggy",
-    "swiggy madno": "Swiggy",
-    "swiggy lubov": "Swiggy",
-
-    # Zomato
-    "zomato boba bar": "Zomato",
-    "zomato frozen bottle": "Zomato",
-    "zomato madno": "Zomato",
-    "zomato lubov": "Zomato",
-}
 
 
 # =========================================================
@@ -84,6 +89,7 @@ CHANNEL_SOURCE_MAP = {
 # =========================================================
 
 def norm(value):
+
     return (
         str(value or "")
         .strip()
@@ -95,37 +101,11 @@ def norm(value):
     )
 
 
-def normalize_region(value):
-    value = str(value or "").strip()
-
-    if not value:
-        return ""
-
-    mapping = {
-        "KA": "KA",
-        "KARNATAKA": "KA",
-
-        "MH": "MH",
-        "MAHARASHTRA": "MH",
-
-        "TN": "TN",
-        "TAMIL NADU": "TN",
-
-        "KERALA": "Kerela",
-        "KERELA": "Kerela",
-    }
-
-    return mapping.get(
-        value.upper(),
-        value,
-    )
-
-
 # =========================================================
-# BRAND
+# BRAND NORMALIZATION
 # =========================================================
 
-def brand(value):
+def normalize_brand(value):
 
     text = norm(value)
 
@@ -138,26 +118,121 @@ def brand(value):
     if "boba bar" in text:
         return "Boba Bar"
 
-    return str(value or "").strip()
+    return ""
 
 
 # =========================================================
-# SOURCE
+# REGION NORMALIZATION
+#
+# Rista branch API gives taxArea such as:
+# Kerala
+# Karnataka
+# Maharashtra
+# Tamil Nadu
+#
+# Convert to required reporting regions:
+# KA / MH / TN / Kerela
 # =========================================================
 
-def source(value):
+def normalize_region(value):
 
-    return CHANNEL_SOURCE_MAP.get(
-        norm(value),
-        "",
-    )
+    text = norm(value)
+
+    # Karnataka
+    if (
+        text in {
+            "karnataka",
+            "ka",
+            "bangalore",
+            "bengaluru",
+        }
+        or "karnataka" in text
+    ):
+        return "KA"
+
+    # Maharashtra
+    if (
+        text in {
+            "maharashtra",
+            "mh",
+            "mumbai",
+            "pune",
+        }
+        or "maharashtra" in text
+    ):
+        return "MH"
+
+    # Tamil Nadu
+    if (
+        text in {
+            "tamil nadu",
+            "tamilnadu",
+            "tn",
+            "chennai",
+        }
+        or "tamil" in text
+    ):
+        return "TN"
+
+    # Kerala
+    if (
+        text in {
+            "kerala",
+            "kerela",
+            "kl",
+        }
+        or "kerala" in text
+        or "kerela" in text
+    ):
+        return "Kerela"
+
+    return ""
+
+
+# =========================================================
+# CHANNEL CLASSIFICATION
+#
+# In-Store = Offline
+# Everything else = Online
+# =========================================================
+
+def channel_type(channel):
+
+    text = norm(channel)
+
+    if "in-store" in text or "in store" in text:
+
+        return "Offline"
+
+    return "Online"
+
+
+# =========================================================
+# ONLINE SOURCE
+#
+# Only Swiggy / Zomato are required for this report.
+# =========================================================
+
+def source_from_channel(channel):
+
+    text = norm(channel)
+
+    if text.startswith("swiggy "):
+
+        return "Swiggy"
+
+    if text.startswith("zomato "):
+
+        return "Zomato"
+
+    return ""
 
 
 # =========================================================
 # JWT TOKEN
 # =========================================================
 
-def token():
+def get_token():
 
     now = datetime.now(IST)
 
@@ -174,7 +249,7 @@ def token():
 
 
 # =========================================================
-# RISTA GET
+# RISTA REQUEST
 # =========================================================
 
 def get(endpoint, params=None):
@@ -186,7 +261,7 @@ def get(endpoint, params=None):
 
     headers = {
         "x-api-key": API_KEY,
-        "x-api-token": token(),
+        "x-api-token": get_token(),
         "Content-Type": "application/json",
     }
 
@@ -203,69 +278,103 @@ def get(endpoint, params=None):
 
 
 # =========================================================
-# EXTRACT LIST FROM RISTA RESPONSE
+# BRANCH API
 #
-# Rista may return:
+# IMPORTANT:
+# COCO is determined ONLY from branchLabels.
 #
-# 1. [...]
+# Example:
+# branchLabels = "FOFO,ROKerala"
+#               -> NOT COCO
 #
-# OR
-#
-# 2. {"data": [...]}
-#
+# branchLabels = "COCO,ROKarnataka"
+#               -> COCO
 # =========================================================
 
-def response_list(response):
+def get_coco_branches():
 
-    if isinstance(response, list):
-        return response
-
-    if isinstance(response, dict):
-
-        data = response.get("data", [])
-
-        if isinstance(data, list):
-            return data
-
-    return []
-
-
-# =========================================================
-# BRANCH LIST
-# =========================================================
-
-def branches():
+    print("=" * 70)
+    print("FETCHING RISTA BRANCHES")
+    print("=" * 70)
 
     response = get("/branch/list")
 
-    data = response_list(response)
+    data = response.get("data", [])
+
+    if not isinstance(data, list):
+
+        data = []
 
     print(
         f"Branch API returned {len(data)} records"
     )
 
-    print("Sample branch API response:")
-
     if data:
+
+        print(
+            "Sample branch API response:"
+        )
+
         print(data[0])
 
-    output = []
+    coco = []
 
     for row in data:
 
         if not isinstance(row, dict):
+
             continue
 
-        active = row.get(
-            "active",
-            row.get(
-                "isActive",
-                True,
-            ),
+        # -------------------------------------------------
+        # Active check
+        # -------------------------------------------------
+
+        status = norm(
+            row.get("status")
         )
 
-        if active is False:
+        active_value = row.get(
+            "active",
+            row.get("isActive", None)
+        )
+
+        if active_value is False:
+
             continue
+
+        if status and status not in {
+            "active",
+            "open",
+        }:
+
+            continue
+
+        # -------------------------------------------------
+        # Branch labels
+        # -------------------------------------------------
+
+        branch_labels = norm(
+            row.get("branchLabels")
+        )
+
+        # COCO only
+        #
+        # Handles:
+        # COCO
+        # COCO,ROKA
+        # RO...,COCO
+        #
+        if not re.search(
+            r"(^|[,;\s])coco([,;\s]|$)",
+            branch_labels,
+            flags=re.IGNORECASE,
+        ):
+
+            continue
+
+        # -------------------------------------------------
+        # Branch code
+        # -------------------------------------------------
 
         branch_code = str(
             row.get("branchCode")
@@ -274,26 +383,148 @@ def branches():
         ).strip()
 
         if not branch_code:
+
             continue
 
-        branch_name = str(
+        # -------------------------------------------------
+        # Store name
+        # -------------------------------------------------
+
+        store_name = str(
             row.get("branchName")
             or row.get("name")
             or branch_code
         ).strip()
 
-        output.append(
+        # -------------------------------------------------
+        # Region
+        #
+        # Primary:
+        # taxArea
+        #
+        # Fallback:
+        # address.state
+        # -------------------------------------------------
+
+        region_value = (
+            row.get("taxArea")
+            or (
+                row.get("address", {})
+                .get("state", "")
+                if isinstance(
+                    row.get("address"),
+                    dict
+                )
+                else ""
+            )
+        )
+
+        region = normalize_region(
+            region_value
+        )
+
+        # -------------------------------------------------
+        # Channels
+        # -------------------------------------------------
+
+        branch_channels = []
+
+        channels = row.get(
+            "channels",
+            []
+        )
+
+        if isinstance(channels, list):
+
+            for channel in channels:
+
+                if isinstance(channel, dict):
+
+                    name = str(
+                        channel.get("name")
+                        or ""
+                    ).strip()
+
+                else:
+
+                    name = str(
+                        channel
+                        or ""
+                    ).strip()
+
+                if name:
+
+                    branch_channels.append(
+                        name
+                    )
+
+        coco.append(
             {
                 "branchCode": branch_code,
-                "branchName": branch_name,
+                "Store Name": store_name,
+                "Region": region,
+                "branchLabels": str(
+                    row.get("branchLabels")
+                    or ""
+                ),
+                "Channels": branch_channels,
             }
         )
 
-    print(
-        f"Active branches found: {len(output)}"
+    branches_df = pd.DataFrame(coco)
+
+    if branches_df.empty:
+
+        print(
+            "❌ No COCO branches found."
+        )
+
+        return branches_df
+
+    # -----------------------------------------------------
+    # Only configured regions
+    # -----------------------------------------------------
+
+    branches_df = branches_df[
+        branches_df["Region"].isin(REGIONS)
+    ].copy()
+
+    branches_df = (
+        branches_df
+        .drop_duplicates(
+            "branchCode"
+        )
+        .sort_values(
+            ["Region", "Store Name"]
+        )
+        .reset_index(drop=True)
     )
 
-    return output
+    print(
+        f"Active COCO branches found: "
+        f"{len(branches_df)}"
+    )
+
+    print()
+
+    print(
+        "COCO stores by region:"
+    )
+
+    print(
+        branches_df
+        .groupby("Region")
+        .size()
+        .reindex(
+            REGIONS,
+            fill_value=0
+        )
+        .to_string()
+    )
+
+    print()
+
+    return branches_df
 
 
 # =========================================================
@@ -311,21 +542,34 @@ def sales_page(
 
     while True:
 
+        params = {
+            "branch": branch_code,
+            "day": day,
+            "page": page,
+            "limit": 5000,
+        }
+
         response = get(
             "/sales/page",
-            {
-                "branch": branch_code,
-                "day": day,
-                "page": page,
-                "limit": 5000,
-            },
+            params,
         )
 
-        data = response_list(response)
+        data = response.get(
+            "data",
+            []
+        )
+
+        if not isinstance(
+            data,
+            list,
+        ):
+
+            data = []
 
         rows.extend(data)
 
         if len(data) < 5000:
+
             break
 
         page += 1
@@ -334,119 +578,57 @@ def sales_page(
 
 
 # =========================================================
-# OUTLET MASTER
-#
-# Expected:
-#
-# branchCode
-# Store Name
-# Region
-#
-# Ownership is optional.
-# If Ownership exists, COCO is used.
+# DATE/TIME CONVERSION
 # =========================================================
 
-def outlet_master():
+def convert_to_ist(value):
 
-    if (
-        not OUTLET_MASTER_FILE
-        or not os.path.exists(
-            OUTLET_MASTER_FILE
-        )
-    ):
-
-        print(
-            "⚠️ Outlet master file not found."
-        )
-
-        return pd.DataFrame(
-            columns=[
-                "branchCode",
-                "Store Name",
-                "Region",
-                "Ownership",
-            ]
-        )
-
-    df = pd.read_csv(
-        OUTLET_MASTER_FILE
+    timestamp = pd.to_datetime(
+        value,
+        errors="coerce",
     )
 
-    required = [
-        "branchCode",
-        "Store Name",
-        "Region",
-    ]
+    if pd.isna(timestamp):
 
-    missing = [
-        c
-        for c in required
-        if c not in df.columns
-    ]
+        return pd.NaT
 
-    if missing:
+    try:
 
-        raise ValueError(
-            "Outlet master missing columns: "
-            + ", ".join(missing)
+        if timestamp.tzinfo is None:
+
+            return timestamp.tz_localize(
+                IST
+            )
+
+        return timestamp.tz_convert(
+            IST
         )
 
-    if "Ownership" not in df.columns:
-        df["Ownership"] = ""
+    except Exception:
 
-    df["branchCode"] = (
-        df["branchCode"]
-        .astype(str)
-        .str.strip()
-    )
-
-    df["Store Name"] = (
-        df["Store Name"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    df["Region"] = (
-        df["Region"]
-        .apply(normalize_region)
-    )
-
-    df["Ownership"] = (
-        df["Ownership"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    return (
-        df[
-            [
-                "branchCode",
-                "Store Name",
-                "Region",
-                "Ownership",
-            ]
-        ]
-        .drop_duplicates(
-            "branchCode"
-        )
-    )
+        return pd.NaT
 
 
 # =========================================================
 # PREPARE SALES DATA
 # =========================================================
 
-def prepare(
+def prepare_sales(
     rows,
-    master,
+    branches_df,
 ):
 
     if not rows:
+
         return pd.DataFrame()
 
-    df = pd.json_normalize(rows)
+    df = pd.json_normalize(
+        rows
+    )
+
+    # -----------------------------------------------------
+    # Required aliases
+    # -----------------------------------------------------
 
     aliases = {
 
@@ -467,12 +649,10 @@ def prepare(
             "invoiceDate",
             "createdDate",
             "modifiedDate",
-            "date",
         ],
 
         "brandName": [
             "brandName",
-            "brand",
         ],
 
         "channel": [
@@ -482,7 +662,6 @@ def prepare(
         "fulfillmentStatus": [
             "fulfillmentStatus",
             "status",
-            "orderStatus",
         ],
 
         "cancelReason": [
@@ -490,35 +669,35 @@ def prepare(
             "cancellationReason",
             "voidReason",
             "reason",
-            "Cancel Reason",
         ],
     }
 
-    # -----------------------------------------------------
-    # CREATE STANDARD COLUMNS
-    # -----------------------------------------------------
-
     for target, names in aliases.items():
 
-        if target not in df.columns:
+        if target in df.columns:
 
-            found = None
+            continue
 
-            for name in names:
+        found = None
 
-                if name in df.columns:
+        for name in names:
 
-                    found = df[name]
+            if name in df.columns:
 
-                    break
+                found = df[name]
 
-            if found is None:
-                df[target] = ""
-            else:
-                df[target] = found
+                break
+
+        if found is None:
+
+            df[target] = ""
+
+        else:
+
+            df[target] = found
 
     # -----------------------------------------------------
-    # BRANCH CODE
+    # Clean branch code
     # -----------------------------------------------------
 
     df["branchCode"] = (
@@ -529,60 +708,80 @@ def prepare(
     )
 
     # -----------------------------------------------------
-    # BRAND
+    # Brand
     # -----------------------------------------------------
 
     df["Brand"] = (
         df["brandName"]
-        .apply(brand)
+        .apply(
+            normalize_brand
+        )
     )
 
     # -----------------------------------------------------
-    # SOURCE
+    # Source
     # -----------------------------------------------------
 
     df["Source"] = (
         df["channel"]
-        .apply(source)
+        .apply(
+            source_from_channel
+        )
     )
 
     # -----------------------------------------------------
-    # EVENT TIME
+    # Channel Type
     # -----------------------------------------------------
 
-    df["EventTime"] = pd.to_datetime(
-        df["invoiceDate"],
-        errors="coerce",
+    df["Channel Type"] = (
+        df["channel"]
+        .apply(
+            channel_type
+        )
     )
 
-    def convert_time(value):
+    # -----------------------------------------------------
+    # Keep only Online
+    #
+    # Swiggy/Zomato are online.
+    # In-Store is offline and therefore excluded.
+    # -----------------------------------------------------
 
-        if pd.isna(value):
-            return pd.NaT
+    df = df[
+        df["Channel Type"] == "Online"
+    ].copy()
 
-        try:
+    # -----------------------------------------------------
+    # Keep only Swiggy / Zomato
+    # -----------------------------------------------------
 
-            if value.tzinfo is None:
+    df = df[
+        df["Source"].isin(SOURCES)
+    ].copy()
 
-                return value.tz_localize(
-                    IST
-                )
+    # -----------------------------------------------------
+    # Keep only required brands
+    # -----------------------------------------------------
 
-            return value.tz_convert(
-                IST
-            )
+    df = df[
+        df["Brand"].isin(BRANDS)
+    ].copy()
 
-        except Exception:
-
-            return pd.NaT
+    # -----------------------------------------------------
+    # Event time
+    # -----------------------------------------------------
 
     df["EventTime"] = (
-        df["EventTime"]
-        .apply(convert_time)
+        df["invoiceDate"]
+        .apply(convert_to_ist)
     )
 
+    df = df[
+        df["EventTime"].notna()
+    ].copy()
+
     # -----------------------------------------------------
-    # HOUR
+    # Hour
     # -----------------------------------------------------
 
     df["Hour"] = (
@@ -591,18 +790,18 @@ def prepare(
     )
 
     # -----------------------------------------------------
-    # CANCEL REASON
+    # Invoice number
     # -----------------------------------------------------
 
-    df["Cancel Reason"] = (
-        df["cancelReason"]
+    df["invoiceNumber"] = (
+        df["invoiceNumber"]
         .fillna("")
         .astype(str)
         .str.strip()
     )
 
     # -----------------------------------------------------
-    # STATUS
+    # Fulfillment status
     # -----------------------------------------------------
 
     df["Fulfillment Status"] = (
@@ -613,119 +812,88 @@ def prepare(
     )
 
     # -----------------------------------------------------
-    # PROBLEM FLAG
-    #
-    # Cancel / Reject / Void
-    # Store Closed
-    # Store Busy
-    # Out of Stock
-    # Payment Issue
+    # Cancel reason
     # -----------------------------------------------------
 
-    status_problem = (
+    df["Cancel Reason"] = (
+        df["cancelReason"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    # -----------------------------------------------------
+    # Problem flag
+    #
+    # Cancel / Reject / Void
+    # -----------------------------------------------------
+
+    status_text = (
         df["Fulfillment Status"]
         .apply(norm)
-        .str.contains(
+    )
+
+    reason_text = (
+        df["Cancel Reason"]
+        .apply(norm)
+    )
+
+    df["Problem"] = (
+        status_text.str.contains(
             r"cancel|reject|void",
             regex=True,
             na=False,
         )
-    )
-
-    reason_problem = (
-        df["Cancel Reason"]
-        .apply(norm)
-        .str.contains(
-            r"cancel|reject|void|"
-            r"store closed|store busy|"
-            r"out of stock|payment issue",
+        |
+        reason_text.str.contains(
+            r"""
+            cancel|
+            reject|
+            void|
+            store\s*closed|
+            store\s*busy|
+            out\s*of\s*stock|
+            payment\s*issue|
+            customer\s*cancel
+            """,
             regex=True,
             na=False,
         )
     )
 
-    df["Problem"] = (
-        status_problem
-        | reason_problem
+    # -----------------------------------------------------
+    # Merge only for validating branch universe
+    # -----------------------------------------------------
+
+    branch_map = branches_df[
+        [
+            "branchCode",
+            "Store Name",
+            "Region",
+        ]
+    ].drop_duplicates(
+        "branchCode"
     )
-
-    # -----------------------------------------------------
-    # MERGE STORE MASTER
-    # -----------------------------------------------------
-
-    master = master.copy()
 
     df = df.merge(
-        master,
+        branch_map,
         on="branchCode",
-        how="left",
-        suffixes=(
-            "",
-            "_master",
-        ),
-    )
-
-    # -----------------------------------------------------
-    # STORE NAME
-    # -----------------------------------------------------
-
-    df["Store Name"] = (
-        df["Store Name"]
-        .fillna(
-            df["branchName"]
-        )
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    # -----------------------------------------------------
-    # REGION
-    # -----------------------------------------------------
-
-    df["Region"] = (
-        df["Region"]
-        .fillna("")
-        .apply(normalize_region)
-    )
-
-    # -----------------------------------------------------
-    # OWNERSHIP
-    # -----------------------------------------------------
-
-    if "Ownership" not in df.columns:
-        df["Ownership"] = ""
-
-    df["Ownership"] = (
-        df["Ownership"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
+        how="inner",
     )
 
     return df
 
 
 # =========================================================
-# BUILD ORDER FLOW
+# BUILD HOURLY FLOW
 # =========================================================
 
-def build_flow(df):
+def build_hourly_flow(
+    sales_df,
+):
 
-    if df.empty:
-        return pd.DataFrame()
+    if sales_df.empty:
 
-    # -----------------------------------------------------
-    # ONLY REQUIRED CHANNELS / BRANDS / REGIONS
-    # -----------------------------------------------------
-
-    df = df[
-        df["Source"].isin(CHANNELS)
-        & df["Brand"].isin(BRANDS)
-        & df["Region"].isin(REGIONS)
-    ].copy()
-
-    if df.empty:
         return pd.DataFrame()
 
     keys = [
@@ -738,27 +906,20 @@ def build_flow(df):
     ]
 
     # -----------------------------------------------------
-    # SUCCESSFUL ORDERS
+    # Successful orders
     #
-    # UNIQUE INVOICE NUMBERS
+    # Unique invoice number
     # -----------------------------------------------------
 
-    normal = df[
-        ~df["Problem"]
+    normal = sales_df[
+        ~sales_df["Problem"]
     ].copy()
-
-    normal["invoiceNumber"] = (
-        normal["invoiceNumber"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
 
     normal = normal[
         normal["invoiceNumber"] != ""
-    ]
+    ].copy()
 
-    normal_orders = (
+    successful = (
         normal
         .groupby(
             keys,
@@ -771,26 +932,19 @@ def build_flow(df):
     )
 
     # -----------------------------------------------------
-    # PROBLEM ORDERS
+    # Problem orders
     # -----------------------------------------------------
 
-    bad = df[
-        df["Problem"]
+    problem = sales_df[
+        sales_df["Problem"]
     ].copy()
 
-    bad["invoiceNumber"] = (
-        bad["invoiceNumber"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
+    problem = problem[
+        problem["invoiceNumber"] != ""
+    ].copy()
 
-    bad = bad[
-        bad["invoiceNumber"] != ""
-    ]
-
-    problem_orders = (
-        bad
+    problem_flow = (
+        problem
         .groupby(
             keys,
             dropna=False,
@@ -804,26 +958,26 @@ def build_flow(df):
             Cancel_Reasons=(
                 "Cancel Reason",
                 lambda values:
-                "; ".join(
-                    sorted(
-                        {
-                            str(x).strip()
-                            for x in values
-                            if str(x).strip()
-                        }
-                    )
-                ),
+                    "; ".join(
+                        sorted(
+                            {
+                                str(x).strip()
+                                for x in values
+                                if str(x).strip()
+                            }
+                        )
+                    ),
             ),
         )
         .reset_index()
     )
 
     # -----------------------------------------------------
-    # MERGE
+    # Merge
     # -----------------------------------------------------
 
-    flow = normal_orders.merge(
-        problem_orders,
+    flow = successful.merge(
+        problem_flow,
         on=keys,
         how="outer",
     )
@@ -855,652 +1009,313 @@ def build_flow(df):
 
 
 # =========================================================
-# STORE UNIVERSE
+# BUILD COMPLETE STORE PERFORMANCE
 #
-# Creates every:
+# IMPORTANT:
+# We create ALL COCO stores ×
+# Brand × Source combinations.
 #
-# Store × Source × Brand
-#
-# combination so that zero-order stores/brands are also
-# visible in the hourly report.
+# This means a store with zero orders
+# will still appear in the email.
 # =========================================================
 
-def create_store_universe(
-    branches_list,
-    master,
-):
-
-    rows = []
-
-    master_lookup = {}
-
-    if not master.empty:
-
-        for _, row in master.iterrows():
-
-            code = str(
-                row["branchCode"]
-            ).strip()
-
-            master_lookup[code] = {
-                "Store Name": str(
-                    row["Store Name"]
-                    or ""
-                ).strip(),
-
-                "Region": normalize_region(
-                    row["Region"]
-                ),
-
-                "Ownership": str(
-                    row.get(
-                        "Ownership",
-                        "",
-                    )
-                    or ""
-                ).strip(),
-            }
-
-    for branch in branches_list:
-
-        code = str(
-            branch["branchCode"]
-        ).strip()
-
-        master_row = master_lookup.get(
-            code,
-            {},
-        )
-
-        store_name = (
-            master_row.get(
-                "Store Name"
-            )
-            or branch.get(
-                "branchName",
-                code,
-            )
-        )
-
-        region = normalize_region(
-            master_row.get(
-                "Region",
-                "",
-            )
-        )
-
-        ownership = master_row.get(
-            "Ownership",
-            "",
-        )
-
-        # -------------------------------------------------
-        # ONLY REGIONS REQUIRED
-        # -------------------------------------------------
-
-        if region not in REGIONS:
-            continue
-
-        # -------------------------------------------------
-        # IF OWNERSHIP COLUMN EXISTS,
-        # USE COCO ONLY
-        # -------------------------------------------------
-
-        if ownership:
-
-            if norm(ownership) != "coco":
-                continue
-
-        for source_name in CHANNELS:
-
-            for brand_name in BRANDS:
-
-                rows.append(
-                    {
-                        "Region": region,
-                        "Store Name": store_name,
-                        "branchCode": code,
-                        "Brand": brand_name,
-                        "Source": source_name,
-                    }
-                )
-
-    return pd.DataFrame(rows)
-
-
-# =========================================================
-# BUILD HOURLY PERFORMANCE
-# =========================================================
-
-def build_hourly_performance(
-    universe,
+def build_store_performance(
+    branches_df,
     flow,
     current_hour,
     previous_hour,
 ):
 
-    if universe.empty:
-        return pd.DataFrame()
+    combinations = []
 
-    performance = universe.copy()
+    for _, branch in branches_df.iterrows():
 
-    # -----------------------------------------------------
-    # CURRENT HOUR
-    # -----------------------------------------------------
+        for brand_name in BRANDS:
 
-    current = flow[
-        flow["Hour"] == current_hour
-    ].copy()
+            for source_name in SOURCES:
 
-    if not current.empty:
+                combinations.append(
+                    {
+                        "Region":
+                            branch["Region"],
 
-        current = (
-            current[
-                [
-                    "Region",
-                    "Store Name",
-                    "branchCode",
-                    "Brand",
-                    "Source",
-                    "Orders",
-                    "Problem_Orders",
-                    "Cancel_Reasons",
-                ]
-            ]
-            .groupby(
-                [
-                    "Region",
-                    "Store Name",
-                    "branchCode",
-                    "Brand",
-                    "Source",
-                ],
-                as_index=False,
-            )
-            .agg(
-                Current_Orders=(
-                    "Orders",
-                    "sum",
-                ),
+                        "Store Name":
+                            branch["Store Name"],
 
-                Current_Problem=(
-                    "Problem_Orders",
-                    "sum",
-                ),
+                        "branchCode":
+                            branch["branchCode"],
 
-                Current_Reasons=(
-                    "Cancel_Reasons",
-                    lambda values:
-                    "; ".join(
-                        sorted(
-                            {
-                                str(x).strip()
-                                for x in values
-                                if str(x).strip()
-                            }
-                        )
-                    ),
-                ),
-            )
-        )
+                        "Brand":
+                            brand_name,
 
-    else:
+                        "Source":
+                            source_name,
+                    }
+                )
 
-        current = pd.DataFrame(
-            columns=[
-                "Region",
-                "Store Name",
-                "branchCode",
-                "Brand",
-                "Source",
-                "Current_Orders",
-                "Current_Problem",
-                "Current_Reasons",
-            ]
-        )
-
-    # -----------------------------------------------------
-    # PREVIOUS HOUR
-    # -----------------------------------------------------
-
-    previous = flow[
-        flow["Hour"] == previous_hour
-    ].copy()
-
-    if not previous.empty:
-
-        previous = (
-            previous[
-                [
-                    "Region",
-                    "Store Name",
-                    "branchCode",
-                    "Brand",
-                    "Source",
-                    "Orders",
-                ]
-            ]
-            .groupby(
-                [
-                    "Region",
-                    "Store Name",
-                    "branchCode",
-                    "Brand",
-                    "Source",
-                ],
-                as_index=False,
-            )["Orders"]
-            .sum()
-            .rename(
-                columns={
-                    "Orders":
-                    "Previous_Orders"
-                }
-            )
-        )
-
-    else:
-
-        previous = pd.DataFrame(
-            columns=[
-                "Region",
-                "Store Name",
-                "branchCode",
-                "Brand",
-                "Source",
-                "Previous_Orders",
-            ]
-        )
-
-    # -----------------------------------------------------
-    # MERGE CURRENT + PREVIOUS
-    # -----------------------------------------------------
-
-    keys = [
-        "Region",
-        "Store Name",
-        "branchCode",
-        "Brand",
-        "Source",
-    ]
-
-    performance = (
-        performance
-        .merge(
-            current,
-            on=keys,
-            how="left",
-        )
-        .merge(
-            previous,
-            on=keys,
-            how="left",
-        )
+    universe = pd.DataFrame(
+        combinations
     )
 
     # -----------------------------------------------------
-    # NUMERIC CLEANUP
+    # Current hour
     # -----------------------------------------------------
 
-    for column in [
+    current = pd.DataFrame(
+        columns=[
+            "Region",
+            "Store Name",
+            "branchCode",
+            "Brand",
+            "Source",
+            "Orders",
+            "Problem_Orders",
+            "Cancel_Reasons",
+        ]
+    )
+
+    if not flow.empty:
+
+        current = flow[
+            flow["Hour"]
+            == pd.Timestamp(
+                current_hour
+            )
+        ].copy()
+
+        current = (
+            current
+            .groupby(
+                [
+                    "Region",
+                    "Store Name",
+                    "branchCode",
+                    "Brand",
+                    "Source",
+                ],
+                dropna=False,
+            )
+            .agg(
+                Orders=(
+                    "Orders",
+                    "sum",
+                ),
+
+                Problem_Orders=(
+                    "Problem_Orders",
+                    "sum",
+                ),
+
+                Cancel_Reasons=(
+                    "Cancel_Reasons",
+                    lambda values:
+                        "; ".join(
+                            sorted(
+                                {
+                                    str(x).strip()
+                                    for x in values
+                                    if str(x).strip()
+                                }
+                            )
+                        ),
+                ),
+            )
+            .reset_index()
+        )
+
+    current = current.rename(
+        columns={
+            "Orders":
+                "Current_Orders",
+
+            "Problem_Orders":
+                "Current_Problem",
+
+            "Cancel_Reasons":
+                "Current_Reasons",
+        }
+    )
+
+    # -----------------------------------------------------
+    # Previous hour
+    # -----------------------------------------------------
+
+    previous = pd.DataFrame(
+        columns=[
+            "Region",
+            "Store Name",
+            "branchCode",
+            "Brand",
+            "Source",
+            "Previous_Orders",
+        ]
+    )
+
+    if not flow.empty:
+
+        previous = flow[
+            flow["Hour"]
+            == pd.Timestamp(
+                previous_hour
+            )
+        ].copy()
+
+        previous = (
+            previous
+            .groupby(
+                [
+                    "Region",
+                    "Store Name",
+                    "branchCode",
+                    "Brand",
+                    "Source",
+                ],
+                dropna=False,
+            )["Orders"]
+            .sum()
+            .reset_index(
+                name="Previous_Orders"
+            )
+        )
+
+    # -----------------------------------------------------
+    # Merge complete universe
+    # -----------------------------------------------------
+
+    result = universe.merge(
+        current,
+        on=[
+            "Region",
+            "Store Name",
+            "branchCode",
+            "Brand",
+            "Source",
+        ],
+        how="left",
+    )
+
+    result = result.merge(
+        previous,
+        on=[
+            "Region",
+            "Store Name",
+            "branchCode",
+            "Brand",
+            "Source",
+        ],
+        how="left",
+    )
+
+    # -----------------------------------------------------
+    # Fill numbers
+    # -----------------------------------------------------
+
+    for col in [
         "Current_Orders",
         "Current_Problem",
         "Previous_Orders",
     ]:
 
-        performance[column] = (
+        result[col] = (
             pd.to_numeric(
-                performance[column],
+                result[col],
                 errors="coerce",
             )
             .fillna(0)
             .astype(int)
         )
 
-    performance["Current_Reasons"] = (
-        performance["Current_Reasons"]
+    result["Current_Reasons"] = (
+        result["Current_Reasons"]
         .fillna("")
-        .astype(str)
     )
 
-    # =====================================================
-    # ALERT LOGIC
-    # =====================================================
+    # -----------------------------------------------------
+    # Alert rule
+    # -----------------------------------------------------
 
-    # Alert when:
-    #
-    # 1. Current hour = 0
-    # AND previous hour > 0
-    #
-    # OR
-    #
-    # 2. Current hour has cancellation/rejection/void
-    #
-    performance["Alert"] = (
+    result["Alert"] = (
         (
-            (
-                performance[
-                    "Current_Orders"
-                ] == 0
-            )
-            &
-            (
-                performance[
-                    "Previous_Orders"
-                ] > 0
-            )
+            result["Current_Orders"]
+            == 0
         )
-        |
+        &
         (
-            performance[
-                "Current_Problem"
-            ] > 0
+            (
+                result["Previous_Orders"]
+                > 0
+            )
+            |
+            (
+                result["Current_Problem"]
+                > 0
+            )
         )
     )
 
     # -----------------------------------------------------
-    # REMARKS
+    # Status
+    # -----------------------------------------------------
+
+    result["Status"] = "Normal"
+
+    result.loc[
+        result["Alert"],
+        "Status",
+    ] = "Alert"
+
+    # -----------------------------------------------------
+    # Remarks
     # -----------------------------------------------------
 
     def build_remark(row):
 
-        source_name = row["Source"]
-        brand_name = row["Brand"]
-
-        current_orders = row[
-            "Current_Orders"
-        ]
-
-        previous_orders = row[
-            "Previous_Orders"
-        ]
-
-        problem = row[
-            "Current_Problem"
-        ]
-
-        reasons = row[
-            "Current_Reasons"
-        ]
-
         if row["Alert"]:
 
-            parts = []
+            remarks = []
 
             if (
-                current_orders == 0
-                and previous_orders > 0
+                row["Previous_Orders"]
+                > 0
+                and row["Current_Orders"]
+                == 0
             ):
 
-                parts.append(
-                    f"{source_name} "
-                    f"{brand_name} "
-                    f"no order in current hour"
+                remarks.append(
+                    "No successful order in current hour"
                 )
 
-            if problem > 0:
+            if row["Current_Problem"] > 0:
 
-                parts.append(
-                    "Cancel/Reject/Void"
-                )
+                if row["Current_Reasons"]:
 
-                if reasons:
-
-                    parts.append(
-                        reasons
+                    remarks.append(
+                        "Cancel/Reject/Void: "
+                        + row["Current_Reasons"]
                     )
 
-            if not parts:
+                else:
 
-                parts.append(
-                    "Order flow alert"
-                )
+                    remarks.append(
+                        "Cancel/Reject/Void order recorded"
+                    )
 
-            return " | ".join(parts)
+            return " | ".join(
+                remarks
+            )
 
         return "Order flow normal"
 
-    performance["Remarks"] = (
-        performance.apply(
-            build_remark,
-            axis=1,
-        )
+    result["Remarks"] = result.apply(
+        build_remark,
+        axis=1,
     )
 
-    performance["Status"] = (
-        performance["Alert"]
-        .map(
-            {
-                True: "Alert",
-                False: "Normal",
-            }
-        )
-    )
-
-    # =====================================================
-    # STORE-LEVEL STATUS
-    #
-    # If ANY brand/channel combination has an alert,
-    # the complete store is marked Alert.
-    # =====================================================
-
-    store_keys = [
-        "Region",
-        "Store Name",
-        "branchCode",
-    ]
-
-    store_status = (
-        performance
-        .groupby(
-            store_keys,
-            as_index=False,
-        )["Alert"]
-        .max()
-        .rename(
-            columns={
-                "Alert":
-                "Store_Alert"
-            }
-        )
-    )
-
-    performance = performance.merge(
-        store_status,
-        on=store_keys,
-        how="left",
-    )
-
-    performance["Store Status"] = (
-        performance["Store_Alert"]
-        .map(
-            {
-                True: "Alert",
-                False: "Normal",
-            }
-        )
-    )
-
-    return performance
+    return result
 
 
 # =========================================================
-# STORE SUMMARY
-#
-# Converts 6 brand/source rows into one store row.
-# =========================================================
-
-def build_store_summary(
-    performance,
-):
-
-    if performance.empty:
-        return pd.DataFrame()
-
-    rows = []
-
-    group_columns = [
-        "Region",
-        "Store Name",
-        "branchCode",
-    ]
-
-    for (
-        region,
-        store_name,
-        branch_code,
-    ), group in performance.groupby(
-        group_columns,
-        sort=False,
-    ):
-
-        values = {
-            "Swiggy": {
-                "Frozen Bottle": 0,
-                "Madno": 0,
-                "Boba Bar": 0,
-            },
-
-            "Zomato": {
-                "Frozen Bottle": 0,
-                "Madno": 0,
-                "Boba Bar": 0,
-            },
-        }
-
-        remarks = []
-
-        for _, row in group.iterrows():
-
-            src = row["Source"]
-            br = row["Brand"]
-
-            if (
-                src in values
-                and br in values[src]
-            ):
-
-                values[src][br] = int(
-                    row["Current_Orders"]
-                )
-
-            if row["Alert"]:
-
-                remark = str(
-                    row["Remarks"]
-                ).strip()
-
-                if remark and (
-                    remark not in remarks
-                ):
-
-                    remarks.append(
-                        remark
-                    )
-
-        store_alert = bool(
-            group["Alert"].any()
-        )
-
-        total_sw = sum(
-            values["Swiggy"].values()
-        )
-
-        total_zo = sum(
-            values["Zomato"].values()
-        )
-
-        rows.append(
-            {
-                "Region": region,
-                "Store Name": store_name,
-                "branchCode": branch_code,
-
-                "Swiggy FB":
-                    values["Swiggy"][
-                        "Frozen Bottle"
-                    ],
-
-                "Swiggy Madno":
-                    values["Swiggy"][
-                        "Madno"
-                    ],
-
-                "Swiggy Boba":
-                    values["Swiggy"][
-                        "Boba Bar"
-                    ],
-
-                "Zomato FB":
-                    values["Zomato"][
-                        "Frozen Bottle"
-                    ],
-
-                "Zomato Madno":
-                    values["Zomato"][
-                        "Madno"
-                    ],
-
-                "Zomato Boba":
-                    values["Zomato"][
-                        "Boba Bar"
-                    ],
-
-                "Swiggy Total":
-                    total_sw,
-
-                "Zomato Total":
-                    total_zo,
-
-                "Total Orders":
-                    total_sw + total_zo,
-
-                "Status":
-                    "Alert"
-                    if store_alert
-                    else "Normal",
-
-                "Remarks":
-                    " | ".join(
-                        remarks
-                    )
-                    if remarks
-                    else "Order flow normal",
-            }
-        )
-
-    result = pd.DataFrame(rows)
-
-    # -----------------------------------------------------
-    # ALERT FIRST
-    # -----------------------------------------------------
-
-    result["_alert_sort"] = (
-        result["Status"]
-        .map(
-            {
-                "Alert": 0,
-                "Normal": 1,
-            }
-        )
-        .fillna(1)
-    )
-
-    result = result.sort_values(
-        [
-            "_alert_sort",
-            "Region",
-            "Store Name",
-        ]
-    )
-
-    return result.drop(
-        columns="_alert_sort"
-    )
-
-
-# =========================================================
-# HTML ESCAPE
+# EMAIL HTML ESCAPE
 # =========================================================
 
 def esc(value):
@@ -1515,98 +1330,176 @@ def esc(value):
 
 
 # =========================================================
-# HTML TABLE
+# REGION TABLE
 # =========================================================
 
 def region_table(
-    region_df,
+    data,
 ):
 
-    if region_df.empty:
+    if data.empty:
+
         return ""
+
+    stores = {}
+
+    for _, row in data.iterrows():
+
+        store = row["Store Name"]
+
+        if store not in stores:
+
+            stores[store] = {
+
+                "Swiggy": {
+                    "Frozen Bottle": 0,
+                    "Madno": 0,
+                    "Boba Bar": 0,
+                },
+
+                "Zomato": {
+                    "Frozen Bottle": 0,
+                    "Madno": 0,
+                    "Boba Bar": 0,
+                },
+
+                "status": "Normal",
+
+                "remarks": [],
+            }
+
+        source_name = row["Source"]
+        brand_name = row["Brand"]
+
+        stores[store][
+            source_name
+        ][
+            brand_name
+        ] = int(
+            row["Current_Orders"]
+        )
+
+        if row["Status"] == "Alert":
+
+            stores[store][
+                "status"
+            ] = "Alert"
+
+            remark = str(
+                row["Remarks"]
+                or ""
+            ).strip()
+
+            if (
+                remark
+                and remark
+                not in stores[store]["remarks"]
+            ):
+
+                stores[store]["remarks"].append(
+                    f"{source_name} "
+                    f"{brand_name}: "
+                    f"{remark}"
+                )
+
+    # -----------------------------------------------------
+    # Alert first
+    # -----------------------------------------------------
+
+    sorted_stores = sorted(
+        stores.items(),
+        key=lambda item: (
+            0
+            if item[1]["status"]
+            == "Alert"
+            else 1,
+            item[0],
+        ),
+    )
 
     rows = []
 
-    for _, row in region_df.iterrows():
+    for store, values in sorted_stores:
 
-        alert = (
-            row["Status"] == "Alert"
+        is_alert = (
+            values["status"]
+            == "Alert"
         )
 
-        if alert:
+        if is_alert:
 
-            row_style = (
-                "background:#fff2cc;"
-            )
-
+            bg = "#fff2cc"
             store_style = (
                 "color:#c00000;"
                 "font-weight:bold;"
             )
-
             status_style = (
                 "color:#c00000;"
                 "font-weight:bold;"
             )
 
+            status = "🚨 ALERT"
+
         else:
 
-            row_style = (
-                "background:#ffffff;"
-            )
-
-            store_style = (
-                "color:#222222;"
-                "font-weight:normal;"
-            )
-
+            bg = "#ffffff"
+            store_style = ""
             status_style = (
                 "color:#008000;"
                 "font-weight:bold;"
             )
 
+            status = "Normal"
+
+        remarks = (
+            "<br>".join(
+                esc(x)
+                for x in values["remarks"]
+            )
+            if values["remarks"]
+            else "Order flow normal"
+        )
+
         rows.append(
             f"""
-            <tr style="{row_style}">
+            <tr style="background:{bg};">
+
                 <td style="{store_style}">
-                    {esc(row["Store Name"])}
+                    {esc(store)}
                 </td>
 
-                <td>
-                    {esc(row["Swiggy FB"])}
+                <td align="center">
+                    {values["Swiggy"]["Frozen Bottle"]}
                 </td>
 
-                <td>
-                    {esc(row["Swiggy Madno"])}
+                <td align="center">
+                    {values["Swiggy"]["Madno"]}
                 </td>
 
-                <td>
-                    {esc(row["Swiggy Boba"])}
+                <td align="center">
+                    {values["Swiggy"]["Boba Bar"]}
                 </td>
 
-                <td>
-                    {esc(row["Zomato FB"])}
+                <td align="center">
+                    {values["Zomato"]["Frozen Bottle"]}
                 </td>
 
-                <td>
-                    {esc(row["Zomato Madno"])}
+                <td align="center">
+                    {values["Zomato"]["Madno"]}
                 </td>
 
-                <td>
-                    {esc(row["Zomato Boba"])}
-                </td>
-
-                <td>
-                    <b>{esc(row["Total Orders"])}</b>
+                <td align="center">
+                    {values["Zomato"]["Boba Bar"]}
                 </td>
 
                 <td style="{status_style}">
-                    {esc(row["Status"])}
+                    {status}
                 </td>
 
-                <td style="font-size:11px;">
-                    {esc(row["Remarks"])}
+                <td>
+                    {remarks}
                 </td>
+
             </tr>
             """
         )
@@ -1624,12 +1517,8 @@ def region_table(
         "
     >
 
-        <tr
-            style="
-                background:#d9eaf7;
-                font-weight:bold;
-            "
-        >
+        <tr style="background:#d9eaf7;">
+
             <th rowspan="2">
                 Store Name
             </th>
@@ -1643,52 +1532,28 @@ def region_table(
             </th>
 
             <th rowspan="2">
-                Total
-            </th>
-
-            <th rowspan="2">
                 Status
             </th>
 
             <th rowspan="2">
                 Remarks
             </th>
-        </tr>
-
-        <tr
-            style="
-                background:#eaf3f8;
-                font-weight:bold;
-            "
-        >
-
-            <th>
-                Frozen Bottle
-            </th>
-
-            <th>
-                Madno
-            </th>
-
-            <th>
-                Boba Bar
-            </th>
-
-            <th>
-                Frozen Bottle
-            </th>
-
-            <th>
-                Madno
-            </th>
-
-            <th>
-                Boba Bar
-            </th>
 
         </tr>
 
-        {''.join(rows)}
+        <tr style="background:#eaf3f8;">
+
+            <th>Frozen Bottle</th>
+            <th>Madno</th>
+            <th>Boba Bar</th>
+
+            <th>Frozen Bottle</th>
+            <th>Madno</th>
+            <th>Boba Bar</th>
+
+        </tr>
+
+        {"".join(rows)}
 
     </table>
     """
@@ -1699,79 +1564,105 @@ def region_table(
 # =========================================================
 
 def email_html(
-    summary,
-    hour,
+    performance,
+    current_hour,
+    previous_hour,
 ):
 
-    if summary.empty:
-
-        return """
-        <html>
-        <body>
-            <h2>Hourly Order Flow Report</h2>
-            <p>No store data available.</p>
-        </body>
-        </html>
-        """
-
-    alert_count = int(
-        (
-            summary["Status"]
-            == "Alert"
-        ).sum()
+    total_alerts = int(
+        performance["Alert"].sum()
     )
 
-    normal_count = int(
-        (
-            summary["Status"]
-            == "Normal"
-        ).sum()
+    total_stores = (
+        performance[
+            [
+                "branchCode",
+                "Store Name",
+            ]
+        ]
+        .drop_duplicates()
+        .shape[0]
     )
 
-    total_orders = int(
-        summary[
-            "Total Orders"
-        ].sum()
-    )
-
-    swiggy_orders = int(
-        summary[
-            "Swiggy Total"
-        ].sum()
-    )
-
-    zomato_orders = int(
-        summary[
-            "Zomato Total"
-        ].sum()
-    )
-
-    region_sections = []
+    sections = []
 
     for region in REGIONS:
 
-        region_df = summary[
-            summary["Region"]
+        region_data = performance[
+            performance["Region"]
             == region
         ].copy()
 
-        if region_df.empty:
+        if region_data.empty:
+
             continue
 
-        region_sections.append(
+        alert_count = int(
+            region_data["Alert"].sum()
+        )
+
+        store_count = (
+            region_data[
+                [
+                    "branchCode",
+                    "Store Name",
+                ]
+            ]
+            .drop_duplicates()
+            .shape[0]
+        )
+
+        sections.append(
             f"""
-            <h3
-                style="
-                    margin-top:24px;
-                    color:#1f4e78;
-                "
-            >
-                Region: {esc(region)}
+            <h3 style="
+                margin-top:24px;
+                margin-bottom:8px;
+            ">
+                {esc(region)}
+                —
+                {store_count} Stores
+                |
+                {alert_count} Alert(s)
             </h3>
 
-            {region_table(region_df)}
+            {region_table(region_data)}
             """
         )
+
+    alert_summary = ""
+
+    if total_alerts > 0:
+
+        alert_summary = f"""
+        <div style="
+            background:#fff2cc;
+            border:1px solid #f4b183;
+            padding:10px;
+            margin:12px 0;
+        ">
+            <b style="color:#c00000;">
+                🚨 {total_alerts} alert(s) detected
+            </b>
+            <br>
+            Stores with alert are shown first
+            within each region.
+        </div>
+        """
+
+    else:
+
+        alert_summary = """
+        <div style="
+            background:#e2f0d9;
+            border:1px solid #70ad47;
+            padding:10px;
+            margin:12px 0;
+        ">
+            <b style="color:#008000;">
+                ✅ No order-flow alerts detected
+            </b>
+        </div>
+        """
 
     return f"""
     <html>
@@ -1783,162 +1674,90 @@ def email_html(
         "
     >
 
-        <h2
-            style="
-                color:#1f4e78;
-            "
-        >
-            📊 Hourly Order Flow Performance
+        <h2>
+            🚨 Hourly Order Flow Performance
         </h2>
 
         <p>
+
             <b>Date:</b>
-            {hour.strftime("%d-%b-%Y")}
+            {current_hour.strftime("%d-%b-%Y")}
+
             <br>
 
-            <b>Completed Hour:</b>
-            {hour.strftime("%I:%M %p")}
+            <b>Reporting Hour:</b>
+            {current_hour.strftime("%I:%M %p")}
             -
-            {(hour + timedelta(hours=1)).strftime("%I:%M %p")}
+            {(current_hour + timedelta(hours=1)).strftime("%I:%M %p")}
+
+            <br>
+
+            <b>Previous Hour:</b>
+            {previous_hour.strftime("%I:%M %p")}
+
+            <br>
+
+            <b>Total COCO Stores:</b>
+            {total_stores}
+
         </p>
 
-        <!-- SUMMARY -->
+        {alert_summary}
 
-        <table
-            border="1"
-            cellpadding="7"
-            cellspacing="0"
-            style="
-                border-collapse:collapse;
-                font-family:Arial;
-                font-size:13px;
-                margin-bottom:20px;
-            "
-        >
+        <div style="
+            background:#f2f2f2;
+            padding:10px;
+            margin-bottom:15px;
+        ">
 
-            <tr
-                style="
-                    background:#d9eaf7;
-                    font-weight:bold;
-                "
-            >
-                <th>
-                    Metric
-                </th>
+            <b>Alert Rule:</b>
 
-                <th>
-                    Count
-                </th>
-            </tr>
+            Current hour successful orders = 0
 
-            <tr>
-                <td>
-                    Total Stores
-                </td>
+            <br>
 
-                <td>
-                    {len(summary)}
-                </td>
-            </tr>
+            AND previous hour successful orders &gt; 0
 
-            <tr
-                style="
-                    background:#fff2cc;
-                    color:#c00000;
-                    font-weight:bold;
-                "
-            >
-                <td>
-                    🔴 Alert Stores
-                </td>
+            <br>
 
-                <td>
-                    {alert_count}
-                </td>
-            </tr>
+            OR current hour has
+            Cancel / Reject / Void order.
 
-            <tr
-                style="
-                    color:#008000;
-                    font-weight:bold;
-                "
-            >
-                <td>
-                    🟢 Normal Stores
-                </td>
+            <br><br>
 
-                <td>
-                    {normal_count}
-                </td>
-            </tr>
+            <b>Order Definition:</b>
+            Unique invoice number
 
-            <tr>
-                <td>
-                    Swiggy Orders
-                </td>
+            <br>
 
-                <td>
-                    {swiggy_orders}
-                </td>
-            </tr>
+            <b>Channel:</b>
+            In-Store = Offline;
+            Swiggy/Zomato = Online
 
-            <tr>
-                <td>
-                    Zomato Orders
-                </td>
+        </div>
 
-                <td>
-                    {zomato_orders}
-                </td>
-            </tr>
-
-            <tr
-                style="
-                    background:#e2f0d9;
-                    font-weight:bold;
-                "
-            >
-                <td>
-                    Total Orders
-                </td>
-
-                <td>
-                    {total_orders}
-                </td>
-            </tr>
-
-        </table>
-
-        <h3>
-            🔴 Alert stores are shown first.
-        </h3>
-
-        <p
-            style="
-                font-size:12px;
-                color:#666;
-            "
-        >
-            Every active COCO store is included in the report.
-            Alert stores are identified when the current completed
-            hour has no successful order after having order flow
-            in the previous hour, or when cancellation/rejection/
-            void activity is recorded.
-        </p>
-
-        {''.join(region_sections)}
+        {"".join(sections)}
 
         <br>
 
-        <p
-            style="
-                font-size:11px;
-                color:#777;
-            "
-        >
-            Order count is based on unique invoice numbers.
-            This report is an order-flow monitoring alert and
-            does not by itself prove that a channel is offline.
+        <p style="
+            font-size:11px;
+            color:#666;
+        ">
+
+            Source:
+            Rista Branch API + Rista Sales Page
+
+            <br>
+
+            COCO classification:
+            Rista branchLabels
+
+            <br>
+
+            Region:
+            Rista taxArea
+
         </p>
 
     </body>
@@ -1953,7 +1772,7 @@ def email_html(
 
 def send_mail(
     body,
-    hour,
+    current_hour,
     alert_count,
 ):
 
@@ -1983,12 +1802,22 @@ def send_mail(
     msg["To"] = EMAIL_TO
 
     if EMAIL_CC:
+
         msg["Cc"] = EMAIL_CC
 
+    if alert_count > 0:
+
+        subject_prefix = "🚨 ALERT"
+
+    else:
+
+        subject_prefix = "✅ NORMAL"
+
     msg["Subject"] = (
-        "📊 Hourly Order Flow Performance"
-        f" | {hour.strftime('%d-%b-%Y %I:%M %p')}"
-        f" | 🔴 {alert_count} Alert"
+        f"{subject_prefix} | "
+        f"Hourly Order Flow | "
+        f"{current_hour.strftime('%d-%b-%Y %I:%M %p')} | "
+        f"{alert_count} Alert(s)"
     )
 
     msg.attach(
@@ -2002,16 +1831,16 @@ def send_mail(
         "smtp.gmail.com",
         587,
         timeout=60,
-    ) as smtp:
+    ) as server:
 
-        smtp.starttls()
+        server.starttls()
 
-        smtp.login(
+        server.login(
             EMAIL_USER,
             EMAIL_PASS,
         )
 
-        smtp.sendmail(
+        server.sendmail(
             EMAIL_USER,
             to + cc,
             msg.as_string(),
@@ -2028,10 +1857,12 @@ def main():
     print("HOURLY ORDER FLOW PERFORMANCE")
     print("=" * 70)
 
-    now = datetime.now(IST)
+    now = datetime.now(
+        IST
+    )
 
     # -----------------------------------------------------
-    # LAST COMPLETED HOUR
+    # Completed reporting hour
     # -----------------------------------------------------
 
     current_hour = (
@@ -2050,79 +1881,42 @@ def main():
 
     print(
         f"Current time       : "
-        f"{now.strftime('%d-%b-%Y %I:%M:%S %p')}"
+        f"{now:%d-%b-%Y %I:%M:%S %p}"
     )
 
     print(
         f"Reporting hour     : "
-        f"{current_hour.strftime('%d-%b-%Y %I:%M %p')}"
+        f"{current_hour:%d-%b-%Y %I:%M %p}"
         f" - "
-        f"{(current_hour + timedelta(hours=1)).strftime('%I:%M %p')}"
+        f"{(current_hour + timedelta(hours=1)):%I:%M %p}"
     )
 
     print(
         f"Previous hour      : "
-        f"{previous_hour.strftime('%d-%b-%Y %I:%M %p')}"
+        f"{previous_hour:%d-%b-%Y %I:%M %p}"
     )
 
     # -----------------------------------------------------
-    # GET BRANCHES
+    # Get COCO branches
     # -----------------------------------------------------
 
-    branch_list = branches()
+    branches_df = (
+        get_coco_branches()
+    )
 
-    if not branch_list:
+    if branches_df.empty:
 
         print(
-            "❌ No active branches found."
+            "❌ No COCO stores available."
         )
 
         return
 
     # -----------------------------------------------------
-    # OUTLET MASTER
-    # -----------------------------------------------------
-
-    master = outlet_master()
-
-    print(
-        f"Outlet master rows : {len(master)}"
-    )
-
-    # -----------------------------------------------------
-    # CREATE STORE UNIVERSE
-    # -----------------------------------------------------
-
-    universe = create_store_universe(
-        branch_list,
-        master,
-    )
-
-    if universe.empty:
-
-        print(
-            "❌ No stores available "
-            "for configured regions."
-        )
-
-        return
-
-    store_count = (
-        universe[
-            [
-                "branchCode",
-            ]
-        ]
-        .drop_duplicates()
-        .shape[0]
-    )
-
-    print(
-        f"Stores monitored    : {store_count}"
-    )
-
-    # -----------------------------------------------------
-    # FETCH LAST TWO HOURS' DATES
+    # Days required
+    #
+    # Current hour and previous hour
+    # may cross midnight.
     # -----------------------------------------------------
 
     days = sorted(
@@ -2133,236 +1927,202 @@ def main():
     )
 
     # -----------------------------------------------------
-    # FETCH SALES
+    # Fetch sales
     # -----------------------------------------------------
 
     all_rows = []
 
-    for branch in branch_list:
+    branch_count = len(
+        branches_df
+    )
+
+    print()
+    print(
+        f"Fetching Sales Page for "
+        f"{branch_count} COCO stores..."
+    )
+
+    for index, row in branches_df.iterrows():
 
         branch_code = (
-            branch["branchCode"]
+            row["branchCode"]
         )
 
-        # Only fetch stores that are actually in
-        # the monitored universe.
+        store_name = (
+            row["Store Name"]
+        )
 
-        if not universe[
-            universe["branchCode"]
-            == branch_code
-        ].empty:
+        print(
+            f"[{index + 1}/{branch_count}] "
+            f"{store_name} | "
+            f"{branch_code}"
+        )
 
-            for day in days:
+        for day in days:
 
-                try:
+            try:
 
-                    rows = sales_page(
-                        branch_code,
-                        day.strftime(
-                            "%Y-%m-%d"
-                        ),
-                    )
+                sales = sales_page(
+                    branch_code,
+                    day.strftime(
+                        "%Y-%m-%d"
+                    ),
+                )
 
-                    all_rows.extend(rows)
+                all_rows.extend(
+                    sales
+                )
 
-                    print(
-                        f"✓ {branch_code} "
-                        f"{day} "
-                        f"{len(rows)} rows"
-                    )
+                print(
+                    f"    {day}: "
+                    f"{len(sales)} sales"
+                )
 
-                except Exception as exc:
+            except Exception as exc:
 
-                    print(
-                        f"⚠️ {branch_code} "
-                        f"{day}: {exc}"
-                    )
+                print(
+                    f"    ⚠️ "
+                    f"{day}: "
+                    f"{exc}"
+                )
 
+    print()
     print(
-        f"Total sales records : "
+        f"Total raw Sales Page rows: "
         f"{len(all_rows)}"
     )
 
     # -----------------------------------------------------
-    # PREPARE
+    # Prepare sales
     # -----------------------------------------------------
 
-    sales_df = prepare(
+    sales_df = prepare_sales(
         all_rows,
-        master,
+        branches_df,
     )
 
     if sales_df.empty:
 
         print(
-            "⚠️ No Sales Page data."
+            "⚠️ No Swiggy/Zomato "
+            "online sales found."
         )
-
-        # Still send an hourly report showing
-        # all monitored stores with zero orders.
-
-        summary = universe.copy()
-
-        summary["Swiggy FB"] = 0
-        summary["Swiggy Madno"] = 0
-        summary["Swiggy Boba"] = 0
-
-        summary["Zomato FB"] = 0
-        summary["Zomato Madno"] = 0
-        summary["Zomato Boba"] = 0
-
-        summary["Swiggy Total"] = 0
-        summary["Zomato Total"] = 0
-        summary["Total Orders"] = 0
-
-        summary = (
-            summary[
-                [
-                    "Region",
-                    "Store Name",
-                    "branchCode",
-                ]
-            ]
-            .drop_duplicates()
-        )
-
-        summary["Status"] = "Normal"
-        summary["Remarks"] = (
-            "No Sales Page records returned"
-        )
-
-        alert_count = 0
-
-        send_mail(
-            email_html(
-                summary,
-                current_hour,
-            ),
-            current_hour,
-            alert_count,
-        )
-
-        print(
-            "📩 Hourly report sent."
-        )
-
-        return
 
     # -----------------------------------------------------
-    # BUILD FLOW
+    # Build hourly flow
     # -----------------------------------------------------
 
-    flow = build_flow(
+    flow = build_hourly_flow(
         sales_df
     )
 
     # -----------------------------------------------------
-    # BUILD HOURLY PERFORMANCE
+    # Build complete store performance
     # -----------------------------------------------------
 
     performance = (
-        build_hourly_performance(
-            universe,
+        build_store_performance(
+            branches_df,
             flow,
-            pd.Timestamp(
-                current_hour
-            ),
-            pd.Timestamp(
-                previous_hour
-            ),
+            current_hour,
+            previous_hour,
         )
     )
 
     # -----------------------------------------------------
-    # BUILD STORE SUMMARY
-    # -----------------------------------------------------
-
-    summary = build_store_summary(
-        performance
-    )
-
-    if summary.empty:
-
-        print(
-            "⚠️ No performance data."
-        )
-
-        return
-
-    # -----------------------------------------------------
-    # COUNTS
+    # Summary
     # -----------------------------------------------------
 
     alert_count = int(
-        (
-            summary["Status"]
-            == "Alert"
-        ).sum()
+        performance["Alert"].sum()
     )
 
-    normal_count = int(
-        (
-            summary["Status"]
-            == "Normal"
-        ).sum()
-    )
-
-    total_orders = int(
-        summary[
-            "Total Orders"
-        ].sum()
-    )
-
-    # -----------------------------------------------------
-    # CONSOLE OUTPUT
-    # -----------------------------------------------------
-
-    print("")
-    print("=" * 70)
-    print(
-        f"🔴 Alert Stores : "
-        f"{alert_count}"
-    )
-
-    print(
-        f"🟢 Normal Stores: "
-        f"{normal_count}"
-    )
-
-    print(
-        f"📦 Total Orders : "
-        f"{total_orders}"
-    )
-
-    print("=" * 70)
-
-    print(
-        summary[
+    store_count = (
+        performance[
             [
-                "Region",
+                "branchCode",
                 "Store Name",
-                "Swiggy FB",
-                "Swiggy Madno",
-                "Swiggy Boba",
-                "Zomato FB",
-                "Zomato Madno",
-                "Zomato Boba",
-                "Total Orders",
-                "Status",
-                "Remarks",
             ]
-        ].to_string(
-            index=False
-        )
+        ]
+        .drop_duplicates()
+        .shape[0]
     )
 
+    print()
+    print("=" * 70)
+    print("PERFORMANCE SUMMARY")
+    print("=" * 70)
+
+    print(
+        f"COCO Stores : {store_count}"
+    )
+
+    print(
+        f"Alerts      : {alert_count}"
+    )
+
+    print(
+        f"Normal      : {store_count - performance[performance['Alert']].drop_duplicates('branchCode').shape[0]}"
+    )
+
+    print()
+
     # -----------------------------------------------------
-    # SEND EMAIL
+    # Print alert rows
+    # -----------------------------------------------------
+
+    alerts = performance[
+        performance["Alert"]
+    ].copy()
+
+    if alerts.empty:
+
+        print(
+            "✅ NO ORDER FLOW ALERTS"
+        )
+
+    else:
+
+        print(
+            "🚨 ALERT STORES"
+        )
+
+        print(
+            alerts[
+                [
+                    "Region",
+                    "Store Name",
+                    "Brand",
+                    "Source",
+                    "Previous_Orders",
+                    "Current_Orders",
+                    "Current_Problem",
+                    "Remarks",
+                ]
+            ]
+            .sort_values(
+                [
+                    "Region",
+                    "Store Name",
+                    "Source",
+                    "Brand",
+                ]
+            )
+            .to_string(
+                index=False
+            )
+        )
+
+    # -----------------------------------------------------
+    # Send email EVERY hour
+    #
+    # Even when there are no alerts.
     # -----------------------------------------------------
 
     body = email_html(
-        summary,
+        performance,
         current_hour,
+        previous_hour,
     )
 
     send_mail(
@@ -2371,10 +2131,12 @@ def main():
         alert_count,
     )
 
-    print("")
+    print()
     print(
-        "📩 Hourly performance email sent successfully."
+        "📩 Hourly performance email sent."
     )
+
+    print("=" * 70)
 
 
 # =========================================================
@@ -2382,4 +2144,5 @@ def main():
 # =========================================================
 
 if __name__ == "__main__":
+
     main()
