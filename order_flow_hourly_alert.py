@@ -59,15 +59,19 @@ def get(endpoint, params=None):
 
 
 def branches():
-    data = get('/branch/list').get('data', [])
-    out = []
-    for r in data:
-        if r.get('active', r.get('isActive', True)) is False:
-            continue
-        code = str(r.get('branchCode') or r.get('code') or '').strip()
-        if code:
-            out.append({'branchCode': code, 'branchName': r.get('branchName') or r.get('name') or code})
-    return out
+    response = get('/branch/list')
+
+    if isinstance(response, list):
+        print(f"Branch API returned {len(response)} branches")
+        return response
+
+    if isinstance(response, dict):
+        data = response.get('data', [])
+        print(f"Branch API returned {len(data)} branches")
+        return data
+
+    print(f"Unexpected branch API response type: {type(response)}")
+    return []
 
 
 def sales_page(branch_code, day):
