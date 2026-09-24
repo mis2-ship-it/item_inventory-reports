@@ -244,6 +244,11 @@ def branches():
         f"Branch API returned {len(data)} records"
     )
 
+    print("Sample branch API response:")
+
+    if data:
+        print(data[0])
+
     output = []
 
     for row in data:
