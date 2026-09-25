@@ -53,9 +53,10 @@ API_KEY = os.getenv("API_KEY", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 
 EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASSWORD")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 EMAIL_TO = os.getenv("EMAIL_TO", "")
-EMAIL_CC = os.getenv("EMAIL_CC", "")
 
 
 # =========================================================
@@ -1861,36 +1862,14 @@ def send_mail(
         if x.strip()
     ]
 
-    cc = [
-        x.strip()
-        for x in EMAIL_CC.split(",")
-        if x.strip()
-    ]
+    if not to:
+        raise ValueError("EMAIL_TO is empty")
 
-    if not to and not cc:
-
-        raise ValueError(
-            "EMAIL_TO / EMAIL_CC is empty"
-        )
-
-    msg = MIMEMultipart(
-        "alternative"
-    )
-
+    msg = MIMEMultipart("alternative")
     msg["From"] = EMAIL_USER
     msg["To"] = EMAIL_TO
 
-    if EMAIL_CC:
-
-        msg["Cc"] = EMAIL_CC
-
-    if alert_count > 0:
-
-        subject_prefix = "🚨 ALERT"
-
-    else:
-
-        subject_prefix = "✅ NORMAL"
+    subject_prefix = "🚨 ALERT" if alert_count > 0 else "✅ NORMAL"
 
     msg["Subject"] = (
         f"{subject_prefix} | "
@@ -1899,31 +1878,17 @@ def send_mail(
         f"{alert_count} Alert(s)"
     )
 
-    msg.attach(
-        MIMEText(
-            body,
-            "html",
-        )
-    )
+    msg.attach(MIMEText(body, "html"))
 
     with smtplib.SMTP(
-        "smtp.gmail.com",
-        587,
+        EMAIL_HOST,
+        EMAIL_PORT,
         timeout=60,
     ) as server:
 
         server.starttls()
-
-        server.login(
-            EMAIL_USER,
-            EMAIL_PASS,
-        )
-
-        server.sendmail(
-            EMAIL_USER,
-            to + cc,
-            msg.as_string(),
-        )
+        server.login(EMAIL_USER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_USER, to, msg.as_string())
 
 
 # =========================================================
