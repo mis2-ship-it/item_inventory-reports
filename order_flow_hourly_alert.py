@@ -253,28 +253,25 @@ def get_token():
 # =========================================================
 
 def get(endpoint, params=None):
+    base_url = os.getenv("RISTA_API_BASE", "").strip().rstrip("/")
 
-    url = (
-        f"{API_BASE.rstrip('/')}/"
-        f"{endpoint.lstrip('/')}"
-    )
+    if not base_url:
+        raise RuntimeError(
+            "RISTA_API_BASE is missing. "
+            "Please add RISTA_API_BASE to GitHub Actions Secrets."
+        )
 
-    headers = {
-        "x-api-key": API_KEY,
-        "x-api-token": get_token(),
-        "Content-Type": "application/json",
-    }
+    url = f"{base_url}{endpoint}"
 
     response = requests.get(
         url,
-        headers=headers,
-        params=params or {},
+        headers=HEADERS,
+        params=params,
         timeout=60,
     )
 
     response.raise_for_status()
-
-    return response.json()
+    return response
 
 
 # =========================================================
