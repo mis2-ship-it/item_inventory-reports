@@ -252,16 +252,12 @@ def get_token():
 # RISTA REQUEST
 # =========================================================
 
+RISTA_API_BASE = "https://api.ristaapps.com/v1"
+
+
 def get(endpoint, params=None):
-    base_url = os.getenv("RISTA_API_BASE", "").strip().rstrip("/")
-
-    if not base_url:
-        raise RuntimeError(
-            "RISTA_API_BASE is missing. "
-            "Please add RISTA_API_BASE to GitHub Actions Secrets."
-        )
-
-    url = f"{base_url}{endpoint}"
+    endpoint = endpoint.lstrip("/")
+    url = f"{RISTA_API_BASE}/{endpoint}"
 
     response = requests.get(
         url,
@@ -294,9 +290,25 @@ def get_coco_branches():
     print("FETCHING RISTA BRANCHES")
     print("=" * 70)
 
+    # -----------------------------------------------------
+    # Rista Branch API
+    # -----------------------------------------------------
+
     response = get("/branch/list")
 
-    data = response.get("data", [])
+    # -----------------------------------------------------
+    # Handle API response
+    #
+    # get() should return the JSON dictionary
+    # -----------------------------------------------------
+
+    if isinstance(response, dict):
+
+        data = response.get("data", [])
+
+    else:
+
+        data = []
 
     if not isinstance(data, list):
 
@@ -306,15 +318,22 @@ def get_coco_branches():
         f"Branch API returned {len(data)} records"
     )
 
+    # -----------------------------------------------------
+    # Print sample response for verification
+    # -----------------------------------------------------
+
     if data:
 
-        print(
-            "Sample branch API response:"
-        )
-
+        print()
+        print("Sample branch API response:")
         print(data[0])
+        print()
 
     coco = []
+
+    # =====================================================
+    # PROCESS BRANCHES
+    # =====================================================
 
     for row in data:
 
@@ -323,7 +342,7 @@ def get_coco_branches():
             continue
 
         # -------------------------------------------------
-        # Active check
+        # ACTIVE CHECK
         # -------------------------------------------------
 
         status = norm(
@@ -335,10 +354,12 @@ def get_coco_branches():
             row.get("isActive", None)
         )
 
+        # Explicit inactive flag
         if active_value is False:
 
             continue
 
+        # Status check
         if status and status not in {
             "active",
             "open",
@@ -347,20 +368,33 @@ def get_coco_branches():
             continue
 
         # -------------------------------------------------
-        # Branch labels
+        # BRANCH LABELS
         # -------------------------------------------------
 
-        branch_labels = norm(
+        raw_branch_labels = (
             row.get("branchLabels")
+            or ""
         )
 
-        # COCO only
+        branch_labels = norm(
+            raw_branch_labels
+        )
+
+        # -------------------------------------------------
+        # COCO ONLY
         #
-        # Handles:
+        # Valid:
         # COCO
         # COCO,ROKA
-        # RO...,COCO
+        # ROKA,COCO
+        # COCO,ROKerala
         #
+        # Invalid:
+        # COCOABC
+        # ABC_COCO
+        # FOCOCO
+        # -------------------------------------------------
+
         if not re.search(
             r"(^|[,;\s])coco([,;\s]|$)",
             branch_labels,
@@ -370,7 +404,7 @@ def get_coco_branches():
             continue
 
         # -------------------------------------------------
-        # Branch code
+        # BRANCH CODE
         # -------------------------------------------------
 
         branch_code = str(
@@ -384,7 +418,7 @@ def get_coco_branches():
             continue
 
         # -------------------------------------------------
-        # Store name
+        # STORE NAME
         # -------------------------------------------------
 
         store_name = str(
@@ -394,7 +428,7 @@ def get_coco_branches():
         ).strip()
 
         # -------------------------------------------------
-        # Region
+        # REGION
         #
         # Primary:
         # taxArea
@@ -403,17 +437,19 @@ def get_coco_branches():
         # address.state
         # -------------------------------------------------
 
+        address = row.get(
+            "address",
+            {}
+        )
+
+        if not isinstance(address, dict):
+
+            address = {}
+
         region_value = (
             row.get("taxArea")
-            or (
-                row.get("address", {})
-                .get("state", "")
-                if isinstance(
-                    row.get("address"),
-                    dict
-                )
-                else ""
-            )
+            or address.get("state")
+            or ""
         )
 
         region = normalize_region(
@@ -421,7 +457,7 @@ def get_coco_branches():
         )
 
         # -------------------------------------------------
-        # Channels
+        # CHANNELS
         # -------------------------------------------------
 
         branch_channels = []
@@ -437,23 +473,26 @@ def get_coco_branches():
 
                 if isinstance(channel, dict):
 
-                    name = str(
+                    channel_name = str(
                         channel.get("name")
                         or ""
                     ).strip()
 
                 else:
 
-                    name = str(
-                        channel
-                        or ""
+                    channel_name = str(
+                        channel or ""
                     ).strip()
 
-                if name:
+                if channel_name:
 
                     branch_channels.append(
-                        name
+                        channel_name
                     )
+
+        # -------------------------------------------------
+        # ADD COCO BRANCH
+        # -------------------------------------------------
 
         coco.append(
             {
@@ -461,41 +500,62 @@ def get_coco_branches():
                 "Store Name": store_name,
                 "Region": region,
                 "branchLabels": str(
-                    row.get("branchLabels")
-                    or ""
-                ),
+                    raw_branch_labels
+                ).strip(),
                 "Channels": branch_channels,
             }
         )
 
-    branches_df = pd.DataFrame(coco)
+    # =====================================================
+    # CREATE DATAFRAME
+    # =====================================================
+
+    branches_df = pd.DataFrame(
+        coco
+    )
 
     if branches_df.empty:
 
+        print()
         print(
             "❌ No COCO branches found."
         )
 
         return branches_df
 
-    # -----------------------------------------------------
-    # Only configured regions
-    # -----------------------------------------------------
+    # =====================================================
+    # REGION FILTER
+    # =====================================================
 
     branches_df = branches_df[
-        branches_df["Region"].isin(REGIONS)
+        branches_df["Region"].isin(
+            REGIONS
+        )
     ].copy()
+
+    # =====================================================
+    # REMOVE DUPLICATES
+    # =====================================================
 
     branches_df = (
         branches_df
         .drop_duplicates(
-            "branchCode"
+            subset=["branchCode"]
         )
         .sort_values(
-            ["Region", "Store Name"]
+            by=[
+                "Region",
+                "Store Name",
+            ]
         )
-        .reset_index(drop=True)
+        .reset_index(
+            drop=True
+        )
     )
+
+    # =====================================================
+    # SUMMARY
+    # =====================================================
 
     print(
         f"Active COCO branches found: "
@@ -508,7 +568,7 @@ def get_coco_branches():
         "COCO stores by region:"
     )
 
-    print(
+    region_counts = (
         branches_df
         .groupby("Region")
         .size()
@@ -516,7 +576,10 @@ def get_coco_branches():
             REGIONS,
             fill_value=0
         )
-        .to_string()
+    )
+
+    print(
+        region_counts.to_string()
     )
 
     print()
