@@ -47,16 +47,13 @@ import requests
 
 IST = ZoneInfo("Asia/Kolkata")
 
-API_BASE = os.getenv(
-    "RISTA_API_BASE",
-    "https://api.ristaapps.com/v1"
-)
+RISTA_API_BASE = "https://api.ristaapps.com/v1"
 
-API_KEY = os.getenv("API_KEY")
-SECRET_KEY = os.getenv("SECRET_KEY")
+API_KEY = os.getenv("API_KEY", "").strip()
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 
 EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
+EMAIL_PASS = os.getenv("EMAIL_PASSWORD")
 EMAIL_TO = os.getenv("EMAIL_TO", "")
 EMAIL_CC = os.getenv("EMAIL_CC", "")
 
@@ -252,7 +249,22 @@ def get_token():
 # RISTA REQUEST
 # =========================================================
 
-RISTA_API_BASE = "https://api.ristaapps.com/v1"
+def headers():
+    if not API_KEY:
+        raise RuntimeError(
+            "API_KEY is missing. Please add API_KEY to GitHub Actions Secrets."
+        )
+
+    if not SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY is missing. Please add SECRET_KEY to GitHub Actions Secrets."
+        )
+
+    return {
+        "x-api-key": API_KEY,
+        "x-api-token": get_token(),
+        "Content-Type": "application/json",
+    }
 
 
 def get(endpoint, params=None):
@@ -261,13 +273,20 @@ def get(endpoint, params=None):
 
     response = requests.get(
         url,
-        headers=HEADERS,
+        headers=headers(),
         params=params,
         timeout=60,
     )
 
     response.raise_for_status()
-    return response
+
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Rista API returned non-JSON response for {url}: "
+            f"{response.text[:500]}"
+        ) from exc
 
 
 # =========================================================
