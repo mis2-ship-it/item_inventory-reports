@@ -1,9 +1,9 @@
 # =========================================================
 # HOURLY ORDER FLOW PERFORMANCE
-# RISTA ONLY
+# RISTA SALES PAGE + GOOGLE SHEETS HELP SHEET
 #
-# COCO stores from branchLabels
-# Region from taxArea
+# COCO stores from Help Sheet Ownership = COCO
+# Region from Help Sheet Region
 # In-Store = Offline
 # All other channels = Online
 #
@@ -30,6 +30,7 @@
 
 import os
 import re
+import json
 import smtplib
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -39,6 +40,9 @@ from zoneinfo import ZoneInfo
 import jwt
 import pandas as pd
 import requests
+import gspread
+
+from google.oauth2.service_account import Credentials
 
 
 # =========================================================
@@ -47,17 +51,22 @@ import requests
 
 IST = ZoneInfo("Asia/Kolkata")
 
+# Rista base is fixed; no RISTA_API_BASE secret is required.
 RISTA_API_BASE = "https://api.ristaapps.com/v1"
+
+# Google Sheet -> Help Sheet is the store master.
+GOOGLE_SHEET_ID = "19z6KkVBFoLC33_wcNqVhDLyQEC2dDQ8YQE0gE38BhVg"
+HELP_SHEET_NAME = "Help Sheet"
 
 API_KEY = os.getenv("API_KEY", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-EMAIL_TO = os.getenv("EMAIL_TO", "")
-
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com").strip()
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587").strip() or "587")
+EMAIL_USER = os.getenv("EMAIL_USER", "").strip()
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "").strip()
+EMAIL_TO = os.getenv("EMAIL_TO", "").strip()
+EMAIL_CC = os.getenv("EMAIL_CC", "").strip()
 
 # =========================================================
 # REPORT CONFIGURATION
@@ -250,25 +259,37 @@ def get_token():
 # RISTA REQUEST
 # =========================================================
 
-def headers():
+def get_token():
+
     if not API_KEY:
-        raise RuntimeError(
-            "API_KEY is missing. Please add API_KEY to GitHub Actions Secrets."
-        )
+        raise RuntimeError("API_KEY is missing.")
 
     if not SECRET_KEY:
-        raise RuntimeError(
-            "SECRET_KEY is missing. Please add SECRET_KEY to GitHub Actions Secrets."
-        )
+        raise RuntimeError("SECRET_KEY is missing.")
+
+    payload = {
+        "iss": API_KEY,
+        "iat": int(datetime.now(IST).timestamp()),
+    }
+
+    return jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm="HS256",
+    )
+
+
+def headers():
 
     return {
         "x-api-key": API_KEY,
         "x-api-token": get_token(),
-        "Content-Type": "application/json",
+        "content-type": "application/json",
     }
 
 
 def get(endpoint, params=None):
+
     endpoint = endpoint.lstrip("/")
     url = f"{RISTA_API_BASE}/{endpoint}"
 
@@ -277,6 +298,10 @@ def get(endpoint, params=None):
         headers=headers(),
         params=params,
         timeout=60,
+    )
+
+    print(
+        f"Rista GET | {endpoint} | HTTP {response.status_code}"
     )
 
     response.raise_for_status()
@@ -291,315 +316,179 @@ def get(endpoint, params=None):
 
 
 # =========================================================
-# BRANCH API
+# COCO STORE MASTER
 #
 # IMPORTANT:
-# COCO is determined ONLY from branchLabels.
+# We do NOT depend on /branch/list to identify COCO stores.
+# The Google Sheet Help Sheet is the authoritative store master.
 #
-# Example:
-# branchLabels = "FOFO,ROKerala"
-#               -> NOT COCO
-#
-# branchLabels = "COCO,ROKarnataka"
-#               -> COCO
+# Current Help Sheet columns shown by the user:
+# A branchCode
+# B Store Name
+# C Ownership
+# D AM Email
+# E RM Email
+# F AM Name
+# G CC Mail
+# H Region
 # =========================================================
 
 def get_coco_branches():
 
     print("=" * 70)
-    print("FETCHING RISTA BRANCHES")
+    print("LOADING COCO STORES FROM GOOGLE SHEET")
     print("=" * 70)
 
-    # -----------------------------------------------------
-    # Rista Branch API
-    # -----------------------------------------------------
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS", "").strip()
 
-    response = get("/branch/list")
+    if not credentials_json:
+        raise RuntimeError(
+            "GOOGLE_CREDENTIALS is missing. Add it to GitHub Repository Secrets."
+        )
 
-    # -----------------------------------------------------
-    # Handle API response
-    #
-    # get() should return the JSON dictionary
-    # -----------------------------------------------------
+    try:
+        credentials_dict = json.loads(credentials_json)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "GOOGLE_CREDENTIALS is not valid JSON."
+        ) from exc
 
-    if isinstance(response, dict):
-
-        data = response.get("data", [])
-
-    else:
-
-        data = []
-
-    if not isinstance(data, list):
-
-        data = []
-
-    print(
-        f"Branch API returned {len(data)} records"
+    credentials = Credentials.from_service_account_info(
+        credentials_dict,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ],
     )
 
-    # -----------------------------------------------------
-    # Print sample response for verification
-    # -----------------------------------------------------
+    client = gspread.authorize(credentials)
+    spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
+    worksheet = spreadsheet.worksheet(HELP_SHEET_NAME)
 
-    if data:
+    values = worksheet.get_all_values()
 
-        print()
-        print("Sample branch API response:")
-        print(data[0])
-        print()
+    if not values:
+        raise RuntimeError("Help Sheet is empty.")
 
-    coco = []
+    headers_row = [
+        str(x).strip()
+        for x in values[0]
+    ]
 
-    # =====================================================
-    # PROCESS BRANCHES
-    # =====================================================
+    print("Help Sheet columns:", headers_row)
 
-    for row in data:
+    required = [
+        "branchCode",
+        "Store Name",
+        "Ownership",
+        "Region",
+    ]
 
-        if not isinstance(row, dict):
+    missing = [
+        col
+        for col in required
+        if col not in headers_row
+    ]
 
-            continue
-
-        # -------------------------------------------------
-        # ACTIVE CHECK
-        # -------------------------------------------------
-
-        status = norm(
-            row.get("status")
+    if missing:
+        raise RuntimeError(
+            "Help Sheet missing required columns: "
+            + ", ".join(missing)
         )
 
-        active_value = row.get(
-            "active",
-            row.get("isActive", None)
+    rows = []
+
+    for raw_row in values[1:]:
+        row = list(raw_row)
+
+        if len(row) < len(headers_row):
+            row.extend(
+                [""] * (len(headers_row) - len(row))
+            )
+
+        rows.append(
+            row[:len(headers_row)]
         )
 
-        # Explicit inactive flag
-        if active_value is False:
-
-            continue
-
-        # Status check
-        if status and status not in {
-            "active",
-            "open",
-        }:
-
-            continue
-
-        # -------------------------------------------------
-        # BRANCH LABELS
-        # -------------------------------------------------
-
-        raw_branch_labels = (
-            row.get("branchLabels")
-            or ""
-        )
-
-        branch_labels = norm(
-            raw_branch_labels
-        )
-
-        # -------------------------------------------------
-        # COCO ONLY
-        #
-        # Valid:
-        # COCO
-        # COCO,ROKA
-        # ROKA,COCO
-        # COCO,ROKerala
-        #
-        # Invalid:
-        # COCOABC
-        # ABC_COCO
-        # FOCOCO
-        # -------------------------------------------------
-
-        if not re.search(
-            r"(^|[,;\s])coco([,;\s]|$)",
-            branch_labels,
-            flags=re.IGNORECASE,
-        ):
-
-            continue
-
-        # -------------------------------------------------
-        # BRANCH CODE
-        # -------------------------------------------------
-
-        branch_code = str(
-            row.get("branchCode")
-            or row.get("code")
-            or ""
-        ).strip()
-
-        if not branch_code:
-
-            continue
-
-        # -------------------------------------------------
-        # STORE NAME
-        # -------------------------------------------------
-
-        store_name = str(
-            row.get("branchName")
-            or row.get("name")
-            or branch_code
-        ).strip()
-
-        # -------------------------------------------------
-        # REGION
-        #
-        # Primary:
-        # taxArea
-        #
-        # Fallback:
-        # address.state
-        # -------------------------------------------------
-
-        address = row.get(
-            "address",
-            {}
-        )
-
-        if not isinstance(address, dict):
-
-            address = {}
-
-        region_value = (
-            row.get("taxArea")
-            or address.get("state")
-            or ""
-        )
-
-        region = normalize_region(
-            region_value
-        )
-
-        # -------------------------------------------------
-        # CHANNELS
-        # -------------------------------------------------
-
-        branch_channels = []
-
-        channels = row.get(
-            "channels",
-            []
-        )
-
-        if isinstance(channels, list):
-
-            for channel in channels:
-
-                if isinstance(channel, dict):
-
-                    channel_name = str(
-                        channel.get("name")
-                        or ""
-                    ).strip()
-
-                else:
-
-                    channel_name = str(
-                        channel or ""
-                    ).strip()
-
-                if channel_name:
-
-                    branch_channels.append(
-                        channel_name
-                    )
-
-        # -------------------------------------------------
-        # ADD COCO BRANCH
-        # -------------------------------------------------
-
-        coco.append(
-            {
-                "branchCode": branch_code,
-                "Store Name": store_name,
-                "Region": region,
-                "branchLabels": str(
-                    raw_branch_labels
-                ).strip(),
-                "Channels": branch_channels,
-            }
-        )
-
-    # =====================================================
-    # CREATE DATAFRAME
-    # =====================================================
-
-    branches_df = pd.DataFrame(
-        coco
+    help_df = pd.DataFrame(
+        rows,
+        columns=headers_row,
     )
 
-    if branches_df.empty:
-
-        print()
-        print(
-            "❌ No COCO branches found."
+    for col in required:
+        help_df[col] = (
+            help_df[col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
         )
 
-        return branches_df
+    help_df["Ownership"] = (
+        help_df["Ownership"]
+        .str.upper()
+        .str.strip()
+    )
 
-    # =====================================================
-    # REGION FILTER
-    # =====================================================
+    help_df["Region"] = (
+        help_df["Region"]
+        .apply(normalize_region)
+    )
 
-    branches_df = branches_df[
-        branches_df["Region"].isin(
-            REGIONS
-        )
+    # COCO ONLY from Help Sheet.
+    help_df = help_df[
+        help_df["Ownership"] == "COCO"
     ].copy()
 
-    # =====================================================
-    # REMOVE DUPLICATES
-    # =====================================================
+    # Required reporting regions only.
+    help_df = help_df[
+        help_df["Region"].isin(REGIONS)
+    ].copy()
 
+    # Valid branch code only.
+    help_df = help_df[
+        help_df["branchCode"] != ""
+    ].copy()
+
+    # One master row per branch.
     branches_df = (
-        branches_df
-        .drop_duplicates(
-            subset=["branchCode"]
-        )
-        .sort_values(
-            by=[
-                "Region",
-                "Store Name",
-            ]
-        )
-        .reset_index(
-            drop=True
-        )
-    )
-
-    # =====================================================
-    # SUMMARY
-    # =====================================================
-
-    print(
-        f"Active COCO branches found: "
-        f"{len(branches_df)}"
+        help_df
+        .drop_duplicates("branchCode")
+        .sort_values(["Region", "Store Name"])
+        .reset_index(drop=True)
     )
 
     print()
-
     print(
-        "COCO stores by region:"
+        f"Help Sheet data rows : {len(values) - 1}"
+    )
+    print(
+        f"COCO stores          : {len(branches_df)}"
     )
 
-    region_counts = (
+    print()
+    print("COCO stores by region:")
+
+    print(
         branches_df
         .groupby("Region")
         .size()
-        .reindex(
-            REGIONS,
-            fill_value=0
-        )
+        .reindex(REGIONS, fill_value=0)
+        .to_string()
     )
 
+    print()
+    print("Sample COCO store mapping:")
     print(
-        region_counts.to_string()
+        branches_df[
+            [
+                "branchCode",
+                "Store Name",
+                "Ownership",
+                "Region",
+            ]
+        ]
+        .head(10)
+        .to_string(index=False)
     )
 
     print()
@@ -714,6 +603,8 @@ def prepare_sales(
 
         "branchCode": [
             "branchCode",
+            "branch",
+            "outletId",
         ],
 
         "branchName": [
@@ -723,20 +614,25 @@ def prepare_sales(
         "invoiceNumber": [
             "invoiceNumber",
             "invoiceNo",
+            "sourceInfo.invoiceNumber",
         ],
 
         "invoiceDate": [
             "invoiceDate",
+            "sourceInfo.invoiceDate",
             "createdDate",
             "modifiedDate",
         ],
 
         "brandName": [
             "brandName",
+            "brand",
+            "sourceInfo.companyName",
         ],
 
         "channel": [
             "channel",
+            "sourceInfo.source",
         ],
 
         "fulfillmentStatus": [
@@ -748,6 +644,8 @@ def prepare_sales(
             "cancelReason",
             "cancellationReason",
             "voidReason",
+            "statusInfo.reason",
+            "statusInfo.sourceReason",
             "reason",
         ],
     }
@@ -793,9 +691,14 @@ def prepare_sales(
 
     df["Brand"] = (
         df["brandName"]
-        .apply(
-            normalize_brand
-        )
+        .apply(normalize_brand)
+    )
+
+    missing_brand = df["Brand"] == ""
+
+    df.loc[missing_brand, "Brand"] = (
+        df.loc[missing_brand, "channel"]
+        .apply(normalize_brand)
     )
 
     # -----------------------------------------------------
@@ -1856,20 +1759,48 @@ def send_mail(
     alert_count,
 ):
 
+    if not EMAIL_USER:
+        raise RuntimeError("EMAIL_USER is missing.")
+
+    if not EMAIL_PASSWORD:
+        raise RuntimeError("EMAIL_PASSWORD is missing.")
+
     to = [
         x.strip()
         for x in EMAIL_TO.split(",")
         if x.strip()
     ]
 
-    if not to:
-        raise ValueError("EMAIL_TO is empty")
+    cc = [
+        x.strip()
+        for x in EMAIL_CC.split(",")
+        if x.strip()
+    ]
 
-    msg = MIMEMultipart("alternative")
+    if not to and not cc:
+
+        raise ValueError(
+            "EMAIL_TO / EMAIL_CC is empty"
+        )
+
+    msg = MIMEMultipart(
+        "alternative"
+    )
+
     msg["From"] = EMAIL_USER
     msg["To"] = EMAIL_TO
 
-    subject_prefix = "🚨 ALERT" if alert_count > 0 else "✅ NORMAL"
+    if EMAIL_CC:
+
+        msg["Cc"] = EMAIL_CC
+
+    if alert_count > 0:
+
+        subject_prefix = "🚨 ALERT"
+
+    else:
+
+        subject_prefix = "✅ NORMAL"
 
     msg["Subject"] = (
         f"{subject_prefix} | "
@@ -1878,7 +1809,12 @@ def send_mail(
         f"{alert_count} Alert(s)"
     )
 
-    msg.attach(MIMEText(body, "html"))
+    msg.attach(
+        MIMEText(
+            body,
+            "html",
+        )
+    )
 
     with smtplib.SMTP(
         EMAIL_HOST,
@@ -1887,8 +1823,17 @@ def send_mail(
     ) as server:
 
         server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_USER, to, msg.as_string())
+
+        server.login(
+            EMAIL_USER,
+            EMAIL_PASSWORD,
+        )
+
+        server.sendmail(
+            EMAIL_USER,
+            to + cc,
+            msg.as_string(),
+        )
 
 
 # =========================================================
@@ -1939,6 +1884,18 @@ def main():
         f"Previous hour      : "
         f"{previous_hour:%d-%b-%Y %I:%M %p}"
     )
+
+    print("=" * 70)
+    print("CONFIGURATION CHECK")
+    print("API_KEY exists         :", bool(API_KEY))
+    print("SECRET_KEY exists      :", bool(SECRET_KEY))
+    print("GOOGLE_CREDENTIALS set :", bool(os.getenv("GOOGLE_CREDENTIALS")))
+    print("EMAIL_USER exists      :", bool(EMAIL_USER))
+    print("EMAIL_PASSWORD exists  :", bool(EMAIL_PASSWORD))
+    print("EMAIL_TO exists        :", bool(EMAIL_TO))
+    print("Rista API Base         :", RISTA_API_BASE)
+    print("Google Sheet ID        :", GOOGLE_SHEET_ID)
+    print("=" * 70)
 
     # -----------------------------------------------------
     # Get COCO branches
