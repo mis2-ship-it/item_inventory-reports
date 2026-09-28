@@ -1794,19 +1794,15 @@ def send_mail(
 
         msg["Cc"] = EMAIL_CC
 
-    if alert_count > 0:
-
-        subject_prefix = "🚨 ALERT"
-
-    else:
-
-        subject_prefix = "✅ NORMAL"
-
-    msg["Subject"] = (
-        f"{subject_prefix} | "
-        f"Hourly Order Flow | "
-        f"{current_hour.strftime('%d-%b-%Y %I:%M %p')} | "
-        f"{alert_count} Alert(s)"
+    # =========================================================
+    # DAILY EMAIL SUBJECT
+    # SAME SUBJECT FOR THE ENTIRE DAY
+    # =========================================================
+    
+    business_date = current_hour.strftime("%d-%b-%Y")
+    
+    message["Subject"] = (
+        f"Hourly Order Flow | {business_date}"
     )
 
     msg.attach(
