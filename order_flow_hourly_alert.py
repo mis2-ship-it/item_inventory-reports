@@ -1759,58 +1759,160 @@ def send_mail(
     alert_count,
 ):
 
+    if not EMAIL_HOST:
+        raise RuntimeError(
+            "EMAIL_HOST is missing."
+        )
+
     if not EMAIL_USER:
-        raise RuntimeError("EMAIL_USER is missing.")
+        raise RuntimeError(
+            "EMAIL_USER is missing."
+        )
 
     if not EMAIL_PASSWORD:
-        raise RuntimeError("EMAIL_PASSWORD is missing.")
+        raise RuntimeError(
+            "EMAIL_PASSWORD is missing."
+        )
 
-    to = [
+    if not EMAIL_TO:
+        raise RuntimeError(
+            "EMAIL_TO is missing."
+        )
+
+    recipients = [
         x.strip()
         for x in EMAIL_TO.split(",")
         if x.strip()
     ]
 
-    cc = [
+    cc_recipients = [
         x.strip()
         for x in EMAIL_CC.split(",")
         if x.strip()
     ]
 
-    if not to and not cc:
+    message = MIMEMultipart("alternative")
 
-        raise ValueError(
-            "EMAIL_TO / EMAIL_CC is empty"
-        )
+    message["From"] = EMAIL_USER
 
-    msg = MIMEMultipart(
-        "alternative"
+    message["To"] = ", ".join(
+        recipients
     )
 
-    msg["From"] = EMAIL_USER
-    msg["To"] = EMAIL_TO
+    if cc_recipients:
+        message["Cc"] = ", ".join(
+            cc_recipients
+        )
 
-    if EMAIL_CC:
-
-        msg["Cc"] = EMAIL_CC
-
-    # =========================================================
+    # =====================================================
     # DAILY EMAIL SUBJECT
-    # SAME SUBJECT FOR THE ENTIRE DAY
-    # =========================================================
-    
-    business_date = current_hour.strftime("%d-%b-%Y")
-    
+    # =====================================================
+
+    business_date = current_hour.strftime(
+        "%d-%b-%Y"
+    )
+
+    business_date_id = current_hour.strftime(
+        "%Y%m%d"
+    )
+
     message["Subject"] = (
         f"Hourly Order Flow | {business_date}"
     )
 
-    msg.attach(
+    # =====================================================
+    # DAILY THREAD
+    # =====================================================
+
+    # Root ID for the complete day's thread
+    daily_thread_id = (
+        f"<hourly-order-flow-{business_date_id}"
+        f"@frozenbottle.in>"
+    )
+
+    # Unique ID for this particular hourly email
+    unique_message_id = (
+        f"<hourly-order-flow-{business_date_id}-"
+        f"{current_hour.strftime('%H%M')}-"
+        f"{int(time.time())}"
+        f"@frozenbottle.in>"
+    )
+
+    message["Message-ID"] = (
+        unique_message_id
+    )
+
+    message["In-Reply-To"] = (
+        daily_thread_id
+    )
+
+    message["References"] = (
+        daily_thread_id
+    )
+
+    # =====================================================
+    # BODY
+    # =====================================================
+
+    message.attach(
         MIMEText(
             body,
             "html",
         )
     )
+
+    all_recipients = (
+        recipients
+        + cc_recipients
+    )
+
+    print()
+    print("=" * 70)
+    print("SENDING EMAIL")
+    print("=" * 70)
+
+    print(
+        "Subject       :",
+        message["Subject"],
+    )
+
+    print(
+        "Message-ID    :",
+        unique_message_id,
+    )
+
+    print(
+        "Daily Thread  :",
+        daily_thread_id,
+    )
+
+    print(
+        "SMTP Host     :",
+        EMAIL_HOST,
+    )
+
+    print(
+        "SMTP Port     :",
+        EMAIL_PORT,
+    )
+
+    print(
+        "From          :",
+        EMAIL_USER,
+    )
+
+    print(
+        "To            :",
+        ", ".join(recipients),
+    )
+
+    if cc_recipients:
+        print(
+            "CC            :",
+            ", ".join(cc_recipients),
+        )
+
+    print()
 
     with smtplib.SMTP(
         EMAIL_HOST,
@@ -1827,8 +1929,8 @@ def send_mail(
 
         server.sendmail(
             EMAIL_USER,
-            to + cc,
-            msg.as_string(),
+            all_recipients,
+            message.as_string(),
         )
 
 
