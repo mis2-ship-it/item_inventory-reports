@@ -1,17 +1,15 @@
 name: Hourly Order Flow Alert
 
 on:
-
+  schedule:
+    - cron: "5 * * * *"
   workflow_dispatch:
 
 jobs:
-
   order-flow-alert:
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -25,17 +23,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas requests PyJWT gspread google-auth openpyxl
 
-      - name: Run hourly order flow
+      - name: Run hourly order flow alert
         env:
           API_KEY: ${{ secrets.API_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          RISTA_API_BASE: ${{ secrets.RISTA_API_BASE }}
-        
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_CC: ${{ secrets.EMAIL_CC }}
-
         run: |
           echo "Running script..."
           python order_flow_hourly_alert.py
