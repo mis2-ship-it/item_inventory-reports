@@ -32,6 +32,7 @@ import os
 import re
 import json
 import smtplib
+import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -1567,17 +1568,122 @@ def email_html(
         .shape[0]
     )
 
+    # =====================================================
+    # ZERO-ORDER STORES — KEEP ON TOP
+    # Total current-hour successful orders across
+    # Swiggy + Zomato and all three brands.
+    # =====================================================
+
+    store_current_orders = (
+        performance
+        .groupby(
+            ["Region", "Store Name", "branchCode"],
+            as_index=False,
+        )["Current_Orders"]
+        .sum()
+    )
+
+    zero_order_stores = (
+        store_current_orders[
+            store_current_orders["Current_Orders"] == 0
+        ]
+        .sort_values(
+            ["Region", "Store Name"]
+        )
+        .reset_index(drop=True)
+    )
+
+    zero_order_count = len(zero_order_stores)
+
+    if zero_order_count > 0:
+
+        zero_rows = []
+
+        for _, row in zero_order_stores.iterrows():
+            zero_rows.append(
+                f"""
+                <tr style="background:#fff2cc;">
+                    <td style="font-weight:bold;color:#c00000;">
+                        {esc(row["Region"])}
+                    </td>
+                    <td style="font-weight:bold;color:#c00000;">
+                        {esc(row["Store Name"])}
+                    </td>
+                    <td align="center" style="font-weight:bold;color:#c00000;">
+                        0
+                    </td>
+                    <td style="color:#c00000;">
+                        No successful Swiggy/Zomato order in current hour
+                    </td>
+                </tr>
+                """
+            )
+
+        zero_order_summary = f"""
+        <div style="
+            background:#fce4d6;
+            border:2px solid #c00000;
+            padding:10px;
+            margin:12px 0 18px 0;
+        ">
+            <h3 style="
+                margin:0 0 10px 0;
+                color:#c00000;
+            ">
+                🚨 Stores With Zero Orders — Current Hour ({zero_order_count})
+            </h3>
+
+            <table
+                border="1"
+                cellpadding="6"
+                cellspacing="0"
+                style="
+                    border-collapse:collapse;
+                    width:100%;
+                    font-family:Arial;
+                    font-size:12px;
+                    background:#ffffff;
+                "
+            >
+                <tr style="background:#f4cccc;">
+                    <th>Region</th>
+                    <th>Store Name</th>
+                    <th>Current Orders</th>
+                    <th>Remarks</th>
+                </tr>
+                {"".join(zero_rows)}
+            </table>
+        </div>
+        """
+
+    else:
+
+        zero_order_summary = """
+        <div style="
+            background:#e2f0d9;
+            border:1px solid #70ad47;
+            padding:10px;
+            margin:12px 0 18px 0;
+        ">
+            <b style="color:#008000;">
+                ✅ No stores with zero orders in the current hour
+            </b>
+        </div>
+        """
+
+    # =====================================================
+    # REGION-WISE TABLES
+    # =====================================================
+
     sections = []
 
     for region in REGIONS:
 
         region_data = performance[
-            performance["Region"]
-            == region
+            performance["Region"] == region
         ].copy()
 
         if region_data.empty:
-
             continue
 
         alert_count = int(
@@ -1612,7 +1718,9 @@ def email_html(
             """
         )
 
-    alert_summary = ""
+    # =====================================================
+    # ALERT SUMMARY
+    # =====================================================
 
     if total_alerts > 0:
 
@@ -1662,7 +1770,6 @@ def email_html(
         </h2>
 
         <p>
-
             <b>Date:</b>
             {current_hour.strftime("%d-%b-%Y")}
 
@@ -1683,7 +1790,14 @@ def email_html(
             <b>Total COCO Stores:</b>
             {total_stores}
 
+            <br>
+
+            <b>Zero Order Stores:</b>
+            {zero_order_count}
+
         </p>
+
+        {zero_order_summary}
 
         {alert_summary}
 
@@ -1729,17 +1843,17 @@ def email_html(
         ">
 
             Source:
-            Rista Branch API + Rista Sales Page
+            Rista Sales Page + Google Sheet Help Sheet
 
             <br>
 
             COCO classification:
-            Rista branchLabels
+            Help Sheet Ownership = COCO
 
             <br>
 
             Region:
-            Rista taxArea
+            Help Sheet Region
 
         </p>
 
@@ -1759,160 +1873,62 @@ def send_mail(
     alert_count,
 ):
 
-    if not EMAIL_HOST:
-        raise RuntimeError(
-            "EMAIL_HOST is missing."
-        )
-
     if not EMAIL_USER:
-        raise RuntimeError(
-            "EMAIL_USER is missing."
-        )
+        raise RuntimeError("EMAIL_USER is missing.")
 
     if not EMAIL_PASSWORD:
-        raise RuntimeError(
-            "EMAIL_PASSWORD is missing."
-        )
+        raise RuntimeError("EMAIL_PASSWORD is missing.")
 
-    if not EMAIL_TO:
-        raise RuntimeError(
-            "EMAIL_TO is missing."
-        )
-
-    recipients = [
+    to = [
         x.strip()
         for x in EMAIL_TO.split(",")
         if x.strip()
     ]
 
-    cc_recipients = [
+    cc = [
         x.strip()
         for x in EMAIL_CC.split(",")
         if x.strip()
     ]
 
-    message = MIMEMultipart("alternative")
+    if not to and not cc:
 
-    message["From"] = EMAIL_USER
-
-    message["To"] = ", ".join(
-        recipients
-    )
-
-    if cc_recipients:
-        message["Cc"] = ", ".join(
-            cc_recipients
+        raise ValueError(
+            "EMAIL_TO / EMAIL_CC is empty"
         )
 
-    # =====================================================
-    # DAILY EMAIL SUBJECT
-    # =====================================================
-
-    business_date = current_hour.strftime(
-        "%d-%b-%Y"
+    msg = MIMEMultipart(
+        "alternative"
     )
 
-    business_date_id = current_hour.strftime(
-        "%Y%m%d"
+    msg["From"] = EMAIL_USER
+    msg["To"] = EMAIL_TO
+
+    if EMAIL_CC:
+
+        msg["Cc"] = EMAIL_CC
+
+    if alert_count > 0:
+
+        subject_prefix = "🚨 ALERT"
+
+    else:
+
+        subject_prefix = "✅ NORMAL"
+
+    msg["Subject"] = (
+        f"{subject_prefix} | "
+        f"Hourly Order Flow | "
+        f"{current_hour.strftime('%d-%b-%Y %I:%M %p')} | "
+        f"{alert_count} Alert(s)"
     )
 
-    message["Subject"] = (
-        f"Hourly Order Flow | {business_date}"
-    )
-
-    # =====================================================
-    # DAILY THREAD
-    # =====================================================
-
-    # Root ID for the complete day's thread
-    daily_thread_id = (
-        f"<hourly-order-flow-{business_date_id}"
-        f"@frozenbottle.in>"
-    )
-
-    # Unique ID for this particular hourly email
-    unique_message_id = (
-        f"<hourly-order-flow-{business_date_id}-"
-        f"{current_hour.strftime('%H%M')}-"
-        f"{int(time.time())}"
-        f"@frozenbottle.in>"
-    )
-
-    message["Message-ID"] = (
-        unique_message_id
-    )
-
-    message["In-Reply-To"] = (
-        daily_thread_id
-    )
-
-    message["References"] = (
-        daily_thread_id
-    )
-
-    # =====================================================
-    # BODY
-    # =====================================================
-
-    message.attach(
+    msg.attach(
         MIMEText(
             body,
             "html",
         )
     )
-
-    all_recipients = (
-        recipients
-        + cc_recipients
-    )
-
-    print()
-    print("=" * 70)
-    print("SENDING EMAIL")
-    print("=" * 70)
-
-    print(
-        "Subject       :",
-        message["Subject"],
-    )
-
-    print(
-        "Message-ID    :",
-        unique_message_id,
-    )
-
-    print(
-        "Daily Thread  :",
-        daily_thread_id,
-    )
-
-    print(
-        "SMTP Host     :",
-        EMAIL_HOST,
-    )
-
-    print(
-        "SMTP Port     :",
-        EMAIL_PORT,
-    )
-
-    print(
-        "From          :",
-        EMAIL_USER,
-    )
-
-    print(
-        "To            :",
-        ", ".join(recipients),
-    )
-
-    if cc_recipients:
-        print(
-            "CC            :",
-            ", ".join(cc_recipients),
-        )
-
-    print()
 
     with smtplib.SMTP(
         EMAIL_HOST,
@@ -1929,8 +1945,8 @@ def send_mail(
 
         server.sendmail(
             EMAIL_USER,
-            all_recipients,
-            message.as_string(),
+            to + cc,
+            msg.as_string(),
         )
 
 
