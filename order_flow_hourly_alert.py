@@ -1290,7 +1290,7 @@ def email_html(performance, flow, current_hour, previous_hour, business_start, r
     total_alerts=int(performance["Alert"].sum()); total_stores=performance[["branchCode","Store Name"]].drop_duplicates().shape[0]
     current=performance.groupby(["Region","Store Name","branchCode"],as_index=False)["Current_Orders"].sum(); zero=current[current["Current_Orders"]==0].sort_values(["Region","Store Name"]); zero_count=len(zero)
     if zero_count:
-        zr=''.join(f'<tr style="background:#fff2cc;"><td>{esc(r["Region"])}</td><td style="font-weight:bold;color:#c00000;">{esc(r["Store Name"])}</td><td align="center">0</td><td>No successful Swiggy/Zomato order in current hour</td></tr>' for _,r in zero.iterrows())
+        zr=''.join(f'<tr style="background:#fff2cc;"><td>{escape(str(r["Region"]))}</td><td style="font-weight:bold;color:#c00000;">{escape(str(r["Store Name"]))}</td><td align="center">0</td><td>No successful Swiggy/Zomato order in current hour</td></tr>' for _,r in zero.iterrows())
         zero_section=f'''<div style="background:#fce4d6;border:2px solid #c00000;padding:10px;margin:12px 0;"><h3 style="color:#c00000;">🚨 Stores With Zero Orders — Current Hour ({zero_count})</h3><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;"><tr style="background:#f4cccc;"><th>Region</th><th>Store Name</th><th>Orders</th><th>Remarks</th></tr>{zr}</table></div>'''
     else: zero_section='<div style="background:#e2f0d9;border:1px solid #70ad47;padding:10px;margin:12px 0;"><b style="color:#008000;">✅ No stores with zero orders in the current hour</b></div>'
     alert_section=f'<div style="background:#fff2cc;padding:10px;margin:12px 0;"><b style="color:#c00000;">🚨 {total_alerts} alert row(s) detected in current hour</b></div>' if total_alerts else '<div style="background:#e2f0d9;padding:10px;margin:12px 0;"><b style="color:#008000;">✅ No order-flow alerts detected in the current hour</b></div>'
@@ -1301,6 +1301,7 @@ def email_html(performance, flow, current_hour, previous_hour, business_start, r
 # =========================================================
 # SEND EMAIL
 # =========================================================
+from html import escape
 
 def send_mail(
     body,
