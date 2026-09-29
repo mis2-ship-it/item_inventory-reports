@@ -1464,15 +1464,16 @@ def send_mail(
         raise RuntimeError("EMAIL_PASSWORD is missing.")
 
     to = [
-        x.strip()
-        for x in EMAIL_TO.split(",")
-        if x.strip()
+        "bangaloreterritorymanager1@frozenbottle.in",
+        "bangaloreterritorymanager@frozenbottle.in",
+        "manohar@frozenbottle.in",
+        "tm.chennai@frozenbottle.in",
+        "mis3@frozenbottle.in",
+        "faraz@frozenbottle.in",
     ]
-
+    
     cc = [
-        x.strip()
-        for x in EMAIL_CC.split(",")
-        if x.strip()
+        "vivek@frozenbottle.in",
     ]
 
     if not to and not cc:
