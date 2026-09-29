@@ -36,6 +36,7 @@ import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
 from zoneinfo import ZoneInfo
 
 import jwt
@@ -1283,6 +1284,154 @@ def build_store_performance(
 
 
 # =========================================================
+# HOURLY OVERALL TABLE
+# =========================================================
+
+def hourly_overall_table(flow):
+    """Build one row per reporting hour for the overall business day."""
+    columns = [
+        "Hour", "Swiggy Orders", "Zomato Orders", "Total Orders",
+        "Swiggy %", "Zomato %"
+    ]
+
+    if flow is None or flow.empty:
+        return (
+            '<table border="1" cellpadding="6" cellspacing="0" '
+            'style="border-collapse:collapse;width:100%;">'
+            '<tr style="background:#d9eaf7;">' +
+            ''.join(f'<th>{escape(c)}</th>' for c in columns) +
+            '</tr><tr><td colspan="6" align="center">No order data</td></tr></table>'
+        )
+
+    h = flow.copy()
+    h["Orders"] = pd.to_numeric(h["Orders"], errors="coerce").fillna(0).astype(int)
+    grouped = h.groupby(["Hour", "Source"], dropna=False)["Orders"].sum().unstack(fill_value=0)
+
+    rows = []
+    for hour, values in grouped.sort_index().iterrows():
+        sw = int(values.get("Swiggy", 0))
+        zo = int(values.get("Zomato", 0))
+        total = sw + zo
+        sw_pct = (sw / total * 100) if total else 0
+        zo_pct = (zo / total * 100) if total else 0
+        hour_value = pd.Timestamp(hour)
+        rows.append(
+            f'<tr><td>{escape(hour_value.strftime("%d-%b %I:%M %p"))}</td>'
+            f'<td align="center">{sw}</td>'
+            f'<td align="center">{zo}</td>'
+            f'<td align="center"><b>{total}</b></td>'
+            f'<td align="center">{sw_pct:.1f}%</td>'
+            f'<td align="center">{zo_pct:.1f}%</td></tr>'
+        )
+
+    header = ''.join(f'<th>{escape(c)}</th>' for c in columns)
+    return (
+        '<table border="1" cellpadding="6" cellspacing="0" '
+        'style="border-collapse:collapse;width:100%;font-size:13px;">'
+        f'<tr style="background:#d9eaf7;">{header}</tr>'
+        + ''.join(rows) +
+        '</table>'
+    )
+
+
+# =========================================================
+# STORE-LEVEL OVERALL TABLE
+# =========================================================
+
+def store_overall_table(flow, performance):
+    """Build business-day totals per store by source and brand."""
+    columns = [
+        "Region", "Store", "Swiggy Frozen Bottle", "Swiggy Madno",
+        "Swiggy Boba Bar", "Zomato Frozen Bottle", "Zomato Madno",
+        "Zomato Boba Bar", "Swiggy Total", "Zomato Total",
+        "Total Orders", "Swiggy %", "Zomato %", "Status", "Remarks"
+    ]
+
+    base = performance[
+        ["Region", "Store Name", "branchCode", "Status", "Remarks"]
+    ].drop_duplicates("branchCode").copy()
+    base = base.rename(columns={"Store Name": "Store"})
+
+    if flow is not None and not flow.empty:
+        x = flow.copy()
+        x["Orders"] = pd.to_numeric(x["Orders"], errors="coerce").fillna(0).astype(int)
+        pivot = (
+            x.groupby(["branchCode", "Source", "Brand"], dropna=False)["Orders"]
+            .sum()
+            .unstack(["Source", "Brand"], fill_value=0)
+        )
+        pivot.columns = [f"{source}_{brand}" for source, brand in pivot.columns]
+        pivot = pivot.reset_index()
+        base = base.merge(pivot, on="branchCode", how="left")
+
+    metric_cols = [
+        "Swiggy_Frozen Bottle", "Swiggy_Madno", "Swiggy_Boba Bar",
+        "Zomato_Frozen Bottle", "Zomato_Madno", "Zomato_Boba Bar"
+    ]
+    for col in metric_cols:
+        if col not in base.columns:
+            base[col] = 0
+        base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0).astype(int)
+
+    base["Swiggy Total"] = base[[
+        "Swiggy_Frozen Bottle", "Swiggy_Madno", "Swiggy_Boba Bar"
+    ]].sum(axis=1)
+    base["Zomato Total"] = base[[
+        "Zomato_Frozen Bottle", "Zomato_Madno", "Zomato_Boba Bar"
+    ]].sum(axis=1)
+    base["Total Orders"] = base["Swiggy Total"] + base["Zomato Total"]
+    base["Swiggy %"] = base.apply(
+        lambda r: r["Swiggy Total"] / r["Total Orders"] * 100 if r["Total Orders"] else 0,
+        axis=1
+    )
+    base["Zomato %"] = base.apply(
+        lambda r: r["Zomato Total"] / r["Total Orders"] * 100 if r["Total Orders"] else 0,
+        axis=1
+    )
+
+    base = base.sort_values(["Region", "Store"], kind="stable")
+    rows = []
+    for _, r in base.iterrows():
+        status = str(r["Status"])
+        is_alert = status.lower() == "alert"
+        row_style = ' style="background:#fce4d6;"' if is_alert else ''
+        store_style = ' style="font-weight:bold;color:#c00000;"' if is_alert else ''
+        cells = [
+            escape(str(r["Region"])),
+            escape(str(r["Store"])),
+            f'{int(r["Swiggy_Frozen Bottle"])}',
+            f'{int(r["Swiggy_Madno"])}',
+            f'{int(r["Swiggy_Boba Bar"])}',
+            f'{int(r["Zomato_Frozen Bottle"])}',
+            f'{int(r["Zomato_Madno"])}',
+            f'{int(r["Zomato_Boba Bar"])}',
+            f'<b>{int(r["Swiggy Total"])}</b>',
+            f'<b>{int(r["Zomato Total"])}</b>',
+            f'<b>{int(r["Total Orders"])}</b>',
+            f'{r["Swiggy %"]:.1f}%',
+            f'{r["Zomato %"]:.1f}%',
+            escape(status),
+            escape(str(r["Remarks"])),
+        ]
+        html = (
+            f'<tr{row_style}>'
+            f'<td>{cells[0]}</td><td{store_style}>{cells[1]}</td>'
+            + ''.join(f'<td align="center">{c}</td>' for c in cells[2:13])
+            + f'<td align="center">{cells[13]}</td><td>{cells[14]}</td>'
+            '</tr>'
+        )
+        rows.append(html)
+
+    header = ''.join(f'<th>{escape(c)}</th>' for c in columns)
+    return (
+        '<table border="1" cellpadding="5" cellspacing="0" '
+        'style="border-collapse:collapse;width:100%;font-size:11px;">'
+        f'<tr style="background:#d9eaf7;">{header}</tr>'
+        + ''.join(rows) +
+        '</table>'
+    )
+
+# =========================================================
 # EMAIL HTML
 # =========================================================
 
@@ -1301,7 +1450,6 @@ def email_html(performance, flow, current_hour, previous_hour, business_start, r
 # =========================================================
 # SEND EMAIL
 # =========================================================
-from html import escape
 
 def send_mail(
     body,
