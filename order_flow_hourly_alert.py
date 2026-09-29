@@ -240,22 +240,6 @@ def source_from_channel(channel):
 # JWT TOKEN
 # =========================================================
 
-def get_token():
-
-    now = datetime.now(IST)
-
-    payload = {
-        "iss": API_KEY,
-        "iat": int(now.timestamp()),
-    }
-
-    return jwt.encode(
-        payload,
-        SECRET_KEY,
-        algorithm="HS256",
-    )
-
-
 # =========================================================
 # RISTA REQUEST
 # =========================================================
@@ -1299,569 +1283,20 @@ def build_store_performance(
 
 
 # =========================================================
-# EMAIL HTML ESCAPE
-# =========================================================
-
-def esc(value):
-
-    return (
-        str(value or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
-# =========================================================
-# REGION TABLE
-# =========================================================
-
-def region_table(
-    data,
-):
-
-    if data.empty:
-
-        return ""
-
-    stores = {}
-
-    for _, row in data.iterrows():
-
-        store = row["Store Name"]
-
-        if store not in stores:
-
-            stores[store] = {
-
-                "Swiggy": {
-                    "Frozen Bottle": 0,
-                    "Madno": 0,
-                    "Boba Bar": 0,
-                },
-
-                "Zomato": {
-                    "Frozen Bottle": 0,
-                    "Madno": 0,
-                    "Boba Bar": 0,
-                },
-
-                "status": "Normal",
-
-                "remarks": [],
-            }
-
-        source_name = row["Source"]
-        brand_name = row["Brand"]
-
-        stores[store][
-            source_name
-        ][
-            brand_name
-        ] = int(
-            row["Current_Orders"]
-        )
-
-        if row["Status"] == "Alert":
-
-            stores[store][
-                "status"
-            ] = "Alert"
-
-            remark = str(
-                row["Remarks"]
-                or ""
-            ).strip()
-
-            if (
-                remark
-                and remark
-                not in stores[store]["remarks"]
-            ):
-
-                stores[store]["remarks"].append(
-                    f"{source_name} "
-                    f"{brand_name}: "
-                    f"{remark}"
-                )
-
-    # -----------------------------------------------------
-    # Alert first
-    # -----------------------------------------------------
-
-    sorted_stores = sorted(
-        stores.items(),
-        key=lambda item: (
-            0
-            if item[1]["status"]
-            == "Alert"
-            else 1,
-            item[0],
-        ),
-    )
-
-    rows = []
-
-    for store, values in sorted_stores:
-
-        is_alert = (
-            values["status"]
-            == "Alert"
-        )
-
-        if is_alert:
-
-            bg = "#fff2cc"
-            store_style = (
-                "color:#c00000;"
-                "font-weight:bold;"
-            )
-            status_style = (
-                "color:#c00000;"
-                "font-weight:bold;"
-            )
-
-            status = "🚨 ALERT"
-
-        else:
-
-            bg = "#ffffff"
-            store_style = ""
-            status_style = (
-                "color:#008000;"
-                "font-weight:bold;"
-            )
-
-            status = "Normal"
-
-        remarks = (
-            "<br>".join(
-                esc(x)
-                for x in values["remarks"]
-            )
-            if values["remarks"]
-            else "Order flow normal"
-        )
-
-        rows.append(
-            f"""
-            <tr style="background:{bg};">
-
-                <td style="{store_style}">
-                    {esc(store)}
-                </td>
-
-                <td align="center">
-                    {values["Swiggy"]["Frozen Bottle"]}
-                </td>
-
-                <td align="center">
-                    {values["Swiggy"]["Madno"]}
-                </td>
-
-                <td align="center">
-                    {values["Swiggy"]["Boba Bar"]}
-                </td>
-
-                <td align="center">
-                    {values["Zomato"]["Frozen Bottle"]}
-                </td>
-
-                <td align="center">
-                    {values["Zomato"]["Madno"]}
-                </td>
-
-                <td align="center">
-                    {values["Zomato"]["Boba Bar"]}
-                </td>
-
-                <td style="{status_style}">
-                    {status}
-                </td>
-
-                <td>
-                    {remarks}
-                </td>
-
-            </tr>
-            """
-        )
-
-    return f"""
-    <table
-        border="1"
-        cellpadding="6"
-        cellspacing="0"
-        style="
-            border-collapse:collapse;
-            width:100%;
-            font-family:Arial;
-            font-size:12px;
-        "
-    >
-
-        <tr style="background:#d9eaf7;">
-
-            <th rowspan="2">
-                Store Name
-            </th>
-
-            <th colspan="3">
-                Swiggy Orders
-            </th>
-
-            <th colspan="3">
-                Zomato Orders
-            </th>
-
-            <th rowspan="2">
-                Status
-            </th>
-
-            <th rowspan="2">
-                Remarks
-            </th>
-
-        </tr>
-
-        <tr style="background:#eaf3f8;">
-
-            <th>Frozen Bottle</th>
-            <th>Madno</th>
-            <th>Boba Bar</th>
-
-            <th>Frozen Bottle</th>
-            <th>Madno</th>
-            <th>Boba Bar</th>
-
-        </tr>
-
-        {"".join(rows)}
-
-    </table>
-    """
-
-
-# =========================================================
 # EMAIL HTML
 # =========================================================
 
-def email_html(
-    performance,
-    current_hour,
-    previous_hour,
-):
-
-    total_alerts = int(
-        performance["Alert"].sum()
-    )
-
-    total_stores = (
-        performance[
-            [
-                "branchCode",
-                "Store Name",
-            ]
-        ]
-        .drop_duplicates()
-        .shape[0]
-    )
-
-    # =====================================================
-    # ZERO-ORDER STORES — KEEP ON TOP
-    # Total current-hour successful orders across
-    # Swiggy + Zomato and all three brands.
-    # =====================================================
-
-    store_current_orders = (
-        performance
-        .groupby(
-            ["Region", "Store Name", "branchCode"],
-            as_index=False,
-        )["Current_Orders"]
-        .sum()
-    )
-
-    zero_order_stores = (
-        store_current_orders[
-            store_current_orders["Current_Orders"] == 0
-        ]
-        .sort_values(
-            ["Region", "Store Name"]
-        )
-        .reset_index(drop=True)
-    )
-
-    zero_order_count = len(zero_order_stores)
-
-    if zero_order_count > 0:
-
-        zero_rows = []
-
-        for _, row in zero_order_stores.iterrows():
-            zero_rows.append(
-                f"""
-                <tr style="background:#fff2cc;">
-                    <td style="font-weight:bold;color:#c00000;">
-                        {esc(row["Region"])}
-                    </td>
-                    <td style="font-weight:bold;color:#c00000;">
-                        {esc(row["Store Name"])}
-                    </td>
-                    <td align="center" style="font-weight:bold;color:#c00000;">
-                        0
-                    </td>
-                    <td style="color:#c00000;">
-                        No successful Swiggy/Zomato order in current hour
-                    </td>
-                </tr>
-                """
-            )
-
-        zero_order_summary = f"""
-        <div style="
-            background:#fce4d6;
-            border:2px solid #c00000;
-            padding:10px;
-            margin:12px 0 18px 0;
-        ">
-            <h3 style="
-                margin:0 0 10px 0;
-                color:#c00000;
-            ">
-                🚨 Stores With Zero Orders — Current Hour ({zero_order_count})
-            </h3>
-
-            <table
-                border="1"
-                cellpadding="6"
-                cellspacing="0"
-                style="
-                    border-collapse:collapse;
-                    width:100%;
-                    font-family:Arial;
-                    font-size:12px;
-                    background:#ffffff;
-                "
-            >
-                <tr style="background:#f4cccc;">
-                    <th>Region</th>
-                    <th>Store Name</th>
-                    <th>Current Orders</th>
-                    <th>Remarks</th>
-                </tr>
-                {"".join(zero_rows)}
-            </table>
-        </div>
-        """
-
-    else:
-
-        zero_order_summary = """
-        <div style="
-            background:#e2f0d9;
-            border:1px solid #70ad47;
-            padding:10px;
-            margin:12px 0 18px 0;
-        ">
-            <b style="color:#008000;">
-                ✅ No stores with zero orders in the current hour
-            </b>
-        </div>
-        """
-
-    # =====================================================
-    # REGION-WISE TABLES
-    # =====================================================
-
-    sections = []
-
-    for region in REGIONS:
-
-        region_data = performance[
-            performance["Region"] == region
-        ].copy()
-
-        if region_data.empty:
-            continue
-
-        alert_count = int(
-            region_data["Alert"].sum()
-        )
-
-        store_count = (
-            region_data[
-                [
-                    "branchCode",
-                    "Store Name",
-                ]
-            ]
-            .drop_duplicates()
-            .shape[0]
-        )
-
-        sections.append(
-            f"""
-            <h3 style="
-                margin-top:24px;
-                margin-bottom:8px;
-            ">
-                {esc(region)}
-                —
-                {store_count} Stores
-                |
-                {alert_count} Alert(s)
-            </h3>
-
-            {region_table(region_data)}
-            """
-        )
-
-    # =====================================================
-    # ALERT SUMMARY
-    # =====================================================
-
-    if total_alerts > 0:
-
-        alert_summary = f"""
-        <div style="
-            background:#fff2cc;
-            border:1px solid #f4b183;
-            padding:10px;
-            margin:12px 0;
-        ">
-            <b style="color:#c00000;">
-                🚨 {total_alerts} alert(s) detected
-            </b>
-            <br>
-            Stores with alert are shown first
-            within each region.
-        </div>
-        """
-
-    else:
-
-        alert_summary = """
-        <div style="
-            background:#e2f0d9;
-            border:1px solid #70ad47;
-            padding:10px;
-            margin:12px 0;
-        ">
-            <b style="color:#008000;">
-                ✅ No order-flow alerts detected
-            </b>
-        </div>
-        """
-
-    return f"""
-    <html>
-
-    <body
-        style="
-            font-family:Arial;
-            color:#222;
-        "
-    >
-
-        <h2>
-            🚨 Hourly Order Flow Performance
-        </h2>
-
-        <p>
-            <b>Date:</b>
-            {current_hour.strftime("%d-%b-%Y")}
-
-            <br>
-
-            <b>Reporting Hour:</b>
-            {current_hour.strftime("%I:%M %p")}
-            -
-            {(current_hour + timedelta(hours=1)).strftime("%I:%M %p")}
-
-            <br>
-
-            <b>Previous Hour:</b>
-            {previous_hour.strftime("%I:%M %p")}
-
-            <br>
-
-            <b>Total COCO Stores:</b>
-            {total_stores}
-
-            <br>
-
-            <b>Zero Order Stores:</b>
-            {zero_order_count}
-
-        </p>
-
-        {zero_order_summary}
-
-        {alert_summary}
-
-        <div style="
-            background:#f2f2f2;
-            padding:10px;
-            margin-bottom:15px;
-        ">
-
-            <b>Alert Rule:</b>
-
-            Current hour successful orders = 0
-
-            <br>
-
-            AND previous hour successful orders &gt; 0
-
-            <br>
-
-            OR current hour has
-            Cancel / Reject / Void order.
-
-            <br><br>
-
-            <b>Order Definition:</b>
-            Unique invoice number
-
-            <br>
-
-            <b>Channel:</b>
-            In-Store = Offline;
-            Swiggy/Zomato = Online
-
-        </div>
-
-        {"".join(sections)}
-
-        <br>
-
-        <p style="
-            font-size:11px;
-            color:#666;
-        ">
-
-            Source:
-            Rista Sales Page + Google Sheet Help Sheet
-
-            <br>
-
-            COCO classification:
-            Help Sheet Ownership = COCO
-
-            <br>
-
-            Region:
-            Help Sheet Region
-
-        </p>
-
-    </body>
-
-    </html>
-    """
-
+def email_html(performance, flow, current_hour, previous_hour, business_start, report_end):
+    total_alerts=int(performance["Alert"].sum()); total_stores=performance[["branchCode","Store Name"]].drop_duplicates().shape[0]
+    current=performance.groupby(["Region","Store Name","branchCode"],as_index=False)["Current_Orders"].sum(); zero=current[current["Current_Orders"]==0].sort_values(["Region","Store Name"]); zero_count=len(zero)
+    if zero_count:
+        zr=''.join(f'<tr style="background:#fff2cc;"><td>{esc(r["Region"])}</td><td style="font-weight:bold;color:#c00000;">{esc(r["Store Name"])}</td><td align="center">0</td><td>No successful Swiggy/Zomato order in current hour</td></tr>' for _,r in zero.iterrows())
+        zero_section=f'''<div style="background:#fce4d6;border:2px solid #c00000;padding:10px;margin:12px 0;"><h3 style="color:#c00000;">🚨 Stores With Zero Orders — Current Hour ({zero_count})</h3><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;"><tr style="background:#f4cccc;"><th>Region</th><th>Store Name</th><th>Orders</th><th>Remarks</th></tr>{zr}</table></div>'''
+    else: zero_section='<div style="background:#e2f0d9;border:1px solid #70ad47;padding:10px;margin:12px 0;"><b style="color:#008000;">✅ No stores with zero orders in the current hour</b></div>'
+    alert_section=f'<div style="background:#fff2cc;padding:10px;margin:12px 0;"><b style="color:#c00000;">🚨 {total_alerts} alert row(s) detected in current hour</b></div>' if total_alerts else '<div style="background:#e2f0d9;padding:10px;margin:12px 0;"><b style="color:#008000;">✅ No order-flow alerts detected in the current hour</b></div>'
+    h=flow.copy(); sw=int(h.loc[h["Source"]=="Swiggy","Orders"].sum()) if not h.empty else 0; zo=int(h.loc[h["Source"]=="Zomato","Orders"].sum()) if not h.empty else 0; total=sw+zo
+    swp=sw/total*100 if total else 0; zop=zo/total*100 if total else 0
+    return f'''<html><body style="font-family:Arial;color:#222;"><h2>🚨 Hourly Order Flow Performance</h2><p><b>Business Date:</b> {business_start.strftime("%d-%b-%Y")}<br><b>Business Window:</b> 09:00 AM → 05:30 AM next day<br><b>Latest Reporting Point:</b> {report_end.strftime("%d-%b-%Y %I:%M %p")}<br><b>Total COCO Stores:</b> {total_stores}</p><div style="background:#f2f2f2;border:1px solid #ccc;padding:10px;margin:12px 0;"><b>Overall Order Summary — Business Day to Current</b><br><br>Swiggy: <b>{sw}</b> ({swp:.1f}%) &nbsp;&nbsp; Zomato: <b>{zo}</b> ({zop:.1f}%) &nbsp;&nbsp; Total: <b>{total}</b></div>{zero_section}{alert_section}<hr><h2 style="color:#1f4e78;">📊 Hourly Breakdown — Overall</h2><p style="font-size:12px;color:#555;">Overall hourly order flow only. Store-wise hourly rows are not shown.</p>{hourly_overall_table(flow)}<hr><h2 style="color:#1f4e78;">🏪 Store-Level Overall — Channel & Brand</h2><p style="font-size:12px;color:#555;">Business-day totals by store. Alerts are highlighted.</p>{store_overall_table(flow,performance)}<p style="font-size:11px;color:#666;">Source: Rista Sales Page + Google Sheet Help Sheet<br>COCO: Help Sheet Ownership = COCO<br>Business hour: 09:00 AM to next day 05:30 AM<br>Orders = unique invoice number.</p></body></html>'''
 
 # =========================================================
 # SEND EMAIL
@@ -1908,20 +1343,14 @@ def send_mail(
 
         msg["Cc"] = EMAIL_CC
 
-    if alert_count > 0:
-
-        subject_prefix = "🚨 ALERT"
-
-    else:
-
-        subject_prefix = "✅ NORMAL"
-
-    msg["Subject"] = (
-        f"{subject_prefix} | "
-        f"Hourly Order Flow | "
-        f"{current_hour.strftime('%d-%b-%Y %I:%M %p')} | "
-        f"{alert_count} Alert(s)"
-    )
+    business_date = current_hour.strftime("%d-%b-%Y")
+    business_date_id = current_hour.strftime("%Y%m%d")
+    msg["Subject"] = f"Hourly Order Flow | {business_date}"
+    daily_thread_id = f"<hourly-order-flow-{business_date_id}@frozenbottle.in>"
+    unique_message_id = f"<hourly-order-flow-{business_date_id}-{current_hour.strftime('%H%M')}-{int(time.time())}@frozenbottle.in>"
+    msg["Message-ID"] = unique_message_id
+    msg["In-Reply-To"] = daily_thread_id
+    msg["References"] = daily_thread_id
 
     msg.attach(
         MIMEText(
@@ -2034,12 +1463,11 @@ def main():
     # may cross midnight.
     # -----------------------------------------------------
 
-    days = sorted(
-        {
-            current_hour.date(),
-            previous_hour.date(),
-        }
-    )
+    business_date = now.date() - timedelta(days=1) if now.hour < 9 else now.date()
+    business_start = datetime.combine(business_date, datetime.min.time()).replace(hour=9, tzinfo=IST)
+    business_end = datetime.combine(business_date + timedelta(days=1), datetime.min.time()).replace(hour=5, minute=30, tzinfo=IST)
+    report_end = min(current_hour + timedelta(hours=1), business_end)
+    days = sorted({business_start.date(), business_end.date()})
 
     # -----------------------------------------------------
     # Fetch sales
@@ -2115,6 +1543,9 @@ def main():
         all_rows,
         branches_df,
     )
+
+    if not sales_df.empty:
+        sales_df = sales_df[(sales_df["EventTime"] >= pd.Timestamp(business_start)) & (sales_df["EventTime"] <= pd.Timestamp(report_end))].copy()
 
     if sales_df.empty:
 
@@ -2235,9 +1666,7 @@ def main():
     # -----------------------------------------------------
 
     body = email_html(
-        performance,
-        current_hour,
-        previous_hour,
+        performance, flow, current_hour, previous_hour, business_start, report_end
     )
 
     send_mail(
