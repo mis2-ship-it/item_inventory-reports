@@ -1469,6 +1469,7 @@ def send_mail(
         "manohar@frozenbottle.in",
         "tm.chennai@frozenbottle.in",
         "mis3@frozenbottle.in",
+        "mis2@frozenbottle.in",
         "faraz@frozenbottle.in",
     ]
     
