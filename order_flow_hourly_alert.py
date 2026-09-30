@@ -1336,106 +1336,671 @@ def hourly_overall_table(flow):
 
 # =========================================================
 # STORE-LEVEL OVERALL TABLE
+# CURRENT vs LAST WEEK SAME DAY / SAME HOUR
 # =========================================================
 
-def store_overall_table(flow, performance):
-    """Build business-day totals per store by source and brand."""
+def store_overall_table(flow, lw_flow, performance):
+
     columns = [
-        "Region", "Store", "Swiggy Frozen Bottle", "Swiggy Madno",
-        "Swiggy Boba Bar", "Zomato Frozen Bottle", "Zomato Madno",
-        "Zomato Boba Bar", "Swiggy Total", "Zomato Total",
-        "Total Orders", "Swiggy %", "Zomato %", "Status", "Remarks"
+        "Region",
+        "Store",
+        "Swiggy Frozen Bottle",
+        "Swiggy Madno",
+        "Swiggy Boba Bar",
+        "Zomato Frozen Bottle",
+        "Zomato Madno",
+        "Zomato Boba Bar",
+        "Swiggy Total",
+        "Zomato Total",
+        "Current Orders",
+        "LW Orders",
+        "LW %",
+        "Remarks",
     ]
+
+    # -----------------------------------------------------
+    # STORE MASTER
+    # -----------------------------------------------------
 
     base = performance[
-        ["Region", "Store Name", "branchCode", "Status", "Remarks"]
-    ].drop_duplicates("branchCode").copy()
-    base = base.rename(columns={"Store Name": "Store"})
+        [
+            "Region",
+            "Store Name",
+            "branchCode",
+        ]
+    ].drop_duplicates(
+        "branchCode"
+    ).copy()
+
+    base = base.rename(
+        columns={
+            "Store Name": "Store"
+        }
+    )
+
+    # -----------------------------------------------------
+    # CURRENT PERIOD
+    # -----------------------------------------------------
 
     if flow is not None and not flow.empty:
-        x = flow.copy()
-        x["Orders"] = pd.to_numeric(x["Orders"], errors="coerce").fillna(0).astype(int)
-        pivot = (
-            x.groupby(["branchCode", "Source", "Brand"], dropna=False)["Orders"]
-            .sum()
-            .unstack(["Source", "Brand"], fill_value=0)
+
+        current = flow.copy()
+
+        current["Orders"] = (
+            pd.to_numeric(
+                current["Orders"],
+                errors="coerce",
+            )
+            .fillna(0)
+            .astype(int)
         )
-        pivot.columns = [f"{source}_{brand}" for source, brand in pivot.columns]
-        pivot = pivot.reset_index()
-        base = base.merge(pivot, on="branchCode", how="left")
+
+        current_pivot = (
+            current
+            .groupby(
+                [
+                    "branchCode",
+                    "Source",
+                    "Brand",
+                ],
+                dropna=False,
+            )["Orders"]
+            .sum()
+            .unstack(
+                ["Source", "Brand"],
+                fill_value=0,
+            )
+        )
+
+        current_pivot.columns = [
+            f"CURRENT_{source}_{brand}"
+            for source, brand
+            in current_pivot.columns
+        ]
+
+        current_pivot = (
+            current_pivot
+            .reset_index()
+        )
+
+        base = base.merge(
+            current_pivot,
+            on="branchCode",
+            how="left",
+        )
+
+    # -----------------------------------------------------
+    # LAST WEEK
+    # -----------------------------------------------------
+
+    if lw_flow is not None and not lw_flow.empty:
+
+        lw = lw_flow.copy()
+
+        lw["Orders"] = (
+            pd.to_numeric(
+                lw["Orders"],
+                errors="coerce",
+            )
+            .fillna(0)
+            .astype(int)
+        )
+
+        lw_pivot = (
+            lw
+            .groupby(
+                [
+                    "branchCode",
+                    "Source",
+                    "Brand",
+                ],
+                dropna=False,
+            )["Orders"]
+            .sum()
+            .unstack(
+                ["Source", "Brand"],
+                fill_value=0,
+            )
+        )
+
+        lw_pivot.columns = [
+            f"LW_{source}_{brand}"
+            for source, brand
+            in lw_pivot.columns
+        ]
+
+        lw_pivot = (
+            lw_pivot
+            .reset_index()
+        )
+
+        base = base.merge(
+            lw_pivot,
+            on="branchCode",
+            how="left",
+        )
+
+    # -----------------------------------------------------
+    # ENSURE ALL CURRENT CHANNEL/BRAND COLUMNS EXIST
+    # -----------------------------------------------------
 
     metric_cols = [
-        "Swiggy_Frozen Bottle", "Swiggy_Madno", "Swiggy_Boba Bar",
-        "Zomato_Frozen Bottle", "Zomato_Madno", "Zomato_Boba Bar"
+        "CURRENT_Swiggy_Frozen Bottle",
+        "CURRENT_Swiggy_Madno",
+        "CURRENT_Swiggy_Boba Bar",
+        "CURRENT_Zomato_Frozen Bottle",
+        "CURRENT_Zomato_Madno",
+        "CURRENT_Zomato_Boba Bar",
+
+        "LW_Swiggy_Frozen Bottle",
+        "LW_Swiggy_Madno",
+        "LW_Swiggy_Boba Bar",
+        "LW_Zomato_Frozen Bottle",
+        "LW_Zomato_Madno",
+        "LW_Zomato_Boba Bar",
     ]
+
     for col in metric_cols:
+
         if col not in base.columns:
             base[col] = 0
-        base[col] = pd.to_numeric(base[col], errors="coerce").fillna(0).astype(int)
 
-    base["Swiggy Total"] = base[[
-        "Swiggy_Frozen Bottle", "Swiggy_Madno", "Swiggy_Boba Bar"
-    ]].sum(axis=1)
-    base["Zomato Total"] = base[[
-        "Zomato_Frozen Bottle", "Zomato_Madno", "Zomato_Boba Bar"
-    ]].sum(axis=1)
-    base["Total Orders"] = base["Swiggy Total"] + base["Zomato Total"]
-    base["Swiggy %"] = base.apply(
-        lambda r: r["Swiggy Total"] / r["Total Orders"] * 100 if r["Total Orders"] else 0,
-        axis=1
-    )
-    base["Zomato %"] = base.apply(
-        lambda r: r["Zomato Total"] / r["Total Orders"] * 100 if r["Total Orders"] else 0,
-        axis=1
+        base[col] = (
+            pd.to_numeric(
+                base[col],
+                errors="coerce",
+            )
+            .fillna(0)
+            .astype(int)
+        )
+
+    # -----------------------------------------------------
+    # CURRENT SWIGGY / ZOMATO TOTAL
+    # -----------------------------------------------------
+
+    base["Swiggy Total"] = base[
+        [
+            "CURRENT_Swiggy_Frozen Bottle",
+            "CURRENT_Swiggy_Madno",
+            "CURRENT_Swiggy_Boba Bar",
+        ]
+    ].sum(axis=1)
+
+    base["Zomato Total"] = base[
+        [
+            "CURRENT_Zomato_Frozen Bottle",
+            "CURRENT_Zomato_Madno",
+            "CURRENT_Zomato_Boba Bar",
+        ]
+    ].sum(axis=1)
+
+    base["Current Orders"] = (
+        base["Swiggy Total"]
+        + base["Zomato Total"]
     )
 
-    base = base.sort_values(["Region", "Store"], kind="stable")
+    # -----------------------------------------------------
+    # LW CHANNEL TOTALS
+    # -----------------------------------------------------
+
+    base["LW Swiggy"] = base[
+        [
+            "LW_Swiggy_Frozen Bottle",
+            "LW_Swiggy_Madno",
+            "LW_Swiggy_Boba Bar",
+        ]
+    ].sum(axis=1)
+
+    base["LW Zomato"] = base[
+        [
+            "LW_Zomato_Frozen Bottle",
+            "LW_Zomato_Madno",
+            "LW_Zomato_Boba Bar",
+        ]
+    ].sum(axis=1)
+
+    base["LW Orders"] = (
+        base["LW Swiggy"]
+        + base["LW Zomato"]
+    )
+
+    # -----------------------------------------------------
+    # LW %
+    #
+    # Current vs LW
+    # -----------------------------------------------------
+
+    base["LW %"] = base.apply(
+        lambda r:
+            (
+                (r["Current Orders"] - r["LW Orders"])
+                / r["LW Orders"]
+                * 100
+            )
+            if r["LW Orders"] > 0
+            else None,
+        axis=1,
+    )
+
+    # -----------------------------------------------------
+    # REMARKS
+    #
+    # Identify weaker channel vs LW
+    # -----------------------------------------------------
+
+    def channel_remark(row):
+
+        current_sw = row["Swiggy Total"]
+        current_zo = row["Zomato Total"]
+
+        lw_sw = row["LW Swiggy"]
+        lw_zo = row["LW Zomato"]
+
+        sw_pct = (
+            (current_sw - lw_sw)
+            / lw_sw
+            * 100
+            if lw_sw > 0
+            else None
+        )
+
+        zo_pct = (
+            (current_zo - lw_zo)
+            / lw_zo
+            * 100
+            if lw_zo > 0
+            else None
+        )
+
+        # Both current channels have zero
+        if current_sw == 0 and current_zo == 0:
+
+            if lw_sw > 0 and lw_zo > 0:
+                return "Swiggy & Zomato both zero vs LW"
+
+            if lw_sw > 0:
+                return "Swiggy zero vs LW"
+
+            if lw_zo > 0:
+                return "Zomato zero vs LW"
+
+            return "No orders"
+
+        # Only Swiggy has LW comparison
+        if sw_pct is not None and zo_pct is None:
+
+            if sw_pct < 0:
+                return f"Swiggy worst ({sw_pct:.1f}% vs LW)"
+
+            return f"Swiggy {sw_pct:+.1f}% vs LW"
+
+        # Only Zomato has LW comparison
+        if zo_pct is not None and sw_pct is None:
+
+            if zo_pct < 0:
+                return f"Zomato worst ({zo_pct:.1f}% vs LW)"
+
+            return f"Zomato {zo_pct:+.1f}% vs LW"
+
+        # Both available
+        if sw_pct is not None and zo_pct is not None:
+
+            if sw_pct < zo_pct:
+                return f"Swiggy worst ({sw_pct:.1f}% vs LW)"
+
+            if zo_pct < sw_pct:
+                return f"Zomato worst ({zo_pct:.1f}% vs LW)"
+
+            return "Swiggy & Zomato same vs LW"
+
+        return "No LW comparison"
+
+    base["Remarks"] = base.apply(
+        channel_remark,
+        axis=1,
+    )
+
+    # -----------------------------------------------------
+    # SORT
+    # -----------------------------------------------------
+
+    base = base.sort_values(
+        [
+            "Region",
+            "Store",
+        ],
+        kind="stable",
+    )
+
+    # -----------------------------------------------------
+    # HTML ROWS
+    # -----------------------------------------------------
+
     rows = []
+
     for _, r in base.iterrows():
-        status = str(r["Status"])
-        is_alert = status.lower() == "alert"
-        row_style = ' style="background:#fce4d6;"' if is_alert else ''
-        store_style = ' style="font-weight:bold;color:#c00000;"' if is_alert else ''
+
+        lw_pct = (
+            f'{r["LW %"]:.1f}%'
+            if pd.notna(r["LW %"])
+            else "—"
+        )
+
+        # Highlight negative performance
+        row_style = ""
+
+        if (
+            pd.notna(r["LW %"])
+            and r["LW %"] < 0
+        ):
+            row_style = ' style="background:#fff2cc;"'
+
         cells = [
+
             escape(str(r["Region"])),
+
             escape(str(r["Store"])),
-            f'{int(r["Swiggy_Frozen Bottle"])}',
-            f'{int(r["Swiggy_Madno"])}',
-            f'{int(r["Swiggy_Boba Bar"])}',
-            f'{int(r["Zomato_Frozen Bottle"])}',
-            f'{int(r["Zomato_Madno"])}',
-            f'{int(r["Zomato_Boba Bar"])}',
+
+            f'{int(r["CURRENT_Swiggy_Frozen Bottle"])}',
+            f'{int(r["CURRENT_Swiggy_Madno"])}',
+            f'{int(r["CURRENT_Swiggy_Boba Bar"])}',
+
+            f'{int(r["CURRENT_Zomato_Frozen Bottle"])}',
+            f'{int(r["CURRENT_Zomato_Madno"])}',
+            f'{int(r["CURRENT_Zomato_Boba Bar"])}',
+
             f'<b>{int(r["Swiggy Total"])}</b>',
+
             f'<b>{int(r["Zomato Total"])}</b>',
-            f'<b>{int(r["Total Orders"])}</b>',
-            f'{r["Swiggy %"]:.1f}%',
-            f'{r["Zomato %"]:.1f}%',
-            escape(status),
+
+            f'<b>{int(r["Current Orders"])}</b>',
+
+            f'<b>{int(r["LW Orders"])}</b>',
+
+            lw_pct,
+
             escape(str(r["Remarks"])),
         ]
+
         html = (
             f'<tr{row_style}>'
-            f'<td>{cells[0]}</td><td{store_style}>{cells[1]}</td>'
-            + ''.join(f'<td align="center">{c}</td>' for c in cells[2:13])
-            + f'<td align="center">{cells[13]}</td><td>{cells[14]}</td>'
+            f'<td>{cells[0]}</td>'
+            f'<td style="font-weight:bold;">{cells[1]}</td>'
+            + ''.join(
+                f'<td align="center">{c}</td>'
+                for c in cells[2:13]
+            )
+            + f'<td>{cells[13]}</td>'
             '</tr>'
         )
+
         rows.append(html)
 
-    header = ''.join(f'<th>{escape(c)}</th>' for c in columns)
+    header = ''.join(
+        f'<th>{escape(c)}</th>'
+        for c in columns
+    )
+
     return (
         '<table border="1" cellpadding="5" cellspacing="0" '
         'style="border-collapse:collapse;width:100%;font-size:11px;">'
-        f'<tr style="background:#d9eaf7;">{header}</tr>'
-        + ''.join(rows) +
-        '</table>'
+        f'<tr style="background:#d9eaf7;">'
+        f'{header}'
+        f'</tr>'
+        + ''.join(rows)
+        + '</table>'
     )
 
+    # =========================================================
+    # ORDER FLOW INSIGHTS
+    # =========================================================
+    
+    def build_order_flow_insights(
+        flow,
+        current_hour,
+    ):
+    
+        if flow is None or flow.empty:
+    
+            return (
+                '<div style="background:#e2f0d9;'
+                'padding:10px;margin:12px 0;">'
+                '<b>No order-flow insight available.</b>'
+                '</div>'
+            )
+    
+        # -----------------------------------------------------
+        # Last 3 completed hours
+        # -----------------------------------------------------
+    
+        hours = [
+            current_hour - timedelta(hours=2),
+            current_hour - timedelta(hours=1),
+            current_hour,
+        ]
+    
+        recent = flow[
+            flow["Hour"].isin(
+                [
+                    pd.Timestamp(h)
+                    for h in hours
+                ]
+            )
+        ].copy()
+    
+        # Store + Channel
+        recent_group = (
+            recent
+            .groupby(
+                [
+                    "Region",
+                    "Store Name",
+                    "branchCode",
+                    "Source",
+                    "Hour",
+                ],
+                dropna=False,
+            )["Orders"]
+            .sum()
+            .reset_index()
+        )
+    
+        # -----------------------------------------------------
+        # Create complete store/channel/hour universe
+        # -----------------------------------------------------
+    
+        stores = (
+            flow[
+                [
+                    "Region",
+                    "Store Name",
+                    "branchCode",
+                ]
+            ]
+            .drop_duplicates()
+        )
+    
+        combinations = []
+    
+        for _, store in stores.iterrows():
+    
+            for source in SOURCES:
+    
+                for hour in hours:
+    
+                    combinations.append(
+                        {
+                            "Region": store["Region"],
+                            "Store Name": store["Store Name"],
+                            "branchCode": store["branchCode"],
+                            "Source": source,
+                            "Hour": pd.Timestamp(hour),
+                        }
+                    )
+    
+        universe = pd.DataFrame(
+            combinations
+        )
+    
+        universe = universe.merge(
+            recent_group,
+            on=[
+                "Region",
+                "Store Name",
+                "branchCode",
+                "Source",
+                "Hour",
+            ],
+            how="left",
+        )
+    
+        universe["Orders"] = (
+            pd.to_numeric(
+                universe["Orders"],
+                errors="coerce",
+            )
+            .fillna(0)
+            .astype(int)
+        )
+    
+        # -----------------------------------------------------
+        # Last 2 / Last 3 hour zero checks
+        # -----------------------------------------------------
+    
+        insight_rows = []
+    
+        for keys, group in universe.groupby(
+            [
+                "Region",
+                "Store Name",
+                "branchCode",
+                "Source",
+            ],
+            dropna=False,
+        ):
+    
+            region, store, branch, source = keys
+    
+            group = group.sort_values("Hour")
+    
+            values = group["Orders"].tolist()
+    
+            if len(values) != 3:
+                continue
+    
+            current_orders = values[2]
+    
+            last_2 = values[1:]
+    
+            last_3 = values
+    
+            # Current hour zero
+            if current_orders == 0:
+    
+                if all(x == 0 for x in last_3):
+    
+                    remark = (
+                        f"{source}: "
+                        "No orders for last 3 completed hours"
+                    )
+    
+                elif all(x == 0 for x in last_2):
+    
+                    remark = (
+                        f"{source}: "
+                        "No orders for last 2 completed hours"
+                    )
+    
+                else:
+    
+                    remark = (
+                        f"{source}: "
+                        "Zero orders in current hour"
+                    )
+    
+                insight_rows.append(
+                    (
+                        region,
+                        store,
+                        source,
+                        values[0],
+                        values[1],
+                        values[2],
+                        remark,
+                    )
+                )
+    
+        if not insight_rows:
+    
+            return (
+                '<div style="background:#e2f0d9;'
+                'border:1px solid #70ad47;'
+                'padding:10px;margin:12px 0;">'
+                '<b style="color:#008000;">'
+                '✅ No channel-level zero-order issues '
+                'in the current / last 2 / last 3 hours.'
+                '</b>'
+                '</div>'
+            )
+    
+        rows = []
+    
+        for (
+            region,
+            store,
+            source,
+            h3,
+            h2,
+            h1,
+            remark,
+        ) in insight_rows:
+    
+            rows.append(
+                f'<tr>'
+                f'<td>{escape(str(region))}</td>'
+                f'<td style="font-weight:bold;">'
+                f'{escape(str(store))}</td>'
+                f'<td>{escape(str(source))}</td>'
+                f'<td align="center">{h3}</td>'
+                f'<td align="center">{h2}</td>'
+                f'<td align="center">{h1}</td>'
+                f'<td style="color:#c00000;font-weight:bold;">'
+                f'{escape(remark)}</td>'
+                f'</tr>'
+            )
+    
+        return (
+            '<div style="background:#fff2cc;'
+            'border:2px solid #c00000;'
+            'padding:10px;margin:12px 0;">'
+            '<h3 style="color:#c00000;">'
+            '🔎 Channel Order-Flow Insights'
+            '</h3>'
+    
+            '<table border="1" cellpadding="6" cellspacing="0" '
+            'style="border-collapse:collapse;width:100%;'
+            'font-size:12px;">'
+    
+            '<tr style="background:#f4cccc;">'
+            '<th>Region</th>'
+            '<th>Store</th>'
+            '<th>Channel</th>'
+            '<th>3 Hrs Ago</th>'
+            '<th>2 Hrs Ago</th>'
+            '<th>Current Hr</th>'
+            '<th>Remarks</th>'
+            '</tr>'
+    
+            + ''.join(rows)
+    
+            + '</table>'
+            '</div>'
+        )
 # =========================================================
 # EMAIL HTML
 # =========================================================
 
-def email_html(performance, flow, current_hour, previous_hour, business_start, report_end):
+def email_html(performance, flow, lw_flow, current_hour, previous_hour, business_start, report_end, lw_business_start, lw_report_end):
     total_alerts=int(performance["Alert"].sum()); total_stores=performance[["branchCode","Store Name"]].drop_duplicates().shape[0]
     current=performance.groupby(["Region","Store Name","branchCode"],as_index=False)["Current_Orders"].sum(); zero=current[current["Current_Orders"]==0].sort_values(["Region","Store Name"]); zero_count=len(zero)
     if zero_count:
@@ -1445,7 +2010,47 @@ def email_html(performance, flow, current_hour, previous_hour, business_start, r
     alert_section=f'<div style="background:#fff2cc;padding:10px;margin:12px 0;"><b style="color:#c00000;">🚨 {total_alerts} alert row(s) detected in current hour</b></div>' if total_alerts else '<div style="background:#e2f0d9;padding:10px;margin:12px 0;"><b style="color:#008000;">✅ No order-flow alerts detected in the current hour</b></div>'
     h=flow.copy(); sw=int(h.loc[h["Source"]=="Swiggy","Orders"].sum()) if not h.empty else 0; zo=int(h.loc[h["Source"]=="Zomato","Orders"].sum()) if not h.empty else 0; total=sw+zo
     swp=sw/total*100 if total else 0; zop=zo/total*100 if total else 0
-    return f'''<html><body style="font-family:Arial;color:#222;"><h2>🚨 Hourly Order Flow Performance</h2><p><b>Business Date:</b> {business_start.strftime("%d-%b-%Y")}<br><b>Business Window:</b> 09:00 AM → 05:30 AM next day<br><b>Latest Reporting Point:</b> {report_end.strftime("%d-%b-%Y %I:%M %p")}<br><b>Total COCO Stores:</b> {total_stores}</p><div style="background:#f2f2f2;border:1px solid #ccc;padding:10px;margin:12px 0;"><b>Overall Order Summary — Business Day to Current</b><br><br>Swiggy: <b>{sw}</b> ({swp:.1f}%) &nbsp;&nbsp; Zomato: <b>{zo}</b> ({zop:.1f}%) &nbsp;&nbsp; Total: <b>{total}</b></div>{zero_section}{alert_section}<hr><h2 style="color:#1f4e78;">📊 Hourly Breakdown — Overall</h2><p style="font-size:12px;color:#555;">Overall hourly order flow only. Store-wise hourly rows are not shown.</p>{hourly_overall_table(flow)}<hr><h2 style="color:#1f4e78;">🏪 Store-Level Overall — Channel & Brand</h2><p style="font-size:12px;color:#555;">Business-day totals by store. Alerts are highlighted.</p>{store_overall_table(flow,performance)}<p style="font-size:11px;color:#666;">Source: Rista Sales Page + Google Sheet Help Sheet<br>COCO: Help Sheet Ownership = COCO<br>Business hour: 09:00 AM to next day 05:30 AM<br>Orders = unique invoice number.</p></body></html>'''
+    # -----------------------------------------------------
+    # LAST WEEK SUMMARY
+    # -----------------------------------------------------
+    
+    if lw_flow is not None and not lw_flow.empty:
+    
+        lw_sw = int(
+            lw_flow.loc[
+                lw_flow["Source"] == "Swiggy",
+                "Orders",
+            ].sum()
+        )
+    
+        lw_zo = int(
+            lw_flow.loc[
+                lw_flow["Source"] == "Zomato",
+                "Orders",
+            ].sum()
+        )
+    
+    else:
+    
+        lw_sw = 0
+        lw_zo = 0
+    
+    lw_total = lw_sw + lw_zo
+    
+    overall_lw_pct = (
+        (total - lw_total)
+        / lw_total
+        * 100
+        if lw_total > 0
+        else None
+    )
+    
+    overall_lw_display = (
+        f"{overall_lw_pct:+.1f}%"
+        if overall_lw_pct is not None
+        else "—"
+    )
+    return f'''<html><body style="font-family:Arial;color:#222;"><h2>🚨 Hourly Order Flow Performance</h2><p><b>Business Date:</b> {business_start.strftime("%d-%b-%Y")}<br><b>Business Window:</b> 09:00 AM → 05:30 AM next day<br><b>Latest Reporting Point:</b> {report_end.strftime("%d-%b-%Y %I:%M %p")}<br><b>Total COCO Stores:</b> {total_stores}</p><div style="background:#f2f2f2;border:1px solid #ccc;padding:10px;margin:12px 0;"><b>Overall Order Summary — Business Day to Current</b><br><br>Swiggy: <b>{sw}</b> ({swp:.1f}%) &nbsp;&nbsp; Zomato: <b>{zo}</b> ({zop:.1f}%) &nbsp;&nbsp; Total: <b>{total}</b></div>{zero_section}{alert_section}{build_order_flow_insights(flow, current_hour)}<hr><h2 style="color:#1f4e78;">📊 Hourly Breakdown — Overall</h2><p style="font-size:12px;color:#555;">Overall hourly order flow only. Store-wise hourly rows are not shown.</p>{hourly_overall_table(flow)}<hr><h2 style="color:#1f4e78;">🏪 Store-Level Overall — Channel & Brand</h2><p style="font-size:12px;color:#555;">Current orders vs Last Week same business day and same reporting hour. LW comparison:{lw_business_start.strftime("%d-%b-%Y %I:%M %p")} → {lw_report_end.strftime("%d-%b-%Y %I:%M %p")}.</p>{store_overall_table(flow,lw_flow,performance)}<p style="font-size:11px;color:#666;">Source: Rista Sales Page + Google Sheet Help Sheet<br>COCO: Help Sheet Ownership = COCO<br>Business hour: 09:00 AM to next day 05:30 AM<br>Orders = unique invoice number.</p></body></html>'''
 
 # =========================================================
 # SEND EMAIL
@@ -1614,11 +2219,92 @@ def main():
     # may cross midnight.
     # -----------------------------------------------------
 
-    business_date = now.date() - timedelta(days=1) if now.hour < 9 else now.date()
-    business_start = datetime.combine(business_date, datetime.min.time()).replace(hour=9, tzinfo=IST)
-    business_end = datetime.combine(business_date + timedelta(days=1), datetime.min.time()).replace(hour=5, minute=30, tzinfo=IST)
-    report_end = min(current_hour + timedelta(hours=1), business_end)
-    days = sorted({business_start.date(), business_end.date()})
+    business_date = (
+        now.date() - timedelta(days=1)
+        if now.hour < 9
+        else now.date()
+    )
+    
+    business_start = (
+        datetime.combine(
+            business_date,
+            datetime.min.time(),
+        )
+        .replace(
+            hour=9,
+            tzinfo=IST,
+        )
+    )
+    
+    business_end = (
+        datetime.combine(
+            business_date + timedelta(days=1),
+            datetime.min.time(),
+        )
+        .replace(
+            hour=5,
+            minute=30,
+            tzinfo=IST,
+        )
+    )
+    
+    report_end = min(
+        current_hour + timedelta(hours=1),
+        business_end,
+    )
+    
+    # -----------------------------------------------------
+    # LAST WEEK SAME BUSINESS DAY
+    # -----------------------------------------------------
+    
+    lw_business_date = (
+        business_date
+        - timedelta(days=7)
+    )
+    
+    lw_business_start = (
+        datetime.combine(
+            lw_business_date,
+            datetime.min.time(),
+        )
+        .replace(
+            hour=9,
+            tzinfo=IST,
+        )
+    )
+    
+    lw_business_end = (
+        datetime.combine(
+            lw_business_date + timedelta(days=1),
+            datetime.min.time(),
+        )
+        .replace(
+            hour=5,
+            minute=30,
+            tzinfo=IST,
+        )
+    )
+    
+    # Same elapsed reporting point as current day
+    elapsed = report_end - business_start
+    
+    lw_report_end = min(
+        lw_business_start + elapsed,
+        lw_business_end,
+    )
+    
+    # -----------------------------------------------------
+    # FETCH BOTH CURRENT + LAST WEEK DATES
+    # -----------------------------------------------------
+    
+    days = sorted(
+        {
+            business_start.date(),
+            business_end.date(),
+            lw_business_start.date(),
+            lw_business_end.date(),
+        }
+    )
 
     # -----------------------------------------------------
     # Fetch sales
@@ -1694,9 +2380,50 @@ def main():
         all_rows,
         branches_df,
     )
-
+    
+    # -----------------------------------------------------
+    # CURRENT PERIOD
+    # 09:00 AM → current reporting point
+    # -----------------------------------------------------
+    
     if not sales_df.empty:
-        sales_df = sales_df[(sales_df["EventTime"] >= pd.Timestamp(business_start)) & (sales_df["EventTime"] <= pd.Timestamp(report_end))].copy()
+    
+        current_sales_df = sales_df[
+            (sales_df["EventTime"] >= pd.Timestamp(business_start))
+            &
+            (sales_df["EventTime"] <= pd.Timestamp(report_end))
+        ].copy()
+    
+    else:
+    
+        current_sales_df = pd.DataFrame()
+    
+    
+    # -----------------------------------------------------
+    # LAST WEEK SAME DAY / SAME HOUR
+    # -----------------------------------------------------
+    
+    if not sales_df.empty:
+    
+        lw_sales_df = sales_df[
+            (sales_df["EventTime"] >= pd.Timestamp(lw_business_start))
+            &
+            (sales_df["EventTime"] <= pd.Timestamp(lw_report_end))
+        ].copy()
+    
+    else:
+    
+        lw_sales_df = pd.DataFrame()
+    
+    
+    print()
+    print(
+        f"Current-period rows : {len(current_sales_df)}"
+    )
+    
+    print(
+        f"LW-period rows      : {len(lw_sales_df)}"
+    )
 
     if sales_df.empty:
 
@@ -1706,11 +2433,19 @@ def main():
         )
 
     # -----------------------------------------------------
-    # Build hourly flow
+    # CURRENT FLOW
     # -----------------------------------------------------
-
+    
     flow = build_hourly_flow(
-        sales_df
+        current_sales_df
+    )
+    
+    # -----------------------------------------------------
+    # LAST WEEK FLOW
+    # -----------------------------------------------------
+    
+    lw_flow = build_hourly_flow(
+        lw_sales_df
     )
 
     # -----------------------------------------------------
@@ -1817,7 +2552,7 @@ def main():
     # -----------------------------------------------------
 
     body = email_html(
-        performance, flow, current_hour, previous_hour, business_start, report_end
+        performance, flow, lw_flow, current_hour, previous_hour, business_start, report_end, lw_business_start, lw_report_end
     )
 
     send_mail(
