@@ -1996,6 +1996,309 @@ def store_overall_table(flow, lw_flow, performance):
             + '</table>'
             '</div>'
         )
+
+# =========================================================
+# ORDER FLOW INSIGHTS
+# =========================================================
+
+def build_order_flow_insights(
+    flow,
+    current_hour,
+):
+
+    if flow is None or flow.empty:
+
+        return (
+            '<div style="background:#e2f0d9;'
+            'border:1px solid #70ad47;'
+            'padding:10px;margin:12px 0;">'
+            '<b style="color:#008000;">'
+            'No order-flow insight available.'
+            '</b>'
+            '</div>'
+        )
+
+    # -----------------------------------------------------
+    # Last 3 completed hours
+    # -----------------------------------------------------
+
+    hours = [
+        current_hour - timedelta(hours=2),
+        current_hour - timedelta(hours=1),
+        current_hour,
+    ]
+
+    recent = flow[
+        flow["Hour"].isin(
+            [
+                pd.Timestamp(h)
+                for h in hours
+            ]
+        )
+    ].copy()
+
+    # -----------------------------------------------------
+    # Store + Channel + Hour
+    # -----------------------------------------------------
+
+    recent_group = (
+        recent
+        .groupby(
+            [
+                "Region",
+                "Store Name",
+                "branchCode",
+                "Source",
+                "Hour",
+            ],
+            dropna=False,
+        )["Orders"]
+        .sum()
+        .reset_index()
+    )
+
+    # -----------------------------------------------------
+    # Store universe
+    # -----------------------------------------------------
+
+    stores = (
+        flow[
+            [
+                "Region",
+                "Store Name",
+                "branchCode",
+            ]
+        ]
+        .drop_duplicates()
+    )
+
+    combinations = []
+
+    for _, store in stores.iterrows():
+
+        for source in [
+            "Swiggy",
+            "Zomato",
+        ]:
+
+            for hour in hours:
+
+                combinations.append(
+                    {
+                        "Region":
+                            store["Region"],
+
+                        "Store Name":
+                            store["Store Name"],
+
+                        "branchCode":
+                            store["branchCode"],
+
+                        "Source":
+                            source,
+
+                        "Hour":
+                            pd.Timestamp(hour),
+                    }
+                )
+
+    universe = pd.DataFrame(
+        combinations
+    )
+
+    universe = universe.merge(
+        recent_group,
+        on=[
+            "Region",
+            "Store Name",
+            "branchCode",
+            "Source",
+            "Hour",
+        ],
+        how="left",
+    )
+
+    universe["Orders"] = (
+        pd.to_numeric(
+            universe["Orders"],
+            errors="coerce",
+        )
+        .fillna(0)
+        .astype(int)
+    )
+
+    # -----------------------------------------------------
+    # Check last 3 hours
+    # -----------------------------------------------------
+
+    insight_rows = []
+
+    for keys, group in universe.groupby(
+        [
+            "Region",
+            "Store Name",
+            "branchCode",
+            "Source",
+        ],
+        dropna=False,
+    ):
+
+        region, store, branch, source = keys
+
+        group = group.sort_values(
+            "Hour"
+        )
+
+        values = (
+            group["Orders"]
+            .tolist()
+        )
+
+        if len(values) != 3:
+            continue
+
+        three_hours_ago = values[0]
+        two_hours_ago = values[1]
+        current_orders = values[2]
+
+        # -------------------------------------------------
+        # Only show channel if CURRENT hour = ZERO
+        # -------------------------------------------------
+
+        if current_orders != 0:
+            continue
+
+        # -------------------------------------------------
+        # Last 3 hours zero
+        # -------------------------------------------------
+
+        if (
+            three_hours_ago == 0
+            and two_hours_ago == 0
+            and current_orders == 0
+        ):
+
+            remark = (
+                f"{source}: "
+                "No orders for last 3 completed hours"
+            )
+
+        # -------------------------------------------------
+        # Last 2 hours zero
+        # -------------------------------------------------
+
+        elif (
+            two_hours_ago == 0
+            and current_orders == 0
+        ):
+
+            remark = (
+                f"{source}: "
+                "No orders for last 2 completed hours"
+            )
+
+        # -------------------------------------------------
+        # Current hour zero
+        # -------------------------------------------------
+
+        else:
+
+            remark = (
+                f"{source}: "
+                "Zero orders in current hour"
+            )
+
+        insight_rows.append(
+            (
+                region,
+                store,
+                source,
+                three_hours_ago,
+                two_hours_ago,
+                current_orders,
+                remark,
+            )
+        )
+
+    # -----------------------------------------------------
+    # No issues
+    # -----------------------------------------------------
+
+    if not insight_rows:
+
+        return (
+            '<div style="background:#e2f0d9;'
+            'border:1px solid #70ad47;'
+            'padding:10px;margin:12px 0;">'
+            '<b style="color:#008000;">'
+            '✅ No channel-level zero-order issues '
+            'in current / last 2 / last 3 hours.'
+            '</b>'
+            '</div>'
+        )
+
+    # -----------------------------------------------------
+    # Build HTML
+    # -----------------------------------------------------
+
+    rows = []
+
+    for (
+        region,
+        store,
+        source,
+        h3,
+        h2,
+        h1,
+        remark,
+    ) in insight_rows:
+
+        rows.append(
+            f'<tr>'
+            f'<td>{escape(str(region))}</td>'
+            f'<td style="font-weight:bold;">'
+            f'{escape(str(store))}</td>'
+            f'<td>{escape(str(source))}</td>'
+            f'<td align="center">{h3}</td>'
+            f'<td align="center">{h2}</td>'
+            f'<td align="center">{h1}</td>'
+            f'<td style="color:#c00000;'
+            f'font-weight:bold;">'
+            f'{escape(remark)}</td>'
+            f'</tr>'
+        )
+
+    return (
+        '<div style="background:#fff2cc;'
+        'border:2px solid #c00000;'
+        'padding:10px;margin:12px 0;">'
+
+        '<h3 style="color:#c00000;">'
+        '🔎 Channel Order-Flow Insights'
+        '</h3>'
+
+        '<table border="1" cellpadding="6" '
+        'cellspacing="0" '
+        'style="border-collapse:collapse;'
+        'width:100%;font-size:12px;">'
+
+        '<tr style="background:#f4cccc;">'
+        '<th>Region</th>'
+        '<th>Store</th>'
+        '<th>Channel</th>'
+        '<th>3 Hrs Ago</th>'
+        '<th>2 Hrs Ago</th>'
+        '<th>Current Hr</th>'
+        '<th>Remarks</th>'
+        '</tr>'
+
+        + ''.join(rows)
+
+        + '</table>'
+        '</div>'
+    )
+
+
 # =========================================================
 # EMAIL HTML
 # =========================================================
