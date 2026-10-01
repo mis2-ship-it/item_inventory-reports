@@ -2372,6 +2372,7 @@ def send_mail(
         raise RuntimeError("EMAIL_PASSWORD is missing.")
 
     to = [
+        "ops.all@frozenbottle.in",
         "bangaloreterritorymanager1@frozenbottle.in",
         "bangaloreterritorymanager@frozenbottle.in",
         "manohar@frozenbottle.in",
