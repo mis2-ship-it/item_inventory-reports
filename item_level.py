@@ -907,6 +907,9 @@ def publish_live_dashboard_data(df):
         "business_date": business_date.strftime("%Y-%m-%d"),
         "rows": int(len(out)),
         "columns": export_columns,
+        "brands": sorted([x for x in out["brandName"].dropna().astype(str).str.strip().unique().tolist() if x]),
+        "regions": sorted([x for x in out["Region"].dropna().astype(str).str.strip().unique().tolist() if x]),
+        "categories": sorted([x for x in out["Category Group"].dropna().astype(str).str.strip().unique().tolist() if x]),
         "file": "live_item_level.csv"
     }
     with open(os.path.join(output_dir, "live_index.json"), "w", encoding="utf-8") as f:
