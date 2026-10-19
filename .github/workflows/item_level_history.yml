@@ -58,6 +58,10 @@ jobs:
 
           python item_level_history.py
 
+      - name: Publish dashboard history partitions
+        run: |
+          python publish_dashboard_history.py
+
       # =====================================================
       # CHECK GENERATED FILES
       # =====================================================
@@ -93,7 +97,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add historical_data/
+          git add historical_data/ dashboard_data/history/ dashboard_data/history_index.json
 
           echo ""
           echo "Git status:"
