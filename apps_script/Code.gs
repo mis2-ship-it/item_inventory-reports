@@ -55,161 +55,159 @@ function getDashboardMeta() {
 function getDashboardData(filters) {
   filters = filters || {};
   const meta = getDashboardMeta();
-  const fromDate = String(filters.fromDate || meta.min_date || "2000-01-01");
-  const toDate = String(filters.toDate || meta.max_date || "2099-12-31");
+  const fromDate = String(filters.fromDate || meta.live_date || meta.min_date || "2000-01-01");
+  const toDate = String(filters.toDate || fromDate);
+  const compareFromDate = String(filters.compareFromDate || "");
+  const compareToDate = String(filters.compareToDate || "");
   if (fromDate > toDate) throw new Error("From Date cannot be after To Date.");
+  if ((compareFromDate && !compareToDate) || (!compareFromDate && compareToDate)) {
+    throw new Error("Select both comparison dates.");
+  }
+  if (compareFromDate && compareFromDate > compareToDate) throw new Error("Comparison start date cannot be after comparison end date.");
 
+  const loadFrom = compareFromDate ? (fromDate < compareFromDate ? fromDate : compareFromDate) : fromDate;
+  const loadTo = compareToDate ? (toDate > compareToDate ? toDate : compareToDate) : toDate;
   const historyIndex = fetchJson_(HISTORY_INDEX_URL, true);
-  const partitions = (historyIndex.files || []).filter(function (p) {
-    return p.path && Number(p.rows || 0) > 0 &&
-      p.start_date <= toDate && p.end_date >= fromDate;
-  });
-
   const liveIndex = fetchJson_(LIVE_INDEX_URL, true);
   const liveDate = String(liveIndex.business_date || "");
-  const rows = [];
-  const errors = [];
+  const partitions = (historyIndex.files || []).filter(function (p) {
+    return p.path && Number(p.rows || 0) > 0 && p.start_date <= loadTo && p.end_date >= loadFrom;
+  });
+  const rows = [], errors = [];
 
   partitions.forEach(function (p) {
     try {
-      const csvText = fetchText_(REPO_RAW + "dashboard_data/" + p.path);
-      const parsed = parseCsvObjects_(csvText);
+      const parsed = parseCsvObjects_(fetchText_(REPO_RAW + "dashboard_data/" + p.path));
       parsed.forEach(function (r) {
         const d = String(r["Business Date"] || "").slice(0, 10);
-        if (d < fromDate || d > toDate) return;
-        // Live data replaces the archive for the same business date.
-        if (liveDate && d === liveDate) return;
+        if (d < loadFrom || d > loadTo || (liveDate && d === liveDate)) return;
         rows.push(r);
       });
-    } catch (e) {
-      errors.push(p.file + ": " + e.message);
-    }
+    } catch (e) { errors.push(p.file + ": " + e.message); }
   });
 
-  if (liveDate && liveDate >= fromDate && liveDate <= toDate && liveIndex.file) {
+  if (liveDate && liveDate >= loadFrom && liveDate <= loadTo && liveIndex.file) {
     try {
-      const liveRows = parseCsvObjects_(fetchText_(REPO_RAW + "dashboard_data/" + liveIndex.file));
-      liveRows.forEach(function (r) {
+      parseCsvObjects_(fetchText_(REPO_RAW + "dashboard_data/" + liveIndex.file)).forEach(function (r) {
         const d = String(r["Business Date"] || "").slice(0, 10);
-        if (d >= fromDate && d <= toDate) rows.push(r);
+        if (d >= loadFrom && d <= loadTo) rows.push(r);
       });
-    } catch (e) {
-      errors.push("Live file: " + e.message);
-    }
+    } catch (e) { errors.push("Live file: " + e.message); }
   }
-
-  if (errors.length && !rows.length) {
-    throw new Error("Could not load dashboard data. " + errors.join(" | "));
-  }
+  if (errors.length && !rows.length) throw new Error("Could not load dashboard data. " + errors.join(" | "));
 
   const filtered = rows.filter(function (r) {
     if (String(r["Ownership"] || "").toUpperCase() !== "COCO") return false;
     if (filters.brand && String(r["brandName"] || "") !== filters.brand) return false;
     if (filters.region && String(r["Region"] || "") !== filters.region) return false;
-    if (filters.category && String(r["Category Group"] || "") !== filters.category) return false;
+    const categoryName = String(r["Category Name"] || "").trim();
+    if (filters.category && categoryName !== filters.category) return false;
     return true;
   });
 
-  return buildDashboardResult_(filtered, {
-    fromDate: fromDate,
-    toDate: toDate,
-    brand: String(filters.brand || ""),
-    region: String(filters.region || ""),
-    category: String(filters.category || ""),
-    loadedRows: rows.length,
-    matchingRows: filtered.length,
-    liveDate: liveDate,
-    liveUpdatedAt: liveIndex.updated_at || "",
-    historyUpdatedAt: historyIndex.updated_at || "",
-    partitionCount: partitions.length,
-    warnings: errors
+  const currentRows = filtered.filter(function (r) {
+    const d = String(r["Business Date"] || "").slice(0, 10);
+    return d >= fromDate && d <= toDate;
   });
+  const comparisonRows = compareFromDate ? filtered.filter(function (r) {
+    const d = String(r["Business Date"] || "").slice(0, 10);
+    return d >= compareFromDate && d <= compareToDate;
+  }) : [];
+
+  return {
+    info: {
+      fromDate: fromDate, toDate: toDate,
+      compareFromDate: compareFromDate, compareToDate: compareToDate,
+      brand: String(filters.brand || ""), region: String(filters.region || ""),
+      category: String(filters.category || ""), loadedRows: rows.length,
+      matchingRows: currentRows.length, liveDate: liveDate,
+      liveUpdatedAt: liveIndex.updated_at || "", historyUpdatedAt: historyIndex.updated_at || "",
+      partitionCount: partitions.length, warnings: errors
+    },
+    current: buildDashboardResult_(currentRows),
+    comparison: compareFromDate ? buildDashboardResult_(comparisonRows) : null
+  };
 }
 
-function buildDashboardResult_(rows, info) {
+function buildDashboardResult_(rows) {
   let gross = 0, discount = 0, net = 0, qty = 0;
-  const invoices = {};
-  const products = {}, brands = {}, regions = {}, categories = {}, dates = {};
+  const invoices = {}, products = {}, brands = {}, regions = {}, categories = {};
+  const productMix = {}, sessionMix = {}, discounts = {}, dates = {};
+
+  function add(map, key, base, invoice, q, g, d, n) {
+    if (!map[key]) map[key] = base;
+    const a = map[key];
+    if (invoice) a.ordersSet[invoice] = true;
+    a.qty += q; a.gross += g; a.discount += d; a.net += n;
+  }
 
   rows.forEach(function (r) {
     const invoice = String(r["invoiceNumber"] || "").trim();
     const brand = String(r["brandName"] || "Unknown").trim() || "Unknown";
     const region = String(r["Region"] || "Unmapped").trim() || "Unmapped";
-    const category = String(r["Category Group"] || "Others").trim() || "Others";
+    const category = String(r["Category Name"] || "").trim() || "Category unavailable in source data";
+    const groupedCategory = String(r["Category Group"] || "Others").trim() || "Others";
     const item = String(r["Item Name"] || "Unknown item").trim() || "Unknown item";
+    const mix = String(r["Product Mix"] || "Unmapped").trim() || "Unmapped";
+    const session = String(r["Session"] || sessionFromDate_(r["createdDate"]) || "Unknown");
     const date = String(r["Business Date"] || "").slice(0, 10);
-    const g = num_(r["Gross Amount"]);
-    const d = Math.abs(num_(r["Discount"]));
-    const n = num_(r["Net Amount"]);
-    const q = num_(r["Qty"]);
-
+    const g = num_(r["Gross Amount"]), d = Math.abs(num_(r["Discount"]));
+    const n = num_(r["Net Amount"]), q = num_(r["Qty"]);
     gross += g; discount += d; net += n; qty += q;
     if (invoice) invoices[invoice] = true;
 
-    addAgg_(products, [brand, region, category, item].join("||"), {
-      item: item, brand: brand, region: region, category: category,
-      ordersSet: {}, qty: 0, gross: 0, discount: 0, net: 0
-    }, invoice, q, g, d, n);
-    addAgg_(brands, brand, {name: brand, ordersSet: {}, qty: 0, gross: 0, discount: 0, net: 0}, invoice, q, g, d, n);
-    addAgg_(regions, region, {name: region, ordersSet: {}, qty: 0, gross: 0, discount: 0, net: 0}, invoice, q, g, d, n);
-    addAgg_(categories, category, {name: category, ordersSet: {}, qty: 0, gross: 0, discount: 0, net: 0}, invoice, q, g, d, n);
+    const dims = {item:item, brand:brand, region:region, category:category, groupedCategory:groupedCategory, mix:mix, session:session};
+    add(products, [item,brand,region,category,mix].join("||"), Object.assign({name:item, ordersSet:{},qty:0,gross:0,discount:0,net:0},dims), invoice,q,g,d,n);
+    add(brands, brand, {name:brand,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+    add(regions, region, {name:region,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+    add(categories, category, {name:category,ordersSet:{},qty:0,gross:0,discount:0,net:0,groupedCategory:groupedCategory},invoice,q,g,d,n);
+    add(productMix, mix, {name:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+    add(sessionMix, session + "||" + mix, {name:session,session:session,mix:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+
+    const codeSource = String(r["Source"] || "").trim();
+    const codeField = /swiggy/i.test(codeSource) ? "Swiggy Code" : (/zomato/i.test(codeSource) ? "Zomato Code" : "Discount Code");
+    const code = String(r[codeField] || r["Discount Code"] || "No Offer").trim() || "No Offer";
+    add(discounts, [codeSource,code].join("||"), {name:code,source:codeSource,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+
     if (date) {
-      if (!dates[date]) dates[date] = {date: date, gross: 0, discount: 0, net: 0, qty: 0, ordersSet: {}};
-      dates[date].gross += g;
-      dates[date].discount += d;
-      dates[date].net += n;
-      dates[date].qty += q;
+      if (!dates[date]) dates[date] = {date:date,gross:0,discount:0,net:0,qty:0,ordersSet:{}};
+      dates[date].gross += g; dates[date].discount += d; dates[date].net += n; dates[date].qty += q;
       if (invoice) dates[date].ordersSet[invoice] = true;
     }
   });
 
-  function toAggArray(map, isProduct) {
+  function arr(map) {
     return Object.keys(map).map(function (key) {
-      const a = map[key];
-      const orders = Object.keys(a.ordersSet).length;
-      return {
-        name: a.name || a.item,
-        item: a.item || "",
-        brand: a.brand || "",
-        region: a.region || "",
-        category: a.category || "",
-        orders: orders,
-        qty: round2_(a.qty),
-        gross: round2_(a.gross),
-        discount: round2_(a.discount),
-        net: round2_(a.net),
-        discountPct: a.gross ? round2_(a.discount / a.gross * 100) : 0,
-        aov: orders ? round2_(a.net / orders) : 0
-      };
-    }).sort(function (a, b) { return b.net - a.net; });
+      const a = map[key], orders = Object.keys(a.ordersSet).length;
+      return {name:a.name || "", item:a.item || "", brand:a.brand || "", region:a.region || "",
+        category:a.category || "", groupedCategory:a.groupedCategory || "", mix:a.mix || "",
+        session:a.session || "", source:a.source || "", orders:orders, qty:round2_(a.qty),
+        gross:round2_(a.gross), discount:round2_(a.discount), net:round2_(a.net),
+        discountPct:a.gross ? round2_(a.discount/a.gross*100) : 0,
+        aov:orders ? round2_(a.net/orders) : 0};
+    }).sort(function(a,b){return b.net-a.net;});
   }
 
-  const trend = Object.keys(dates).sort().map(function (date) {
-    const d = dates[date];
-    return {date: date, net: round2_(d.net), orders: Object.keys(d.ordersSet).length, qty: round2_(d.qty)};
-  });
-
   return {
-    info: info,
-    kpis: {
-      gross: round2_(gross), discount: round2_(discount), net: round2_(net),
-      orders: Object.keys(invoices).length, qty: round2_(qty),
-      discountPct: gross ? round2_(discount / gross * 100) : 0,
-      aov: Object.keys(invoices).length ? round2_(net / Object.keys(invoices).length) : 0
-    },
-    trend: trend,
-    products: toAggArray(products, true),
-    brands: toAggArray(brands, false),
-    regions: toAggArray(regions, false),
-    categories: toAggArray(categories, false)
+    kpis:{gross:round2_(gross),discount:round2_(discount),net:round2_(net),orders:Object.keys(invoices).length,
+      qty:round2_(qty),discountPct:gross?round2_(discount/gross*100):0,
+      aov:Object.keys(invoices).length?round2_(net/Object.keys(invoices).length):0,itemLines:rows.length},
+    trend:Object.keys(dates).sort().map(function(date){const x=dates[date];return {date:date,net:round2_(x.net),orders:Object.keys(x.ordersSet).length,qty:round2_(x.qty)};}),
+    products:arr(products),brands:arr(brands),regions:arr(regions),categories:arr(categories),
+    productMix:arr(productMix),sessionMix:arr(sessionMix),discounts:arr(discounts)
   };
 }
 
-function addAgg_(map, key, base, invoice, qty, gross, discount, net) {
-  if (!map[key]) map[key] = base;
-  const a = map[key];
-  if (invoice) a.ordersSet[invoice] = true;
-  a.qty += qty; a.gross += gross; a.discount += discount; a.net += net;
+function sessionFromDate_(value) {
+  if (!value) return "Unknown";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "Unknown";
+  const hour = (date.getUTCHours() + 5 + (date.getUTCMinutes() >= 30 ? 1 : 0)) % 24;
+  if (hour >= 8 && hour <= 11) return "Breakfast";
+  if (hour >= 12 && hour <= 15) return "Lunch";
+  if (hour >= 16 && hour <= 19) return "Snacks";
+  if (hour >= 20 && hour <= 22) return "Dinner";
+  return "Post Dinner (Closing / Late Night)";
 }
 
 function parseCsvObjects_(csvText) {
