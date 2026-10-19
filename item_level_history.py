@@ -1,6 +1,8 @@
 import os
 import json
 import time
+import ast
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -77,6 +79,32 @@ def headers():
         "x-api-token": get_token(),
         "content-type": "application/json"
     }
+
+
+def discount_code_text(value, provider):
+    """Extract readable platform discount/voucher names from Rista values."""
+    if value is None:
+        return "No Offer"
+    if isinstance(value, str):
+        try:
+            value = ast.literal_eval(value)
+        except Exception:
+            return value.strip() or "No Offer"
+    if isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, list):
+        return "No Offer"
+    names = []
+    pattern = r"Restaurant Discount\\s*\\((.*?)\\)" if provider == "swiggy" else r"Merchant Voucher Code\\s*\\((.*?)\\)"
+    for obj in value:
+        if not isinstance(obj, dict):
+            continue
+        name = str(obj.get("name", obj.get("code", "")) or "").strip()
+        if not name:
+            continue
+        match = re.search(pattern, name, flags=re.IGNORECASE)
+        names.append(match.group(1).strip() if match else name)
+    return " | ".join(dict.fromkeys(names)) if names else "No Offer"
 
 
 # =========================================================
@@ -228,6 +256,16 @@ FINAL_COLUMNS = [
     "Product Mix",
 
     "Category Group",
+
+    "Category Name",
+
+    "Swiggy Code",
+
+    "Zomato Code",
+
+    "Discount Code",
+
+    "Session",
 
     "Qty",
 
@@ -1594,6 +1632,22 @@ def fetch_business_date(
             )
         )
     )
+
+    # Session classification uses the Rista createdDate converted to India time.
+    order_time = pd.to_datetime(item_sales_df["createdDate"], utc=True, errors="coerce").dt.tz_convert(IST)
+    def classify_session(ts):
+        if pd.isna(ts): return "Unknown"
+        hour = int(ts.hour)
+        if 8 <= hour <= 11: return "Breakfast"
+        if 12 <= hour <= 15: return "Lunch"
+        if 16 <= hour <= 19: return "Snacks"
+        if 20 <= hour <= 22: return "Dinner"
+        return "Post Dinner (Closing / Late Night)"
+    item_sales_df["Session"] = order_time.apply(classify_session)
+    item_sales_df["Discount Code"] = [
+        " | ".join(x for x in [str(sw).strip(), str(zo).strip()] if x and x != "No Offer") or "No Offer"
+        for sw, zo in zip(item_sales_df["Swiggy Code"], item_sales_df["Zomato Code"])
+    ]
 
 
     # =====================================================
