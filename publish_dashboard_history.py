@@ -20,6 +20,7 @@ def main():
             os.remove(os.path.join(OUT_DIR, name))
 
     files = []
+    brands, regions, categories = set(), set(), set()
     for name in sorted(os.listdir(HISTORY_DIR)):
         if not (name.startswith("item_level_") and name.endswith(".csv")):
             continue
@@ -35,6 +36,10 @@ def main():
         if df.empty or "Business Date" not in df.columns:
             print(f"Skipping file without usable rows/date: {name}")
             continue
+
+        for col, target in [("brandName", brands), ("Region", regions), ("Category Group", categories)]:
+            if col in df.columns:
+                target.update(x for x in df[col].dropna().astype(str).str.strip().unique() if x)
 
         df["Business Date"] = pd.to_datetime(df["Business Date"], errors="coerce").dt.strftime("%Y-%m-%d")
         df = df[df["Business Date"].notna()].copy()
@@ -64,6 +69,9 @@ def main():
 
     index_data = {
         "updated_at": datetime.now(IST).isoformat(),
+        "brands": sorted(brands),
+        "regions": sorted(regions),
+        "categories": sorted(categories),
         "files": sorted(files, key=lambda x: x["start_date"])
     }
     with open(INDEX_PATH, "w", encoding="utf-8") as f:
