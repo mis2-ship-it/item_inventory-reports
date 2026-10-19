@@ -795,61 +795,46 @@ def parse_discount_objects(value):
     return []
 
 
-def extract_swiggy_codes(value):
-    codes = []
-
-    for obj in parse_discount_objects(value):
-        name = str(obj.get("name", "")).strip()
-
-        if not name:
-            continue
-
-        match = re.search(
-            r"Restaurant Discount\s*\((.*?)\)",
-            name,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-            codes.append(match.group(1).strip())
-        else:
-            codes.append(name)
-
-    if not codes:
+def extract_channel_discount_code(row):
+    """
+    Rista discount naming depends on the sales channel:
+      Swiggy -> Restaurant Discount (CODE)
+      Zomato -> Merchant Discount (CODE)
+    Use the row's channel to decide which code to extract.
+    """
+    channel = str(row.get("channel", "") or "").strip().lower()
+    if "swiggy" in channel:
+        pattern = r"Restaurant Discount\s*\((.*?)\)"
+        values = [row.get("item_discounts", ""), row.get("discounts", "")]
+    elif "zomato" in channel:
+        pattern = r"Merchant Discount\s*\((.*?)\)"
+        values = [row.get("discounts", ""), row.get("item_discounts", "")]
+    else:
         return "No Offer"
 
-    return " | ".join(dict.fromkeys(codes))
-
-
-def extract_zomato_codes(value):
     codes = []
+    for value in values:
+        for obj in parse_discount_objects(value):
+            name = str(obj.get("name", obj.get("code", "")) or "").strip()
+            if not name:
+                continue
+            match = re.search(pattern, name, flags=re.IGNORECASE)
+            if match and match.group(1).strip():
+                codes.append(match.group(1).strip())
 
-    for obj in parse_discount_objects(value):
-        name = str(obj.get("name", "")).strip()
-
-        if not name:
-            continue
-
-        match = re.search(
-            r"Merchant Voucher Code\s*\((.*?)\)",
-            name,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-            codes.append(match.group(1).strip())
-        else:
-            codes.append(name)
-
-    if not codes:
-        return "No Offer"
-
-    return " | ".join(dict.fromkeys(codes))
+    return " | ".join(dict.fromkeys(codes)) if codes else "No Offer"
 
 
 for df in [current_sales, lw_sales]:
-    df["Swiggy Code"] = df["item_discounts"].apply(extract_swiggy_codes)
-    df["Zomato Code"] = df["discounts"].apply(extract_zomato_codes)
+    df["Discount Code"] = df.apply(extract_channel_discount_code, axis=1)
+    df["Swiggy Code"] = df.apply(
+        lambda row: row["Discount Code"] if "swiggy" in str(row.get("channel", "")).lower() else "No Offer",
+        axis=1
+    )
+    df["Zomato Code"] = df.apply(
+        lambda row: row["Discount Code"] if "zomato" in str(row.get("channel", "")).lower() else "No Offer",
+        axis=1
+    )
 
 
 # =========================================================
