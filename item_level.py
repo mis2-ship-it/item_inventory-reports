@@ -869,7 +869,8 @@ def publish_live_dashboard_data(df):
         "Region", "Source", "invoiceNumber", "createdDate",
         "brandName", "channel", "status", "Item Line ID",
         "Item Name", "Item Group Name", "Variant", "Product Mix",
-        "Category Group", "Qty", "Gross Amount", "Discount", "Net Amount"
+        "Category Group", "Category Name", "Swiggy Code", "Zomato Code",
+        "Discount Code", "Session", "Qty", "Gross Amount", "Discount", "Net Amount"
     ]
 
     out = pd.DataFrame(index=range(len(df)))
@@ -893,6 +894,27 @@ def publish_live_dashboard_data(df):
     out["Variant"] = ""
     out["Product Mix"] = df["Product Mix"].fillna("").astype(str).values
     out["Category Group"] = df["Category Group"].fillna("").astype(str).values
+    # Preserve Rista's actual item category separately from the grouped item-master category.
+    category_col = next((c for c in ["item_categoryName", "item_category", "categoryName"] if c in df.columns), None)
+    out["Category Name"] = df[category_col].fillna("").astype(str).values if category_col else ""
+    out["Swiggy Code"] = df["Swiggy Code"].fillna("No Offer").astype(str).values
+    out["Zomato Code"] = df["Zomato Code"].fillna("No Offer").astype(str).values
+    out["Discount Code"] = [
+        " | ".join(x for x in [str(sw).strip(), str(zo).strip()] if x and x != "No Offer")
+        or "No Offer"
+        for sw, zo in zip(out["Swiggy Code"], out["Zomato Code"])
+    ]
+    def dashboard_session(value):
+        ts = pd.to_datetime(value, utc=True, errors="coerce")
+        if pd.isna(ts):
+            return "Unknown"
+        hour = int(ts.tz_convert(IST).hour)
+        if 8 <= hour <= 11: return "Breakfast"
+        if 12 <= hour <= 15: return "Lunch"
+        if 16 <= hour <= 19: return "Snacks"
+        if 20 <= hour <= 22: return "Dinner"
+        return "Post Dinner (Closing / Late Night)"
+    out["Session"] = df["createdDate"].apply(dashboard_session).values
     out["Qty"] = pd.to_numeric(df["item_quantity"], errors="coerce").fillna(0).values
     out["Gross Amount"] = pd.to_numeric(df["item_grossAmount"], errors="coerce").fillna(0).values
     out["Discount"] = pd.to_numeric(df["item_netDiscountAmount"], errors="coerce").fillna(0).values
