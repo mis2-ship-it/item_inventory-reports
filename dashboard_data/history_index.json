@@ -1,0 +1,122 @@
+{
+  "updated_at": "2026-10-19T14:34:45.907435+05:30",
+  "brands": [
+    "Boba Bar",
+    "Frozen Bottle",
+    "Lubov- Patisserie",
+    "Madno"
+  ],
+  "regions": [
+    "KA",
+    "Kerela",
+    "MH",
+    "TN"
+  ],
+  "categories": [
+    "ActivHippy",
+    "All day Foods",
+    "Bakery & Desserts",
+    "Belgian Waffles",
+    "Boba Sundaes",
+    "Boba Teas",
+    "Brownies",
+    "Bubble Teas",
+    "Celebration Cakes",
+    "Celebration Cookies Cakes",
+    "Cold Coffees",
+    "Doughnuts",
+    "Festival Specials",
+    "Frozen Bottle X Hersheys Range",
+    "Gudbud Sundae",
+    "Hot Chocolate",
+    "Ice Cream Cones",
+    "Ice Cream Scoops",
+    "Ice Cream Sodas",
+    "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
+    "Monster Sundaes",
+    "Others",
+    "Others-Lubov",
+    "Party Combos",
+    "Pastry",
+    "Popping Boba Sundae",
+    "Popping Boba Tea",
+    "Refreshing Coolers",
+    "Thickshakes",
+    "Waffle Sundaes"
+  ],
+  "files": [
+    {
+      "file": "item_level_week_2026-08-31.csv",
+      "path": "history/item_level_week_2026-08-31.csv",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-06",
+      "rows": 49045,
+      "size_bytes": 12703502
+    },
+    {
+      "file": "item_level_week_2026-09-07.csv",
+      "path": "history/item_level_week_2026-09-07.csv",
+      "start_date": "2026-09-07",
+      "end_date": "2026-09-13",
+      "rows": 64884,
+      "size_bytes": 17031716
+    },
+    {
+      "file": "item_level_week_2026-09-14.csv",
+      "path": "history/item_level_week_2026-09-14.csv",
+      "start_date": "2026-09-14",
+      "end_date": "2026-09-20",
+      "rows": 61053,
+      "size_bytes": 15709970
+    },
+    {
+      "file": "item_level_week_2026-09-21.csv",
+      "path": "history/item_level_week_2026-09-21.csv",
+      "start_date": "2026-09-21",
+      "end_date": "2026-09-27",
+      "rows": 62201,
+      "size_bytes": 16071106
+    },
+    {
+      "file": "item_level_week_2026-09-28.csv",
+      "path": "history/item_level_week_2026-09-28.csv",
+      "start_date": "2026-09-28",
+      "end_date": "2026-09-30",
+      "rows": 20600,
+      "size_bytes": 5332912
+    },
+    {
+      "file": "item_level_week_2026-09-28.csv",
+      "path": "history/item_level_week_2026-09-28.csv",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-04",
+      "rows": 45073,
+      "size_bytes": 11694413
+    },
+    {
+      "file": "item_level_week_2026-10-05.csv",
+      "path": "history/item_level_week_2026-10-05.csv",
+      "start_date": "2026-10-05",
+      "end_date": "2026-10-11",
+      "rows": 70606,
+      "size_bytes": 18187900
+    },
+    {
+      "file": "item_level_week_2026-10-12.csv",
+      "path": "history/item_level_week_2026-10-12.csv",
+      "start_date": "2026-10-12",
+      "end_date": "2026-10-18",
+      "rows": 54207,
+      "size_bytes": 13944940
+    },
+    {
+      "file": "item_level_week_2026-10-19.csv",
+      "path": "history/item_level_week_2026-10-19.csv",
+      "start_date": "2026-10-19",
+      "end_date": "2026-10-19",
+      "rows": 147,
+      "size_bytes": 36816
+    }
+  ]
+}
