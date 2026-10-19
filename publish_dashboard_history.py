@@ -21,6 +21,10 @@ def main():
 
     files = []
     brands, regions, categories = set(), set(), set()
+    monthly_frames = []
+
+    # Read every monthly archive first. Several months can contribute records
+    # to the same calendar week, so write each weekly partition only once.
     for name in sorted(os.listdir(HISTORY_DIR)):
         if not (name.startswith("item_level_") and name.endswith(".csv")):
             continue
@@ -43,14 +47,24 @@ def main():
 
         df["Business Date"] = pd.to_datetime(df["Business Date"], errors="coerce").dt.strftime("%Y-%m-%d")
         df = df[df["Business Date"].notna()].copy()
-        if df.empty:
-            continue
+        if not df.empty:
+            monthly_frames.append(df)
+            print(f"Loaded {name}: {len(df)} usable rows")
 
-        # Monday-start weekly partitions. A date range loads only the weeks it intersects.
-        week_start = pd.to_datetime(df["Business Date"]).dt.to_period("W-SUN").dt.start_time.dt.strftime("%Y-%m-%d")
-        df["_week_start"] = week_start
+    if monthly_frames:
+        all_history = pd.concat(monthly_frames, ignore_index=True, sort=False)
 
-        for start, part in df.groupby("_week_start", sort=True):
+        # If a stable item-line identifier exists, use it to remove exact archive
+        # overlap. Otherwise preserve rows rather than risk collapsing valid items.
+        if "Item Line ID" in all_history.columns:
+            all_history = all_history.drop_duplicates(subset=["Item Line ID"], keep="last")
+
+        all_history["_week_start"] = (
+            pd.to_datetime(all_history["Business Date"])
+            .dt.to_period("W-SUN").dt.start_time.dt.strftime("%Y-%m-%d")
+        )
+
+        for start, part in all_history.groupby("_week_start", sort=True):
             part = part.drop(columns=["_week_start"])
             filename = f"item_level_week_{start}.csv"
             output_path = os.path.join(OUT_DIR, filename)
