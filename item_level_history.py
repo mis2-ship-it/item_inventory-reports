@@ -1852,9 +1852,18 @@ def save_month_file(
 
     else:
 
+        # Idempotent refresh: replace existing records for dates returned by this run.
+        # This prevents rerunning the historical workflow from appending duplicate item lines.
+        refreshed_dates = set(
+            new_df["Business Date"].astype(str).str.strip().tolist()
+        )
+        existing_keep = existing_df[
+            ~existing_df["Business Date"].astype(str).str.strip().isin(refreshed_dates)
+        ].copy()
+
         final_df = pd.concat(
             [
-                existing_df,
+                existing_keep,
                 new_df
             ],
             ignore_index=True
