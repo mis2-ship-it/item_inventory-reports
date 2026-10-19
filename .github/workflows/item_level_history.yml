@@ -2,6 +2,8 @@ name: Run Item Level Historical Data
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * *' # Daily at 10:00 AM IST
 
 permissions:
   contents: write
@@ -56,7 +58,14 @@ jobs:
           echo "Running Item Level Historical Data..."
           echo "=============================================="
 
-          python item_level_history.py
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            HISTORY_DATE=$(TZ=Asia/Kolkata date +%F)
+            echo "Scheduled refresh for business date: $HISTORY_DATE"
+            HISTORY_START_DATE="$HISTORY_DATE" HISTORY_END_DATE="$HISTORY_DATE" python item_level_history.py
+          else
+            echo "Manual run: use configured historical date range."
+            python item_level_history.py
+          fi
 
       - name: Publish dashboard history partitions
         run: |
