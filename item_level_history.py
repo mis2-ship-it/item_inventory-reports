@@ -95,7 +95,7 @@ def discount_code_text(value, provider):
     if not isinstance(value, list):
         return "No Offer"
     names = []
-    pattern = r"Restaurant Discount\\s*\\((.*?)\\)" if provider == "swiggy" else r"Merchant Voucher Code\\s*\\((.*?)\\)"
+    pattern = r"Restaurant Discount\s*\((.*?)\)" if provider == "swiggy" else r"Merchant Voucher Code\s*\((.*?)\)"
     for obj in value:
         if not isinstance(obj, dict):
             continue
