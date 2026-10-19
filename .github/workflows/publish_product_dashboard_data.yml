@@ -1,0 +1,37 @@
+name: Publish Product Dashboard CSV Partitions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-dashboard-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pandas
+        run: pip install pandas
+
+      - name: Build weekly history partitions
+        run: python publish_dashboard_history.py
+
+      - name: Commit dashboard partitions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard_data/history/ dashboard_data/history_index.json
+          if git diff --cached --quiet; then
+            echo "No partition changes to commit."
+          else
+            git commit -m "Publish weekly product dashboard history partitions"
+            git push
+          fi
