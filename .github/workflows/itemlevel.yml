@@ -42,10 +42,11 @@ jobs:
           python item_level.py
 
       - name: Commit live dashboard data
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dashboard_data/live_item_level.csv dashboard_data/live_index.json
+          git add dashboard_data/live_item_level.csv dashboard_data/live_index.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No live dashboard changes to commit."
           else
