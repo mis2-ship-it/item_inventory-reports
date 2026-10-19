@@ -20,7 +20,7 @@ def main():
             os.remove(os.path.join(OUT_DIR, name))
 
     files = []
-    brands, regions, categories = set(), set(), set()
+    brands, regions, categories, category_names = set(), set(), set(), set()
     monthly_frames = []
 
     # Read every monthly archive first. Several months can contribute records
@@ -41,7 +41,7 @@ def main():
             print(f"Skipping file without usable rows/date: {name}")
             continue
 
-        for col, target in [("brandName", brands), ("Region", regions), ("Category Group", categories)]:
+        for col, target in [("brandName", brands), ("Region", regions), ("Category Group", categories), ("Category Name", category_names)]:
             if col in df.columns:
                 target.update(x for x in df[col].dropna().astype(str).str.strip().unique() if x)
 
@@ -86,6 +86,7 @@ def main():
         "brands": sorted(brands),
         "regions": sorted(regions),
         "categories": sorted(categories),
+        "category_names": sorted(category_names),
         "files": sorted(files, key=lambda x: x["start_date"])
     }
     with open(INDEX_PATH, "w", encoding="utf-8") as f:
