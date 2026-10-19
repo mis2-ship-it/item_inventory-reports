@@ -853,6 +853,72 @@ for df in [current_sales, lw_sales]:
 
 
 # =========================================================
+# PUBLISH LIVE ITEM-LEVEL DATA FOR APPS SCRIPT DASHBOARD
+# This is an additional output. Existing email and sheet
+# reporting continues unchanged.
+# =========================================================
+def publish_live_dashboard_data(df):
+    import os
+    import json
+
+    output_dir = "dashboard_data"
+    os.makedirs(output_dir, exist_ok=True)
+
+    export_columns = [
+        "Business Date", "branchCode", "Store Name", "Ownership",
+        "Region", "Source", "invoiceNumber", "createdDate",
+        "brandName", "channel", "status", "Item Line ID",
+        "Item Name", "Item Group Name", "Variant", "Product Mix",
+        "Category Group", "Qty", "Gross Amount", "Discount", "Net Amount"
+    ]
+
+    out = pd.DataFrame(index=range(len(df)))
+    out["Business Date"] = business_date.strftime("%Y-%m-%d")
+    out["branchCode"] = df["branchCode"].astype(str).values
+    out["Store Name"] = df["Store Name"].fillna("").astype(str).values
+    out["Ownership"] = df["Ownership"].fillna("").astype(str).values
+    out["Region"] = df["Region"].fillna("").astype(str).values
+    out["Source"] = df["Source Group"].fillna("").astype(str).values
+    out["invoiceNumber"] = df["invoiceNumber"].fillna("").astype(str).values
+    out["createdDate"] = df["createdDate"].fillna("").astype(str).values
+    out["brandName"] = df["brandName"].fillna("").astype(str).values
+    out["channel"] = df["channel"].fillna("").astype(str).values
+    out["status"] = df["status"].fillna("").astype(str).values
+    out["Item Line ID"] = [
+        f"{inv}__LIVE_LINE_{i + 1}"
+        for i, inv in enumerate(df["invoiceNumber"].fillna("").astype(str).tolist())
+    ]
+    out["Item Name"] = df["item_shortName"].fillna("").astype(str).values
+    out["Item Group Name"] = df["Item Group Name"].fillna("").astype(str).values
+    out["Variant"] = ""
+    out["Product Mix"] = df["Product Mix"].fillna("").astype(str).values
+    out["Category Group"] = df["Category Group"].fillna("").astype(str).values
+    out["Qty"] = pd.to_numeric(df["item_quantity"], errors="coerce").fillna(0).values
+    out["Gross Amount"] = pd.to_numeric(df["item_grossAmount"], errors="coerce").fillna(0).values
+    out["Discount"] = pd.to_numeric(df["item_netDiscountAmount"], errors="coerce").fillna(0).values
+    out["Net Amount"] = pd.to_numeric(df["item_netAmount"], errors="coerce").fillna(0).values
+    out = out[export_columns]
+
+    csv_path = os.path.join(output_dir, "live_item_level.csv")
+    out.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+    index_data = {
+        "updated_at": datetime.now(IST).isoformat(),
+        "business_date": business_date.strftime("%Y-%m-%d"),
+        "rows": int(len(out)),
+        "columns": export_columns,
+        "file": "live_item_level.csv"
+    }
+    with open(os.path.join(output_dir, "live_index.json"), "w", encoding="utf-8") as f:
+        json.dump(index_data, f, indent=2)
+
+    print(f"✅ Live dashboard CSV published locally: {csv_path} | rows={len(out)}")
+
+
+publish_live_dashboard_data(current_sales)
+
+
+# =========================================================
 # METRIC HELPERS
 # =========================================================
 
