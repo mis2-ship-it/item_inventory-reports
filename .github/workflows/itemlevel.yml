@@ -2,6 +2,11 @@ name: Hourly Item Level Report
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *' # hourly (UTC)
+
+permissions:
+  contents: write
 
 jobs:
 
@@ -35,3 +40,15 @@ jobs:
         run: |
           echo "Running Item Level Report..."
           python item_level.py
+
+      - name: Commit live dashboard data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard_data/live_item_level.csv dashboard_data/live_index.json
+          if git diff --cached --quiet; then
+            echo "No live dashboard changes to commit."
+          else
+            git commit -m "Refresh live item-level dashboard data"
+            git push
+          fi
