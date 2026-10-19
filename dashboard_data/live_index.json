@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-19T14:30:04.409383+05:30",
+  "updated_at": "2026-10-19T16:30:24.757444+05:30",
   "business_date": "2026-10-19",
-  "rows": 1028,
+  "rows": 1929,
   "columns": [
     "Business Date",
     "branchCode",
@@ -38,6 +38,7 @@
     "TN"
   ],
   "categories": [
+    "ActivHippy",
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Waffles",
@@ -58,6 +59,7 @@
     "Monster Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
