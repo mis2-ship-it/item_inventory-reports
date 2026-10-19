@@ -81,39 +81,42 @@ def headers():
     }
 
 
-def discount_code_text(value, provider):
-    """Extract only the code inside Rista's platform-specific discount brackets."""
+def discount_code_text(value, channel):
+    """
+    Extract a platform discount code according to the sale's channel:
+      Swiggy -> Restaurant Discount (CODE)
+      Zomato -> Merchant Discount (CODE)
+    """
+    channel = str(channel or "").strip().lower()
+    if "swiggy" in channel:
+        pattern = r"Restaurant Discount\s*\((.*?)\)"
+    elif "zomato" in channel:
+        pattern = r"Merchant Discount\s*\((.*?)\)"
+    else:
+        return "No Offer"
+
     if value is None:
         return "No Offer"
     if isinstance(value, str):
         try:
             value = ast.literal_eval(value)
         except Exception:
-            value = value.strip()
-            if not value:
-                return "No Offer"
-            value = [{"name": value}]
+            value = [{"name": value.strip()}] if value.strip() else []
     if isinstance(value, dict):
         value = [value]
     if not isinstance(value, list):
         return "No Offer"
 
-    pattern = (
-        r"Restaurant Discount\s*\((.*?)\)"
-        if provider == "swiggy"
-        else r"Merchant Voucher Code\s*\((.*?)\)"
-    )
-    names = []
+    codes = []
     for obj in value:
         if not isinstance(obj, dict):
             continue
         name = str(obj.get("name", obj.get("code", "")) or "").strip()
-        if not name:
-            continue
         match = re.search(pattern, name, flags=re.IGNORECASE)
         if match and match.group(1).strip():
-            names.append(match.group(1).strip())
-    return " | ".join(dict.fromkeys(names)) if names else "No Offer"
+            codes.append(match.group(1).strip())
+
+    return " | ".join(dict.fromkeys(codes)) if codes else "No Offer"
 
 
 # =========================================================
@@ -1509,18 +1512,22 @@ def fetch_business_date(
                     str(item.get("categoryName", "") or "").strip(),
 
                 "Swiggy Code":
-                    discount_code_text(item.get("discounts", []), "swiggy"),
+                    discount_code_text(
+                        item.get("discounts", []),
+                        sale.get("channel", "")
+                    ) if "swiggy" in str(sale.get("channel", "")).lower() else "No Offer",
 
                 "Zomato Code":
-                    discount_code_text(item.get("discounts", []), "zomato"),
+                    discount_code_text(
+                        item.get("discounts", []),
+                        sale.get("channel", "")
+                    ) if "zomato" in str(sale.get("channel", "")).lower() else "No Offer",
 
                 "Discount Code":
-                    " | ".join(
-                        code for code in [
-                            discount_code_text(item.get("discounts", []), "swiggy"),
-                            discount_code_text(item.get("discounts", []), "zomato")
-                        ] if code != "No Offer"
-                    ) or "No Offer",
+                    discount_code_text(
+                        item.get("discounts", []),
+                        sale.get("channel", "")
+                    ),
 
     
     
