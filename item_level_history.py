@@ -99,9 +99,9 @@ def discount_code_text(value, provider):
         return "No Offer"
 
     pattern = (
-        r"Restaurant Discount\\s*\\((.*?)\\)"
+        r"Restaurant Discount\s*\((.*?)\)"
         if provider == "swiggy"
-        else r"Merchant Voucher Code\\s*\\((.*?)\\)"
+        else r"Merchant Voucher Code\s*\((.*?)\)"
     )
     names = []
     for obj in value:
