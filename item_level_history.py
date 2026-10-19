@@ -82,20 +82,28 @@ def headers():
 
 
 def discount_code_text(value, provider):
-    """Extract readable platform discount/voucher names from Rista values."""
+    """Extract only the code inside Rista's platform-specific discount brackets."""
     if value is None:
         return "No Offer"
     if isinstance(value, str):
         try:
             value = ast.literal_eval(value)
         except Exception:
-            return value.strip() or "No Offer"
+            value = value.strip()
+            if not value:
+                return "No Offer"
+            value = [{"name": value}]
     if isinstance(value, dict):
         value = [value]
     if not isinstance(value, list):
         return "No Offer"
+
+    pattern = (
+        r"Restaurant Discount\\s*\\((.*?)\\)"
+        if provider == "swiggy"
+        else r"Merchant Voucher Code\\s*\\((.*?)\\)"
+    )
     names = []
-    pattern = r"Restaurant Discount\s*\((.*?)\)" if provider == "swiggy" else r"Merchant Voucher Code\s*\((.*?)\)"
     for obj in value:
         if not isinstance(obj, dict):
             continue
@@ -103,7 +111,8 @@ def discount_code_text(value, provider):
         if not name:
             continue
         match = re.search(pattern, name, flags=re.IGNORECASE)
-        names.append(match.group(1).strip() if match else name)
+        if match and match.group(1).strip():
+            names.append(match.group(1).strip())
     return " | ".join(dict.fromkeys(names)) if names else "No Offer"
 
 
@@ -1495,6 +1504,24 @@ def fetch_business_date(
     
                 "Category Group":
                     "",
+
+                "Category Name":
+                    str(item.get("categoryName", "") or "").strip(),
+
+                "Swiggy Code":
+                    discount_code_text(item.get("discounts", []), "swiggy"),
+
+                "Zomato Code":
+                    discount_code_text(item.get("discounts", []), "zomato"),
+
+                "Discount Code":
+                    " | ".join(
+                        code for code in [
+                            discount_code_text(item.get("discounts", []), "swiggy"),
+                            discount_code_text(item.get("discounts", []), "zomato")
+                        ] if code != "No Offer"
+                    ) or "No Offer",
+
     
     
                 # ---------------------------------------------
@@ -1644,8 +1671,16 @@ def fetch_business_date(
         if 20 <= hour <= 22: return "Dinner"
         return "Post Dinner (Closing / Late Night)"
     item_sales_df["Session"] = order_time.apply(classify_session)
+    # Ensure optional fields exist even when a response has no discounts.
+    for col in ["Swiggy Code", "Zomato Code", "Category Name"]:
+        if col not in item_sales_df.columns:
+            item_sales_df[col] = "No Offer" if col in ["Swiggy Code", "Zomato Code"] else ""
+
     item_sales_df["Discount Code"] = [
-        " | ".join(x for x in [str(sw).strip(), str(zo).strip()] if x and x != "No Offer") or "No Offer"
+        " | ".join(
+            code for code in [str(sw).strip(), str(zo).strip()]
+            if code and code != "No Offer" and code.lower() != "nan"
+        ) or "No Offer"
         for sw, zo in zip(item_sales_df["Swiggy Code"], item_sales_df["Zomato Code"])
     ]
 
