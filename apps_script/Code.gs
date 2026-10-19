@@ -47,7 +47,7 @@ function getDashboardMeta() {
     months: Object.keys(monthSet).sort(),
     brands: unionSorted_(historyIndex.brands || [], liveIndex.brands || []),
     regions: unionSorted_(historyIndex.regions || [], liveIndex.regions || []),
-    categories: unionSorted_(historyIndex.categories || [], liveIndex.categories || []),
+    categories: unionSorted_(historyIndex.category_names || [], liveIndex.category_names || []),
     partition_count: partitions.length
   };
 }
