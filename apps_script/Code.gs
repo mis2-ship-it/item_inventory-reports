@@ -173,12 +173,13 @@ function inferProductMix_(itemName, categoryName) {
   if (has("ice cream soda")) return "Ice Cream Sodas";
   if (has("ice cream tub") || has("100 ml") || has("100ml")) return "Ice Cream Tubs (100ml)";
   if (has("gudbud")) return "Gudbud Sundae";
+  if (has("boba sundae")) return "Boba Sundaes";
+  if (has("ice cream sundae")) return "Ice Cream Sundae";
   if (has("sundae")) return "Sundaes";
   if (has("maggi")) return "Maggi";
   if (has("pasta")) return "Pasta";
   if (has("sandwich")) return "Sandwich";
   if (has("munchies") || has("fries") || has("nugget")) return "Munchies";
-  if (has("boba sundae")) return "Boba Sundaes";
   if (has("boba ice cream")) return "Boba Ice Cream";
   if (has("combo")) return "Combo";
   if (has("ice cream")) return "Ice Cream Sundae";
@@ -279,7 +280,7 @@ function buildPeriodTrend_(rows, period, fromDate, toDate) {
   const groups = {};
   rows.forEach(function (r) {
     const date = String(r["Business Date"] || "").slice(0, 10);
-    if (!date || date > toDate) return;
+    if (!date || date < fromDate && period !== "month" && period !== "week" || date > toDate) return;
     let key = date, label = date;
     if (period === "week") {
       const d = new Date(date + "T00:00:00Z");
@@ -291,17 +292,35 @@ function buildPeriodTrend_(rows, period, fromDate, toDate) {
       key = date.slice(0, 7);
       label = key;
     }
-    if (!groups[key]) groups[key] = {key:key,label:label,net:0,gross:0,discount:0,qty:0,invoices:{},lines:0};
+    if (!groups[key]) groups[key] = {key:key,label:label,net:0,gross:0,discount:0,qty:0,invoices:{},lines:0,hasData:true};
     const g = groups[key];
     g.net += num_(r["Net Amount"]); g.gross += num_(r["Gross Amount"]);
     g.discount += Math.abs(num_(r["Discount"])); g.qty += num_(r["Qty"]); g.lines++;
     const inv = String(r["invoiceNumber"] || "").trim(); if (inv) g.invoices[inv] = true;
   });
-  let out = Object.keys(groups).sort().map(function(k){const g=groups[k];const orders=Object.keys(g.invoices).length;return {key:g.key,label:g.label,net:round2_(g.net),gross:round2_(g.gross),discount:round2_(g.discount),qty:round2_(g.qty),orders:orders,discountPct:g.gross?round2_(g.discount/g.gross*100):0,aov:orders?round2_(g.net/orders):0,lines:g.lines};});
-  if (period === "week") out = out.slice(-4);
-  else if (period === "month") out = out.slice(-3);
-  else out = out.filter(function(x){return x.key >= fromDate && x.key <= toDate;}).slice(-31);
-  return out;
+  let keys = [];
+  if (period === "month") {
+    const base = String(toDate).slice(0, 7);
+    for (let i = 2; i >= 0; i--) keys.push(shiftMonthStart_(base, -i).slice(0, 7));
+  } else if (period === "week") {
+    const end = new Date(String(toDate).slice(0, 10) + "T00:00:00Z");
+    end.setUTCDate(end.getUTCDate() - ((end.getUTCDay() + 6) % 7));
+    for (let i = 3; i >= 0; i--) {
+      const d = new Date(end.getTime()); d.setUTCDate(d.getUTCDate() - i * 7);
+      keys.push(d.toISOString().slice(0, 10));
+    }
+  } else {
+    let d = new Date(String(fromDate).slice(0, 10) + "T00:00:00Z");
+    const end = new Date(String(toDate).slice(0, 10) + "T00:00:00Z");
+    while (d <= end && keys.length < 62) { keys.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+  }
+  return keys.map(function(key) {
+    const isMonth = period === "month", isWeek = period === "week";
+    const g = groups[key], label = g ? g.label : (isWeek ? key + " to " + shiftDateIso_(key, 6) : key);
+    if (!g) return {key:key,label:label,net:0,gross:0,discount:0,qty:0,orders:0,discountPct:0,aov:0,lines:0,hasData:false};
+    const orders = Object.keys(g.invoices).length;
+    return {key:g.key,label:label,net:round2_(g.net),gross:round2_(g.gross),discount:round2_(g.discount),qty:round2_(g.qty),orders:orders,discountPct:g.gross?round2_(g.discount/g.gross*100):0,aov:orders?round2_(g.net/orders):0,lines:g.lines,hasData:true};
+  });
 }
 
 function sessionFromDate_(value) {
