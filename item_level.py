@@ -790,7 +790,9 @@ def parse_discount_objects(value):
         if isinstance(parsed, dict):
             return [parsed]
     except Exception:
-        pass
+        # Some Rista responses expose the discount name as plain text
+        # rather than a serialized list/dict. Preserve it for regex extraction.
+        return [{"name": text}]
 
     return []
 
@@ -815,7 +817,7 @@ def extract_channel_discount_code(row):
     codes = []
     for value in values:
         for obj in parse_discount_objects(value):
-            name = str(obj.get("name", obj.get("code", "")) or "").strip()
+            name = str(obj.get("name") or obj.get("code") or "").strip()
             if not name:
                 continue
             match = re.search(pattern, name, flags=re.IGNORECASE)
