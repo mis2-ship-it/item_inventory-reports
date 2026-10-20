@@ -57,7 +57,7 @@
 <div class="panel"><div class="section-tools"><div class="section-title" style="margin:0 auto 0 0">Discount Code Performance</div><select id="discountSource" onchange="renderDiscounts()"><option value="">All Sources</option><option value="Swiggy">Swiggy</option><option value="Zomato">Zomato</option><option value="In Store">In Store</option><option value="Ownly">Ownly</option></select><input id="discountSearch" placeholder="Search discount code..." oninput="renderDiscounts()"></div><div class="table-wrap" id="discountTable"></div></div>
 </main>
 <script>
-var META=null, DATA=null, MAIN_TAB="category", PERIOD="month", ALL_PRODUCTS=[];
+var META=null, DATA=null, MAIN_TAB="category", PERIOD="month", ALL_PRODUCTS=[], SCATTER_CACHE={};
 function el(id){return document.getElementById(id)}
 function money(v){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(Number(v)||0)}
 function number(v){return new Intl.NumberFormat("en-IN",{maximumFractionDigits:2}).format(Number(v)||0)}
@@ -120,7 +120,38 @@ function barChartHtml(items,valueKey,formatter){
   return '<div class="bar-row"><div class="bar-label" title="'+escapeHtml(label)+'">'+escapeHtml(label)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.max(0,Math.min(100,v/max*100))+'%"></div></div><div class="bar-value">'+escapeHtml(value)+'</div></div>';
  }).join("");
 }
+function fillScatterFilters(){
+ if(!DATA)return;
+ [["dBrand","brand","All Brands"],["dSource","source","All Sources"],["dCategory","category","All Categories"],["dRegion","region","All Regions"],["aBrand","brand","All Brands"],["aSource","source","All Sources"],["aCategory","category","All Categories"],["aRegion","region","All Regions"]].forEach(function(spec){
+  var node=el(spec[0]),old=node.value,vals=Array.from(new Set(ALL_PRODUCTS.map(function(r){return String(r[spec[1]]||"")}).filter(Boolean))).sort();
+  addOptions(spec[0],vals,spec[2]);if(vals.indexOf(old)>=0)node.value=old;
+ });
+}
+function scatterRows(prefix){
+ var brand=el(prefix+"Brand").value,source=el(prefix+"Source").value,category=el(prefix+"Category").value,region=el(prefix+"Region").value,items={};
+ ALL_PRODUCTS.filter(function(r){return (!brand||r.brand===brand)&&(!source||r.source===source)&&(!category||r.category===category)&&(!region||r.region===region)}).forEach(function(r){
+  var k=r.item||"Unknown item";if(!items[k])items[k]={item:k,orders:0,qty:0,gross:0,discount:0,net:0};
+  var x=items[k];x.orders+=Number(r.orders)||0;x.qty+=Number(r.qty)||0;x.gross+=Number(r.gross)||0;x.discount+=Number(r.discount)||0;x.net+=Number(r.net)||0;
+ });
+ var total=Object.keys(items).reduce(function(a,k){return a+items[k].net},0)||1;
+ return Object.keys(items).map(function(k){var x=items[k];x.discountPct=x.gross?x.discount/x.gross*100:0;x.aov=x.orders?x.net/x.orders:0;x.contribution=x.net/total*100;return x});
+}
+function drawScatter(targetId,detailId,rows,kind){
+ var labels=kind==="discount"?["0–10%","10–20%","20–30%","30–40%","40–50%","50–60%","60–70%","70–80%",">80%"]:["<100","100–200","200–300","300–400","400–500","500–600","600–700","700–800",">800"];
+ function bucket(r){if(kind==="discount"){var v=r.discountPct;return v>80?8:Math.min(7,Math.max(0,Math.floor(v/10)))}var a=r.aov;if(a<100)return 0;if(a>800)return 8;return Math.min(7,Math.max(1,Math.floor(a/100)))}
+ rows.forEach(function(r){r.bucket=bucket(r)});
+ SCATTER_CACHE[targetId]=rows;
+ var width=900,height=300,left=48,right=16,top=18,bottom=48,plotW=width-left-right,plotH=height-top-bottom,maxC=Math.max.apply(null,rows.map(function(r){return r.contribution}).concat([0.05]));
+ var ticks=[0,maxC/2,maxC],svg='<svg class="scatter-svg" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="'+(kind==="discount"?"Discount":"AOV")+' bucket product contribution scatter plot">';
+ ticks.forEach(function(t){var y=top+plotH-(t/maxC)*plotH;svg+='<line x1="'+left+'" y1="'+y+'" x2="'+(width-right)+'" y2="'+y+'" stroke="#dbe4ee"/><text x="'+(left-8)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+number(t)+'%</text>'});
+ labels.forEach(function(l,i){var x=left+(i+.5)*plotW/labels.length;svg+='<line x1="'+x+'" y1="'+top+'" x2="'+x+'" y2="'+(top+plotH)+'" stroke="#eef2f6"/><text x="'+x+'" y="'+(height-20)+'" text-anchor="middle" font-size="10" fill="#334155">'+l+'</text>'});
+ rows.forEach(function(r,i){var x=left+(r.bucket+.5)*plotW/labels.length+(i%5-2)*3,y=top+plotH-(r.contribution/maxC)*plotH,rad=Math.max(3,Math.min(9,3+Math.sqrt(r.orders||0)/3));svg+='<circle class="scatter-dot" data-index="'+i+'" cx="'+x+'" cy="'+y+'" r="'+rad+'" fill="#397bb7" fill-opacity=".72"><title>'+escapeHtml(r.item)+' | Discount '+number(r.discountPct)+'% | AOV '+money(r.aov)+' | Contribution '+number(r.contribution)+'%</title></circle>'});
+ svg+='</svg>';el(targetId).innerHTML=rows.length?svg:'<div class="empty">No product items match these filters.</div>';
+ Array.from(el(targetId).querySelectorAll(".scatter-dot")).forEach(function(dot){dot.addEventListener("click",function(){showScatterDetailByIndex(detailId,targetId,Number(dot.getAttribute("data-index")))});});
+}
+function showScatterDetailByIndex(id,targetId,index){var r=(SCATTER_CACHE[targetId]||[])[index];if(!r)return;el(id).textContent="Item: "+r.item+" | Discount: "+number(r.discountPct)+"% | AOV: "+money(r.aov)+" | Net Revenue Contribution: "+number(r.contribution)+"%"}
 function renderScatterCharts(){if(!DATA)return;drawScatter("discountScatter","discountScatterDetail",scatterRows("d"),"discount");drawScatter("aovScatter","aovScatterDetail",scatterRows("a"),"aov")}
+if(!DATA)return;drawScatter("discountScatter","discountScatterDetail",scatterRows("d"),"discount");drawScatter("aovScatter","aovScatterDetail",scatterRows("a"),"aov")}
 function renderCharts(){var p=PERIOD,trend=DATA.periodTrend||[];el("periodChartTitle").textContent=(p==="week"?"Last 4 Weeks":p==="month"?"Last 3 Months":p==="live"?"Today":"Daily")+" Net Revenue Trend";el("periodTrendChart").innerHTML=barChartHtml(trend,"net",money);el("brandChart").innerHTML=barChartHtml((DATA.current.brands||[]).slice(0,7),"net",money);el("categoryChart").innerHTML=barChartHtml((DATA.current.categories||[]).slice(0,7),"net",money);el("mixChart").innerHTML=barChartHtml((DATA.current.productMix||[]).slice(0,7),"net",money);var sessionAgg={};(DATA.current.sessionMix||[]).forEach(function(r){if(!sessionAgg[r.session])sessionAgg[r.session]={name:r.session,net:0};sessionAgg[r.session].net+=Number(r.net)||0});el("sessionChart").innerHTML=barChartHtml(Object.keys(sessionAgg).map(function(k){return sessionAgg[k]}),"net",money);el("discountChart").innerHTML=barChartHtml((DATA.current.discounts||[]).filter(function(r){return r.source==="Swiggy"||r.source==="Zomato"}).slice(0,7),"net",money)}
 function renderAll(){if(!DATA)return;el("status").style.color="";var info=DATA.info;el("status").textContent="Loaded "+number(info.matchingRows)+" matching item lines from "+info.fromDate+" to "+info.toDate+". Live date: "+info.liveDate+(info.warnings&&info.warnings.length?" | Warnings: "+info.warnings.join("; "):"");renderKpis(DATA.current.kpis);renderGrowth();renderPrimary();renderTrend();refreshProductFilters();renderProductTable();renderSessions();renderDiscounts();fillScatterFilters();renderScatterCharts();renderCharts()}
 el("month").addEventListener("change",function(){if(PERIOD==="month")setMonthDates(this.value)});
