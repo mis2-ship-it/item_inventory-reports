@@ -92,9 +92,9 @@ def discount_code_text(value, channel, extra_value=None):
     """
     channel = str(channel or "").strip().lower()
     if "swiggy" in channel:
-        pattern = r"Restaurant Discount\s*\((.*?)\)"
+        pattern = r"Restaurant Discount(?:\s*-\s*Swiggy)?\s*\((.*?)\)"
     elif "zomato" in channel:
-        pattern = r"Merchant Discount\s*\((.*?)\)"
+        pattern = r"Merchant Discount(?:\s*-\s*Zomato)?\s*\((.*?)\)"
     else:
         return "No Offer"
 
