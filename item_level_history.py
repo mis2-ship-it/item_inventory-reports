@@ -81,11 +81,14 @@ def headers():
     }
 
 
-def discount_code_text(value, channel):
+def discount_code_text(value, channel, extra_value=None):
     """
-    Extract a platform discount code according to the sale's channel:
+    Extract a platform discount code using the sale channel:
       Swiggy -> Restaurant Discount (CODE)
       Zomato -> Merchant Discount (CODE)
+
+    Check both item-level discounts and sale-level discounts because
+    Rista can place the platform promotion in either payload.
     """
     channel = str(channel or "").strip().lower()
     if "swiggy" in channel:
@@ -95,28 +98,38 @@ def discount_code_text(value, channel):
     else:
         return "No Offer"
 
-    if value is None:
-        return "No Offer"
-    if isinstance(value, str):
-        try:
-            value = ast.literal_eval(value)
-        except Exception:
-            value = [{"name": value.strip()}] if value.strip() else []
-    if isinstance(value, dict):
-        value = [value]
-    if not isinstance(value, list):
-        return "No Offer"
+    def parse_objects(raw):
+        if raw is None:
+            return []
+        if isinstance(raw, str):
+            try:
+                raw = ast.literal_eval(raw)
+            except Exception:
+                raw = [{"name": raw.strip()}] if raw.strip() else []
+        if isinstance(raw, dict):
+            return [raw]
+        if not isinstance(raw, list):
+            return []
+        result = []
+        for entry in raw:
+            if isinstance(entry, dict):
+                result.append(entry)
+            elif isinstance(entry, (list, tuple)):
+                result.extend(parse_objects(entry))
+            elif isinstance(entry, str):
+                result.extend(parse_objects(entry))
+        return result
 
     codes = []
-    for obj in value:
-        if not isinstance(obj, dict):
-            continue
-        name = str(obj.get("name", obj.get("code", "")) or "").strip()
-        match = re.search(pattern, name, flags=re.IGNORECASE)
-        if match and match.group(1).strip():
-            codes.append(match.group(1).strip())
+    for raw in (value, extra_value):
+        for obj in parse_objects(raw):
+            name = str(obj.get("name", obj.get("code", "")) or "").strip()
+            match = re.search(pattern, name, flags=re.IGNORECASE)
+            if match and match.group(1).strip():
+                codes.append(match.group(1).strip())
 
-    return " | ".join(dict.fromkeys(codes)) if codes else "No Offer"
+    unique_codes = list(dict.fromkeys(codes))
+    return " | ".join(unique_codes) if unique_codes else "No Offer"
 
 
 # =========================================================
@@ -1514,7 +1527,8 @@ def fetch_business_date(
                 "Swiggy Code":
                     discount_code_text(
                         item.get("discounts", []),
-                        sale.get("channel", "")
+                        sale.get("channel", ""),
+                        sale.get("discounts", [])
                     ) if "swiggy" in str(sale.get("channel", "")).lower() else "No Offer",
 
                 "Zomato Code":
@@ -1526,7 +1540,8 @@ def fetch_business_date(
                 "Discount Code":
                     discount_code_text(
                         item.get("discounts", []),
-                        sale.get("channel", "")
+                        sale.get("channel", ""),
+                        sale.get("discounts", [])
                     ),
 
     
