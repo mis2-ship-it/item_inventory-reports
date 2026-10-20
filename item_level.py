@@ -802,7 +802,7 @@ def extract_channel_discount_code(row):
       Zomato -> Merchant Discount (CODE)
     Use the row's channel to decide which code to extract.
     """
-    channel = str(row.get("channel", "") or "").strip().lower()
+    channel = " ".join([str(row.get("channel", "") or ""), str(row.get("Source", "") or "")]).strip().lower()
     if "swiggy" in channel:
         pattern = r"Restaurant Discount\s*\((.*?)\)"
         values = [row.get("item_discounts", ""), row.get("discounts", "")]
