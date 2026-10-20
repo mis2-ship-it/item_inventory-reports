@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-20T05:54:36.342751+05:30",
+  "updated_at": "2026-10-20T15:04:11.238600+05:30",
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
@@ -45,7 +45,48 @@
     "Thickshakes",
     "Waffle Sundaes"
   ],
-  "category_names": [],
+  "category_names": [
+    "All Day Food",
+    "All day Foods",
+    "Bakery & Desserts",
+    "Belgian Hot Chocolate by Frozen Bottle",
+    "Belgian Hot Chocolates",
+    "Belgian Waffles",
+    "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Celebration Cakes",
+    "Celebration Loaf Cake",
+    "Cheesecakes",
+    "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
+    "Classic Bubble Teas",
+    "Cold Coffees",
+    "Festive Specials",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Frozen Bottle X Activ Hippy Energy Coolers",
+    "Frozen Bottle X Hersheys Range",
+    "Fruity Bubble Teas",
+    "Gifting Hampers",
+    "Gudbud Sundae Jars (Serves2)",
+    "Gudbud Sundae Tubs (Serves 2)",
+    "Ice Cream Sodas",
+    "Ice Cream Sundae Jars",
+    "Ice Creams",
+    "Ice cream Cones",
+    "Matcha Latte Bubble Teas",
+    "Milkshake and Bubble Teas",
+    "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
+    "Others",
+    "Party Combos",
+    "Pistachio Specials",
+    "Popping Boba Mocktail",
+    "Popping Boba Mocktails",
+    "Refreshing Coolers",
+    "Signature Ice cream Sundaes",
+    "Sundae Ice Cream Tubs (100 ML)",
+    "Thickshakes",
+    "Waffles"
+  ],
   "files": [
     {
       "file": "item_level_week_2026-08-31.csv",
@@ -53,7 +94,7 @@
       "start_date": "2026-09-01",
       "end_date": "2026-09-06",
       "rows": 49045,
-      "size_bytes": 12703502
+      "size_bytes": 12948787
     },
     {
       "file": "item_level_week_2026-09-07.csv",
@@ -61,7 +102,7 @@
       "start_date": "2026-09-07",
       "end_date": "2026-09-13",
       "rows": 64884,
-      "size_bytes": 17031716
+      "size_bytes": 17356196
     },
     {
       "file": "item_level_week_2026-09-14.csv",
@@ -69,7 +110,7 @@
       "start_date": "2026-09-14",
       "end_date": "2026-09-20",
       "rows": 61053,
-      "size_bytes": 15709970
+      "size_bytes": 16015295
     },
     {
       "file": "item_level_week_2026-09-21.csv",
@@ -77,7 +118,7 @@
       "start_date": "2026-09-21",
       "end_date": "2026-09-27",
       "rows": 62201,
-      "size_bytes": 16071106
+      "size_bytes": 16382171
     },
     {
       "file": "item_level_week_2026-09-28.csv",
@@ -85,7 +126,7 @@
       "start_date": "2026-09-28",
       "end_date": "2026-10-04",
       "rows": 65673,
-      "size_bytes": 17027100
+      "size_bytes": 17355525
     },
     {
       "file": "item_level_week_2026-10-05.csv",
@@ -93,7 +134,7 @@
       "start_date": "2026-10-05",
       "end_date": "2026-10-11",
       "rows": 70606,
-      "size_bytes": 18187900
+      "size_bytes": 18540990
     },
     {
       "file": "item_level_week_2026-10-12.csv",
@@ -101,15 +142,15 @@
       "start_date": "2026-10-12",
       "end_date": "2026-10-18",
       "rows": 54207,
-      "size_bytes": 13944940
+      "size_bytes": 14216035
     },
     {
       "file": "item_level_week_2026-10-19.csv",
       "path": "history/item_level_week_2026-10-19.csv",
       "start_date": "2026-10-19",
-      "end_date": "2026-10-19",
-      "rows": 147,
-      "size_bytes": 36816
+      "end_date": "2026-10-20",
+      "rows": 1623,
+      "size_bytes": 511455
     }
   ]
 }
