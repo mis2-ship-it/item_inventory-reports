@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-19T14:49:13.393936+05:30",
+  "updated_at": "2026-10-20T05:54:36.342751+05:30",
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
@@ -45,6 +45,7 @@
     "Thickshakes",
     "Waffle Sundaes"
   ],
+  "category_names": [],
   "files": [
     {
       "file": "item_level_week_2026-08-31.csv",
