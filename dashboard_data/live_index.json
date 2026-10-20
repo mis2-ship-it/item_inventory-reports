@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-20T11:25:33.930362+05:30",
+  "updated_at": "2026-10-20T12:30:12.813494+05:30",
   "business_date": "2026-10-20",
-  "rows": 123,
+  "rows": 341,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,7 +31,9 @@
     "Net Amount"
   ],
   "brands": [
+    "Boba Bar",
     "Frozen Bottle",
+    "Lubov- Patisserie",
     "Madno"
   ],
   "regions": [
@@ -41,32 +43,48 @@
     "TN"
   ],
   "categories": [
+    "ActivHippy",
     "All day Foods",
+    "Bakery & Desserts",
     "Belgian Waffles",
     "Boba Teas",
     "Bubble Teas",
     "Cold Coffees",
+    "Festival Specials",
     "Gudbud Sundae",
     "Hot Chocolate",
     "Ice Cream Cones",
+    "Ice Cream Scoops",
+    "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
+    "Popping Boba Sundae",
+    "Popping Boba Tea",
     "Refreshing Coolers",
     "Thickshakes"
   ],
   "category_names": [
     "All Day Food",
     "All day Foods",
+    "Bakery & Desserts",
     "Belgian Hot Chocolate by Frozen Bottle",
     "Belgian Hot Chocolates",
     "Belgian Waffles",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Chocolate & Coffee Latte Bubble Teas",
     "Cold Coffees",
+    "Festive Specials",
+    "Frozen Bottle X Activ Hippy Energy Coolers",
+    "Frozen Bottle X Hersheys Range",
+    "Fruity Bubble Teas",
+    "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
+    "Ice Creams",
     "Ice cream Cones",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
