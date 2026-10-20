@@ -85,6 +85,11 @@ jobs:
           ls -lah historical_data/
 
           echo ""
+          echo "August file:"
+          ls -lah historical_data/item_level_2026_08.csv || true
+          wc -l historical_data/item_level_2026_08.csv || true
+
+          echo ""
           echo "September file:"
           ls -lah historical_data/item_level_2026_09.csv || true
 
