@@ -155,7 +155,8 @@ function inferProductMix_(itemName, categoryName) {
   if (has("milkshake")) return "Milkshakes";
   if (has("cold coffee") || has("cold coffees") || has("iced coffee")) return "Cold Coffees";
   if (has("hot chocolate")) return "Hot Chocolate";
-  if (has("bubble tea") || has("boba tea")) return "Bubble Teas";
+  if (has("bubble tea")) return "Bubble Teas";
+  if (has("boba tea")) return "Boba Teas";
   if (has("mocktail") || has("moctail")) return "Mocktails";
   if (has("waffle sundae")) return "Waffle Sundaes";
   if (has("waffle")) return "Waffles";
