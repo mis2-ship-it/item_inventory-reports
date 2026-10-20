@@ -73,7 +73,7 @@ function setCompareMonthDates(m){if(!m)return;el("compareFromDate").value=monthS
 function setMainTab(tab){MAIN_TAB=tab;["category","productMix","discount"].forEach(function(t){el("tab-"+t).classList.toggle("active",t===tab)});renderAll()}
 function setPeriod(p){PERIOD=p;["live","daily","week","month"].forEach(function(t){el("period-"+t).classList.toggle("active",t===p)});if(!META)return;var live=META.live_date;var m=el("month").value;
  if(p==="live"){el("fromDate").value=live;el("toDate").value=live;el("compareFromDate").value="";el("compareToDate").value=""}
- if(p==="daily"){if(!el("fromDate").value){el("fromDate").value=live}if(!el("toDate").value){el("toDate").value=live}var span=Math.max(0,Math.round((new Date(el("toDate").value)-new Date(el("fromDate").value))/86400000));el("compareToDate").value=shiftDate(el("fromDate").value,-1);el("compareFromDate").value=shiftDate(el("compareToDate").value,-span)}
+ if(p==="daily"){el("fromDate").value=live;el("toDate").value=live;el("compareFromDate").value=shiftDate(live,-1);el("compareToDate").value=shiftDate(live,-1)}
  if(p==="week"){var d=new Date(live+"T12:00:00");var day=(d.getDay()+6)%7;var start=shiftDate(live,-day);el("fromDate").value=start;el("toDate").value=live;el("compareFromDate").value=shiftDate(start,-7);el("compareToDate").value=shiftDate(start,-1)}
  if(p==="month"){if(!m)m=live.slice(0,7);el("month").value=m;setMonthDates(m);var months=META.months;var idx=months.indexOf(m);var prev=idx>0?months[idx-1]:"";if(prev){el("compareMonth").value=prev;setCompareMonthDates(prev)}else{el("compareMonth").value="";el("compareFromDate").value="";el("compareToDate").value=""}}
  updateDateControlVisibility();applyFilters()}
