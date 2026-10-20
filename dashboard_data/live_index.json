@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-20T16:56:34.522778+05:30",
+  "updated_at": "2026-10-20T18:30:31.736308+05:30",
   "business_date": "2026-10-20",
-  "rows": 2494,
+  "rows": 3210,
   "columns": [
     "Business Date",
     "branchCode",
@@ -71,12 +71,14 @@
     "Waffle Sundaes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Hot Chocolate by Frozen Bottle",
     "Belgian Hot Chocolates",
     "Belgian Waffles",
+    "Boba Ice cream Sundaes",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
     "Celebration Loaf Cake",
