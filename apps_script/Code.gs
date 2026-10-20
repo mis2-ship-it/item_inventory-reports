@@ -140,7 +140,7 @@ function getDashboardData(filters) {
 }
 
 function inferProductMix_(itemName, categoryName) {
-  const t = (String(itemName || "") + " " + String(categoryName || "")).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const t = String(itemName || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const has = function (x) { return t.indexOf(x) >= 0; };
   if (has("popping boba tea")) return "Popping Boba Tea";
   if (has("boba pancake") || has("pancake")) return "Boba Pancakes";
@@ -174,6 +174,7 @@ function inferProductMix_(itemName, categoryName) {
   if (has("ice cream soda")) return "Ice Cream Sodas";
   if (has("ice cream tub") || has("100 ml") || has("100ml")) return "Ice Cream Tubs (100ml)";
   if (has("gudbud")) return "Gudbud Sundae";
+  if (has("monster") && has("sundae")) return "Monster Sundaes";
   if (has("boba sundae")) return "Boba Sundaes";
   if (has("ice cream sundae")) return "Ice Cream Sundae";
   if (has("sundae")) return "Sundaes";
@@ -185,6 +186,7 @@ function inferProductMix_(itemName, categoryName) {
   if (has("combo")) return "Combo";
   if (has("ice cream")) return "Ice Cream Sundae";
   if (has("dessert")) return "Desserts";
+  if (categoryName && String(categoryName).trim().toLowerCase() !== String(itemName || "").trim().toLowerCase()) return inferProductMix_(categoryName, "");
   return "Others";
 }
 
