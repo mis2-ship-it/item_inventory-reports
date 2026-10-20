@@ -1534,7 +1534,8 @@ def fetch_business_date(
                 "Zomato Code":
                     discount_code_text(
                         item.get("discounts", []),
-                        sale.get("channel", "")
+                        sale.get("channel", ""),
+                        sale.get("discounts", [])
                     ) if "zomato" in str(sale.get("channel", "")).lower() else "No Offer",
 
                 "Discount Code":
