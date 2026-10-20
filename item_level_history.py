@@ -123,7 +123,7 @@ def discount_code_text(value, channel, extra_value=None):
     codes = []
     for raw in (value, extra_value):
         for obj in parse_objects(raw):
-            name = str(obj.get("name", obj.get("code", "")) or "").strip()
+            name = str(obj.get("name") or obj.get("code") or "").strip()
             match = re.search(pattern, name, flags=re.IGNORECASE)
             if match and match.group(1).strip():
                 codes.append(match.group(1).strip())
