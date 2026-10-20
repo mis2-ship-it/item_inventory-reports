@@ -804,10 +804,10 @@ def extract_channel_discount_code(row):
     """
     channel = " ".join([str(row.get("channel", "") or ""), str(row.get("Source", "") or "")]).strip().lower()
     if "swiggy" in channel:
-        pattern = r"Restaurant Discount\s*\((.*?)\)"
+        pattern = r"Restaurant Discount(?:\s*-\s*Swiggy)?\s*\((.*?)\)"
         values = [row.get("item_discounts", ""), row.get("discounts", "")]
     elif "zomato" in channel:
-        pattern = r"Merchant Discount\s*\((.*?)\)"
+        pattern = r"Merchant Discount(?:\s*-\s*Zomato)?\s*\((.*?)\)"
         values = [row.get("discounts", ""), row.get("item_discounts", "")]
     else:
         return "No Offer"
