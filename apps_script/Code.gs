@@ -47,7 +47,7 @@ function getDashboardMeta() {
     months: Object.keys(monthSet).sort(),
     brands: unionSorted_(historyIndex.brands || [], liveIndex.brands || []),
     regions: unionSorted_(historyIndex.regions || [], liveIndex.regions || []),
-    categories: unionSorted_(historyIndex.category_names || [], liveIndex.category_names || []),
+    categories: unionSorted_(historyIndex.category_names || historyIndex.categories || [], liveIndex.category_names || liveIndex.categories || []),
     partition_count: partitions.length
   };
 }
@@ -65,8 +65,17 @@ function getDashboardData(filters) {
   }
   if (compareFromDate && compareFromDate > compareToDate) throw new Error("Comparison start date cannot be after comparison end date.");
 
-  const loadFrom = compareFromDate ? (fromDate < compareFromDate ? fromDate : compareFromDate) : fromDate;
+  const period = String(filters.period || "daily");
+  let loadFrom = compareFromDate ? (fromDate < compareFromDate ? fromDate : compareFromDate) : fromDate;
   const loadTo = compareToDate ? (toDate > compareToDate ? toDate : compareToDate) : toDate;
+  // Load extra history for trend panels: four weeks or three months.
+  if (period === "week") {
+    const trendStart = shiftDateIso_(fromDate, -21);
+    if (trendStart < loadFrom) loadFrom = trendStart;
+  } else if (period === "month") {
+    const trendStart = shiftMonthStart_(fromDate.slice(0, 7), -2);
+    if (trendStart < loadFrom) loadFrom = trendStart;
+  }
   const historyIndex = fetchJson_(HISTORY_INDEX_URL, true);
   const liveIndex = fetchJson_(LIVE_INDEX_URL, true);
   const liveDate = String(liveIndex.business_date || "");
@@ -122,17 +131,18 @@ function getDashboardData(filters) {
       category: String(filters.category || ""), loadedRows: rows.length,
       matchingRows: currentRows.length, liveDate: liveDate,
       liveUpdatedAt: liveIndex.updated_at || "", historyUpdatedAt: historyIndex.updated_at || "",
-      partitionCount: partitions.length, warnings: errors
+      partitionCount: partitions.length, period: period, warnings: errors
     },
     current: buildDashboardResult_(currentRows),
-    comparison: compareFromDate ? buildDashboardResult_(comparisonRows) : null
+    comparison: compareFromDate ? buildDashboardResult_(comparisonRows) : null,
+    periodTrend: buildPeriodTrend_(filtered, period, fromDate, toDate)
   };
 }
 
 function buildDashboardResult_(rows) {
   let gross = 0, discount = 0, net = 0, qty = 0;
   const invoices = {}, products = {}, brands = {}, regions = {}, categories = {};
-  const productMix = {}, sessionMix = {}, discounts = {}, dates = {};
+  const productMix = {}, sessionMix = {}, discounts = {}, dates = {}, sources = {};
 
   function add(map, key, base, invoice, q, g, d, n) {
     if (!map[key]) map[key] = base;
@@ -150,24 +160,31 @@ function buildDashboardResult_(rows) {
     const item = String(r["Item Name"] || "Unknown item").trim() || "Unknown item";
     const mix = String(r["Product Mix"] || "Unmapped").trim() || "Unmapped";
     const session = String(r["Session"] || sessionFromDate_(r["createdDate"]) || "Unknown");
+    const channel = String(r["channel"] || "").trim();
+    const sourceRaw = String(r["Source"] || "").trim();
+    const source = /swiggy/i.test(sourceRaw + " " + channel) ? "Swiggy" : (/zomato/i.test(sourceRaw + " " + channel) ? "Zomato" : (sourceRaw || channel || "Other"));
     const date = String(r["Business Date"] || "").slice(0, 10);
     const g = num_(r["Gross Amount"]), d = Math.abs(num_(r["Discount"]));
     const n = num_(r["Net Amount"]), q = num_(r["Qty"]);
     gross += g; discount += d; net += n; qty += q;
     if (invoice) invoices[invoice] = true;
 
-    const dims = {item:item, brand:brand, region:region, category:category, groupedCategory:groupedCategory, mix:mix, session:session};
-    add(products, [item,brand,region,category,mix].join("||"), Object.assign({name:item, ordersSet:{},qty:0,gross:0,discount:0,net:0},dims), invoice,q,g,d,n);
+    const dims = {item:item, brand:brand, region:region, category:category, groupedCategory:groupedCategory, mix:mix, session:session, source:source};
+    add(products, [item,brand,region,category,mix,source].join("||"), Object.assign({name:item, ordersSet:{},qty:0,gross:0,discount:0,net:0},dims), invoice,q,g,d,n);
     add(brands, brand, {name:brand,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(regions, region, {name:region,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(categories, category, {name:category,ordersSet:{},qty:0,gross:0,discount:0,net:0,groupedCategory:groupedCategory},invoice,q,g,d,n);
     add(productMix, mix, {name:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(sessionMix, session + "||" + mix, {name:session,session:session,mix:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+    add(sources, source, {name:source,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
 
-    const codeSource = String(r["Source"] || "").trim();
-    const codeField = /swiggy/i.test(codeSource) ? "Swiggy Code" : (/zomato/i.test(codeSource) ? "Zomato Code" : "Discount Code");
-    const code = String(r[codeField] || r["Discount Code"] || "No Offer").trim() || "No Offer";
-    add(discounts, [codeSource,code].join("||"), {name:code,source:codeSource,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
+    const platformSource = /swiggy/i.test(sourceRaw + " " + channel) ? "Swiggy" : (/zomato/i.test(sourceRaw + " " + channel) ? "Zomato" : source);
+    const platformField = platformSource === "Swiggy" ? "Swiggy Code" : (platformSource === "Zomato" ? "Zomato Code" : "Discount Code");
+    const platformCode = String(r[platformField] || "").trim();
+    const generalCode = String(r["Discount Code"] || "").trim();
+    const isNoOffer = function(v) { return !v || /^no offer$|^-$|^n\/a$/i.test(v); };
+    const code = !isNoOffer(platformCode) ? platformCode : (!isNoOffer(generalCode) ? generalCode : "No Offer");
+    add(discounts, [platformSource,code].join("||"), {name:code,source:platformSource,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
 
     if (date) {
       if (!dates[date]) dates[date] = {date:date,gross:0,discount:0,net:0,qty:0,ordersSet:{}};
@@ -194,8 +211,50 @@ function buildDashboardResult_(rows) {
       aov:Object.keys(invoices).length?round2_(net/Object.keys(invoices).length):0,itemLines:rows.length},
     trend:Object.keys(dates).sort().map(function(date){const x=dates[date];return {date:date,net:round2_(x.net),orders:Object.keys(x.ordersSet).length,qty:round2_(x.qty)};}),
     products:arr(products),brands:arr(brands),regions:arr(regions),categories:arr(categories),
-    productMix:arr(productMix),sessionMix:arr(sessionMix),discounts:arr(discounts)
+    productMix:arr(productMix),sessionMix:arr(sessionMix),discounts:arr(discounts),sources:arr(sources)
   };
+}
+
+
+function shiftDateIso_(iso, days) {
+  const d = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + Number(days || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function shiftMonthStart_(yyyyMm, offset) {
+  const p = String(yyyyMm).split("-");
+  const d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1 + Number(offset || 0), 1));
+  return d.toISOString().slice(0, 10);
+}
+
+function buildPeriodTrend_(rows, period, fromDate, toDate) {
+  const groups = {};
+  rows.forEach(function (r) {
+    const date = String(r["Business Date"] || "").slice(0, 10);
+    if (!date || date > toDate) return;
+    let key = date, label = date;
+    if (period === "week") {
+      const d = new Date(date + "T00:00:00Z");
+      const dow = (d.getUTCDay() + 6) % 7;
+      d.setUTCDate(d.getUTCDate() - dow);
+      key = d.toISOString().slice(0, 10);
+      label = key + " to " + shiftDateIso_(key, 6);
+    } else if (period === "month") {
+      key = date.slice(0, 7);
+      label = key;
+    }
+    if (!groups[key]) groups[key] = {key:key,label:label,net:0,gross:0,discount:0,qty:0,invoices:{},lines:0};
+    const g = groups[key];
+    g.net += num_(r["Net Amount"]); g.gross += num_(r["Gross Amount"]);
+    g.discount += Math.abs(num_(r["Discount"])); g.qty += num_(r["Qty"]); g.lines++;
+    const inv = String(r["invoiceNumber"] || "").trim(); if (inv) g.invoices[inv] = true;
+  });
+  let out = Object.keys(groups).sort().map(function(k){const g=groups[k];const orders=Object.keys(g.invoices).length;return {key:g.key,label:g.label,net:round2_(g.net),gross:round2_(g.gross),discount:round2_(g.discount),qty:round2_(g.qty),orders:orders,discountPct:g.gross?round2_(g.discount/g.gross*100):0,aov:orders?round2_(g.net/orders):0,lines:g.lines};});
+  if (period === "week") out = out.slice(-4);
+  else if (period === "month") out = out.slice(-3);
+  else out = out.filter(function(x){return x.key >= fromDate && x.key <= toDate;}).slice(-31);
+  return out;
 }
 
 function sessionFromDate_(value) {
