@@ -139,6 +139,53 @@ function getDashboardData(filters) {
   };
 }
 
+function inferProductMix_(itemName, categoryName) {
+  const t = (String(itemName || "") + " " + String(categoryName || "")).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const has = function (x) { return t.indexOf(x) >= 0; };
+  if (has("popping boba tea")) return "Popping Boba Tea";
+  if (has("boba pancake") || has("pancake")) return "Boba Pancakes";
+  if (has("ice cream sundae jar") && (has("350") || has("l 350"))) return "Ice Cream Sundae Jars(L 350ml)";
+  if (has("ice cream sundae jar") && (has("200") || has("r 200"))) return "Ice Cream Sundae Jars(R 200ml)";
+  if (has("ice cream dessert jar")) return "Ice Cream Dessert Jar";
+  if (has("dessert jar") || has("tiramisu jar") || has("jar dessert")) return "Dessert Jar";
+  if (has("monster") && has("milkshake")) return "Monster Milkshakes";
+  if (has("milkshake") && (has("500ml") || has("l 500"))) return "Milkshakes (L 500ml)";
+  if (has("milkshake") && (has("300ml") || has("m 300"))) return "Milkshakes (M 300ml)";
+  if (has("milkshake") && (has("200ml") || has("r 200"))) return "Milkshakes (R 200ml)";
+  if (has("milkshake")) return "Milkshakes";
+  if (has("cold coffee") || has("cold coffees") || has("iced coffee")) return "Cold Coffees";
+  if (has("hot chocolate")) return "Hot Chocolate";
+  if (has("bubble tea") || has("boba tea")) return "Bubble Teas";
+  if (has("mocktail") || has("moctail")) return "Mocktails";
+  if (has("waffle sundae")) return "Waffle Sundaes";
+  if (has("waffle")) return "Waffles";
+  if (has("brownie")) return "Brownies";
+  if (has("cheesecake")) return "Cheesecakes";
+  if (has("cup cake") || has("cupcake")) return "Cup Cakes";
+  if (has("cake")) return "Cake";
+  if (has("pastry")) return "Pastry";
+  if (has("muffin")) return "Muffins";
+  if (has("macaron")) return "Macarons";
+  if (has("gift hamper") || has("hamper")) return "Gift Hampers";
+  if (has("cone")) return "Ice cream Cones";
+  if (has("scoop") && has("double")) return "Ice Cream Scoops (Double)";
+  if (has("scoop")) return "Ice Cream Scoops (Single)";
+  if (has("ice cream soda")) return "Ice Cream Sodas";
+  if (has("ice cream tub") || has("100 ml") || has("100ml")) return "Ice Cream Tubs (100ml)";
+  if (has("gudbud")) return "Gudbud Sundae";
+  if (has("sundae")) return "Sundaes";
+  if (has("maggi")) return "Maggi";
+  if (has("pasta")) return "Pasta";
+  if (has("sandwich")) return "Sandwich";
+  if (has("munchies") || has("fries") || has("nugget")) return "Munchies";
+  if (has("boba sundae")) return "Boba Sundaes";
+  if (has("boba ice cream")) return "Boba Ice Cream";
+  if (has("combo")) return "Combo";
+  if (has("ice cream")) return "Ice Cream Sundae";
+  if (has("dessert")) return "Desserts";
+  return "Others";
+}
+
 function buildDashboardResult_(rows) {
   let gross = 0, discount = 0, net = 0, qty = 0;
   const invoices = {}, products = {}, brands = {}, regions = {}, categories = {};
@@ -155,10 +202,10 @@ function buildDashboardResult_(rows) {
     const invoice = String(r["invoiceNumber"] || "").trim();
     const brand = String(r["brandName"] || "Unknown").trim() || "Unknown";
     const region = String(r["Region"] || "Unmapped").trim() || "Unmapped";
-    const category = String(r["Category Name"] || "").trim() || "Category unavailable in source data";
+    const category = String(r["Category Name"] || r["categoryName"] || r["item_categoryName"] || "").trim() || "Uncategorized (Rista category missing)";
     const groupedCategory = String(r["Category Group"] || "Others").trim() || "Others";
     const item = String(r["Item Name"] || "Unknown item").trim() || "Unknown item";
-    const mix = String(r["Product Mix"] || "Unmapped").trim() || "Unmapped";
+    const mix = inferProductMix_(item, category);
     const session = String(r["Session"] || sessionFromDate_(r["createdDate"]) || "Unknown");
     const channel = String(r["channel"] || "").trim();
     const sourceRaw = String(r["Source"] || "").trim();
