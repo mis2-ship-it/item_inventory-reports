@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-21T16:30:19.218755+05:30",
+  "updated_at": "2026-10-21T18:30:24.931402+05:30",
   "business_date": "2026-10-21",
-  "rows": 1683,
+  "rows": 2464,
   "columns": [
     "Business Date",
     "branchCode",
@@ -43,6 +43,7 @@
     "TN"
   ],
   "categories": [
+    "ActivHippy",
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Waffles",
@@ -67,7 +68,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -86,6 +88,7 @@
     "Cold Coffees",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
     "Gifting Hampers",
@@ -100,7 +103,9 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pistachio Specials",
     "Popping Boba Mocktail",
