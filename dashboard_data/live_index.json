@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-21T20:42:09.628006+05:30",
+  "updated_at": "2026-10-21T22:30:54.918971+05:30",
   "business_date": "2026-10-21",
-  "rows": 3317,
+  "rows": 4603,
   "columns": [
     "Business Date",
     "branchCode",
@@ -89,6 +89,7 @@
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Cupcakes",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
