@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-21T12:30:08.301022+05:30",
+  "updated_at": "2026-10-21T14:30:06.714968+05:30",
   "business_date": "2026-10-21",
-  "rows": 239,
+  "rows": 839,
   "columns": [
     "Business Date",
     "branchCode",
@@ -33,6 +33,7 @@
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
+    "Lubov- Patisserie",
     "Madno"
   ],
   "regions": [
@@ -48,6 +49,7 @@
     "Boba Sundaes",
     "Boba Teas",
     "Bubble Teas",
+    "Celebration Cakes",
     "Cold Coffees",
     "Festival Specials",
     "Frozen Bottle X Hersheys Range",
@@ -61,6 +63,7 @@
     "Monster Sundaes",
     "Others",
     "Party Combos",
+    "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
     "Thickshakes"
@@ -74,8 +77,10 @@
     "Belgian Waffles",
     "Boba Ice cream Sundaes",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Celebration Cakes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
+    "Classic Bubble Teas",
     "Cold Coffees",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
@@ -83,12 +88,14 @@
     "Fruity Bubble Teas",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
     "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
+    "Mini Cakes",
     "Monster Sundaes",
     "Others",
     "Party Combos",
