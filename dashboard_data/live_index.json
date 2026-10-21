@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-21T14:30:06.714968+05:30",
+  "updated_at": "2026-10-21T15:33:05.942638+05:30",
   "business_date": "2026-10-21",
-  "rows": 839,
+  "rows": 1282,
   "columns": [
     "Business Date",
     "branchCode",
@@ -48,6 +48,7 @@
     "Belgian Waffles",
     "Boba Sundaes",
     "Boba Teas",
+    "Brownies",
     "Bubble Teas",
     "Celebration Cakes",
     "Cold Coffees",
@@ -76,6 +77,7 @@
     "Belgian Hot Chocolates",
     "Belgian Waffles",
     "Boba Ice cream Sundaes",
+    "Brownies",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
     "Chocolate & Coffee Latte Bubble Teas",
@@ -86,6 +88,7 @@
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
+    "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
     "Guilt Free Desserts",
