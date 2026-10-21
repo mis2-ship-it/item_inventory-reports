@@ -47,7 +47,7 @@
 </div>
 <div class="grid2">
  <div class="panel"><div class="section-tools"><div class="section-title" id="primaryTitle" style="margin:0 auto 0 0">Category Performance</div><label>Growth Metric</label><select class="growth-metric-link" id="primaryMetric" onchange="syncGrowthMetric(this.value)"><option value="net">Net Revenue</option><option value="orders">Orders</option><option value="qty">Quantity</option><option value="discount">Discount</option><option value="discountPct">Discount %</option><option value="mix">Revenue %</option></select></div><div class="table-wrap" id="primaryTable"></div></div>
- <div class="panel"><div class="section-title">Daily Net Revenue Trend</div><div class="table-wrap" id="trendTable"></div></div>
+ <div class="panel"><div class="section-tools"><div class="section-title" style="margin:0 auto 0 0">Period Performance Trend</div><label>Growth Metric</label><select class="growth-metric-link" id="trendMetric" onchange="syncGrowthMetric(this.value)"><option value="net">Net Revenue</option><option value="orders">Orders</option><option value="qty">Quantity</option><option value="discount">Discount</option><option value="discountPct">Discount %</option><option value="mix">Revenue %</option></select></div><div class="table-wrap" id="trendTable"></div></div>
 </div>
 <div class="panel">
  <div class="section-tools"><div class="section-title" style="margin:0 auto 0 0">Category Level Region Split</div><label>Growth Metric</label><select class="growth-metric-link" id="regionMetric" onchange="syncGrowthMetric(this.value)"><option value="net">Net Revenue</option><option value="orders">Orders</option><option value="qty">Quantity</option><option value="discount">Discount</option><option value="discountPct">Discount %</option><option value="mix">Revenue %</option></select></div>
@@ -119,13 +119,19 @@ function renderPrimary(){
   return base;
  }));
 }
-function renderTrend(){var rows=DATA.periodTrend||DATA.current.trend||[];el("trendTable").innerHTML=tableHtml([PERIOD==="week"?"Week (Mon–Sun)":PERIOD==="month"?"Month":"Business Date","Net Revenue","Orders","Qty","Discount %"],rows.map(function(r){return [escapeHtml(r.label||r.date||r.key),r.hasData===false?"No history available":money(r.net),r.hasData===false?"—":number(r.orders),r.hasData===false?"—":number(r.qty),r.hasData===false?"—":pct(r.discountPct||0)]}))}
+function renderTrend(){var rows=DATA.periodTrend||DATA.current.trend||[],metric=el("growthMetric").value;el("trendTable").innerHTML=tableHtml([PERIOD==="week"?"Week (Mon–Sun)":PERIOD==="month"?"Month":"Business Date",metricLabel(metric),"Orders","Qty","Discount %"],rows.map(function(r){return [escapeHtml(r.label||r.date||r.key),r.hasData===false?"No history available":fmtMetric(metricValue(r,metric,DATA.current.kpis.net),metric),r.hasData===false?"—":number(r.orders),r.hasData===false?"—":number(r.qty),r.hasData===false?"—":pct(r.discountPct||0)]}))}
 function renderCategoryRegionTable(){
- var rows=(DATA&&DATA.current&&DATA.current.categoryRegion)||[];
- el("categoryRegionTable").innerHTML=tableHtml(
-  ["Category","KA","MH","TN","Kerala","Total Net Revenue"],
-  rows.map(function(r){return [escapeHtml(r.name),money(r.ka),money(r.mh),money(r.tn),money(r.kerala),money(r.total)]})
- );
+ var rows=(DATA&&DATA.current&&DATA.current.categoryRegion)||[],prev=(DATA&&DATA.comparison&&DATA.comparison.categoryRegion)||[],metric=el("growthMetric").value,prevMap={};
+ prev.forEach(function(r){prevMap[r.name]=r;});
+ function value(cell){if(!cell)return 0;if(metric==="mix")return DATA.current.kpis.net?(Number(cell.net)||0)/DATA.current.kpis.net*100:0;return Number(cell[metric])||0;}
+ function fmt(v){return fmtMetric(v,metric);}
+ var headers=["Category","KA "+metricLabel(metric),"MH "+metricLabel(metric),"TN "+metricLabel(metric),"Kerala "+metricLabel(metric),"Total "+metricLabel(metric)];
+ if(DATA.comparison)headers=headers.concat(["Comparison Total","Growth %"]);
+ el("categoryRegionTable").innerHTML=tableHtml(headers,rows.map(function(r){
+  var vals=[value(r.ka),value(r.mh),value(r.tn),value(r.kerala)],total=value(r.total),base=[escapeHtml(r.name)].concat(vals.map(fmt)).concat([fmt(total)]);
+  if(DATA.comparison){var pr=prevMap[r.name]||{},pv=value(pr.total),g=pv===0?(total===0?0:null):(total-pv)/Math.abs(pv)*100;base.push(fmt(pv),g===null?"N/A":'<span class="'+(g>=0?"positive":"negative")+'">'+(g>0?"+":"")+number(g)+"%</span>");}
+  return base;
+ }));
 }
 function refreshProductFilters(){if(!DATA)return;var ids=["productBrand","productCategory","productRegion","productSource","productMix"],old=ids.map(function(id){return el(id).value});addOptions("productBrand",Array.from(new Set(ALL_PRODUCTS.map(function(r){return r.brand}).filter(Boolean))).sort(),"All Brands");addOptions("productCategory",Array.from(new Set(ALL_PRODUCTS.map(function(r){return r.category}).filter(Boolean))).sort(),"All Categories");addOptions("productRegion",Array.from(new Set(ALL_PRODUCTS.map(function(r){return r.region}).filter(Boolean))).sort(),"All Regions");addOptions("productSource",Array.from(new Set(ALL_PRODUCTS.map(function(r){return r.source}).filter(Boolean))).sort(),"All Sources");addOptions("productMix",Array.from(new Set(ALL_PRODUCTS.map(function(r){return r.mix}).filter(Boolean))).sort(),"All Product Mix");ids.forEach(function(id,i){if(Array.from(el(id).options).some(function(o){return o.value===old[i]}))el(id).value=old[i]})}
 function renderProductTable(){
@@ -186,7 +192,7 @@ function scatterRows(prefix){
 function revenueBucket(r){
  var v=Math.max(0,Number(r.net)||0);
  if(v<50000)return 0;if(v<100000)return 1;if(v<200000)return 2;if(v<300000)return 3;
- if(v<400000)return 4;if(v<500000)return 5;if(v<=500000)return 6;return 6;
+ if(v<400000)return 4;if(v<=500000)return 5;return 6;
 }
 function drawScatter(targetId,detailId,rows,kind){
  var labels=kind==="discount"?["0–10%","10–20%","20–30%","30–40%","40–50%","50–60%","60–70%","70–80%",">80%"]:["100–200","200–300","300–400","400–500","500–600","600–700","700–800",">800"];
@@ -206,7 +212,7 @@ function drawScatter(targetId,detailId,rows,kind){
 }
 function showScatterDetailByIndex(id,targetId,index){var r=(SCATTER_CACHE[targetId]||[])[index];if(!r)return;var group=["0–50K","50K–1L","1L–2L","2L–3L","3L–4L","4L–5L",">5L"][r.revenueBucket];el(id).textContent="Item: "+r.item+" | Net Revenue: "+money(r.net)+" | Revenue Group: "+group+" | Discount: "+number(r.discountPct)+"% | AOV: "+money(r.aov)+" | Orders: "+number(r.orders);}
 function renderScatterCharts(){if(!DATA)return;drawScatter("discountScatter","discountScatterDetail",scatterRows("d"),"discount");drawScatter("aovScatter","aovScatterDetail",scatterRows("a"),"aov")}
-function renderCharts(){var p=PERIOD,trend=DATA.periodTrend||[];el("periodChartTitle").textContent=(p==="week"?"Last 4 Weeks":p==="month"?"Last 3 Months":p==="live"?"Today":"Daily")+" Net Revenue Trend";var trendBase=trend.reduce(function(sum,r){return sum+(Number(r.net)||0)},0);el("periodTrendChart").innerHTML=barChartHtml(trend,"net",money,trendBase);el("brandChart").innerHTML=barChartHtml((DATA.current.brands||[]).slice(0,7),"net",money);el("categoryChart").innerHTML=barChartHtml((DATA.current.categories||[]).slice(0,7),"net",money);el("mixChart").innerHTML=barChartHtml((DATA.current.productMix||[]).slice(0,7),"net",money);var sessionAgg={};(DATA.current.sessionMix||[]).forEach(function(r){if(!sessionAgg[r.session])sessionAgg[r.session]={name:r.session,net:0};sessionAgg[r.session].net+=Number(r.net)||0});el("sessionChart").innerHTML=barChartHtml(Object.keys(sessionAgg).map(function(k){return sessionAgg[k]}),"net",money);el("discountChart").innerHTML=barChartHtml((DATA.current.discounts||[]).filter(function(r){return r.source==="Swiggy"||r.source==="Zomato"}).slice(0,7),"net",money)}
+function renderCharts(){var p=PERIOD,trend=DATA.periodTrend||[];el("periodChartTitle").textContent=(p==="week"?"Last 4 Weeks":p==="month"?"Last 3 Months":p==="live"?"Today":"Daily")+" Trend — "+metricLabel(el("growthMetric").value);var trendBase=trend.reduce(function(sum,r){return sum+(Number(r.net)||0)},0);el("periodTrendChart").innerHTML=barChartHtml(trend,"net",money,trendBase);el("brandChart").innerHTML=barChartHtml((DATA.current.brands||[]).slice(0,7),"net",money);el("categoryChart").innerHTML=barChartHtml((DATA.current.categories||[]).slice(0,7),"net",money);el("mixChart").innerHTML=barChartHtml((DATA.current.productMix||[]).slice(0,7),"net",money);var sessionAgg={};(DATA.current.sessionMix||[]).forEach(function(r){if(!sessionAgg[r.session])sessionAgg[r.session]={name:r.session,net:0};sessionAgg[r.session].net+=Number(r.net)||0});el("sessionChart").innerHTML=barChartHtml(Object.keys(sessionAgg).map(function(k){return sessionAgg[k]}),"net",money);el("discountChart").innerHTML=barChartHtml((DATA.current.discounts||[]).filter(function(r){return r.source==="Swiggy"||r.source==="Zomato"}).slice(0,7),"net",money)}
 function renderAll(){if(!DATA)return;document.querySelectorAll(".growth-metric-link").forEach(function(node){node.value=el("growthMetric").value;});el("status").style.color="";var info=DATA.info;el("status").textContent="Loaded "+number(info.matchingRows)+" matching item lines from "+info.fromDate+" to "+info.toDate+". Live date: "+info.liveDate+(info.warnings&&info.warnings.length?" | Warnings: "+info.warnings.join("; "):"");renderKpis(DATA.current.kpis);renderGrowth();renderPrimary();renderTrend();renderCategoryRegionTable();refreshProductFilters();renderProductTable();renderSessions();renderDiscounts();fillScatterFilters();renderScatterCharts();renderCharts()}
 el("month").addEventListener("change",function(){if(PERIOD==="month")setMonthDates(this.value)});
 el("compareMonth").addEventListener("change",function(){if(PERIOD==="month"){setCompareMonthDates(this.value);applyFilters()}});el("compareFromDate").addEventListener("change",function(){if(PERIOD!=="live")applyFilters()});el("compareToDate").addEventListener("change",function(){if(PERIOD!=="live")applyFilters()});
