@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-21T18:30:24.931402+05:30",
+  "updated_at": "2026-10-21T20:30:43.250510+05:30",
   "business_date": "2026-10-21",
-  "rows": 2464,
+  "rows": 3187,
   "columns": [
     "Business Date",
     "branchCode",
@@ -72,6 +72,7 @@
     "Waffle Sundaes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
@@ -81,7 +82,9 @@
     "Boba Ice cream Sundaes",
     "Brownies",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Cake Dessert Jars",
     "Celebration Cakes",
+    "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
