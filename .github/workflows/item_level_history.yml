@@ -6,7 +6,7 @@ on:
       history_start_date:
         description: "Historical start date (YYYY-MM-DD)"
         required: true
-        default: "2026-04-01"
+        default: "2026-07-01"
         type: string
       history_end_date:
         description: "Historical end date (YYYY-MM-DD)"
