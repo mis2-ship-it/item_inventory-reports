@@ -306,7 +306,7 @@ function buildDashboardResult_(rows) {
       const x=categoryRegion[k];
       function cell(c){const orders=Object.keys(c.ordersSet).length;return {net:round2_(c.net),gross:round2_(c.gross),discount:round2_(c.discount),qty:round2_(c.qty),orders:orders,discountPct:c.gross?round2_(c.discount/c.gross*100):0,aov:orders?round2_(c.net/orders):0};}
       const ka=cell(x.ka),mh=cell(x.mh),tn=cell(x.tn),kerala=cell(x.kerala);
-      return {name:x.name,ka:ka,mh:mh,tn:tn,kerala:kerala,total:{net:round2_(ka.net+mh.net+tn.net+kerala.net),gross:round2_(ka.gross+mh.gross+tn.gross+kerala.gross),discount:round2_(ka.discount+mh.discount+tn.discount+kerala.discount),qty:round2_(ka.qty+mh.qty+tn.qty+kerala.qty),orders:round2_(ka.orders+mh.orders+tn.orders+kerala.orders),discountPct:0,aov:0}};
+      const totalNet=ka.net+mh.net+tn.net+kerala.net,totalGross=ka.gross+mh.gross+tn.gross+kerala.gross,totalDiscount=ka.discount+mh.discount+tn.discount+kerala.discount,totalQty=ka.qty+mh.qty+tn.qty+kerala.qty,totalOrders=ka.orders+mh.orders+tn.orders+kerala.orders;return {name:x.name,ka:ka,mh:mh,tn:tn,kerala:kerala,total:{net:round2_(totalNet),gross:round2_(totalGross),discount:round2_(totalDiscount),qty:round2_(totalQty),orders:round2_(totalOrders),discountPct:totalGross?round2_(totalDiscount/totalGross*100):0,aov:totalOrders?round2_(totalNet/totalOrders):0}};
     }).sort(function(a,b){return b.total.net-a.total.net;})
   };
 }
