@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-21T10:01:14.449434+05:30",
+  "updated_at": "2026-10-21T10:30:09.843411+05:30",
   "business_date": "2026-10-21",
-  "rows": 2,
+  "rows": 21,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,18 +31,37 @@
     "Net Amount"
   ],
   "brands": [
-    "Frozen Bottle"
+    "Frozen Bottle",
+    "Madno"
   ],
   "regions": [
-    "KA"
+    "KA",
+    "Kerela"
   ],
   "categories": [
+    "All day Foods",
+    "Boba Teas",
     "Cold Coffees",
-    "Ice Cream Cones"
+    "Frozen Bottle X Hersheys Range",
+    "Hot Chocolate",
+    "Ice Cream Cones",
+    "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
+    "Thickshakes"
   ],
   "category_names": [
+    "All day Foods",
+    "Belgian Hot Chocolates",
     "Cold Coffees",
-    "Ice Creams"
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Frozen Bottle X Hersheys Range",
+    "Ice Cream Sundae Jars",
+    "Ice Creams",
+    "Milkshake and Bubble Teas",
+    "Pistachio Specials",
+    "Popping Boba Mocktails",
+    "Signature Ice cream Sundaes",
+    "Thickshakes"
   ],
   "file": "live_item_level.csv"
 }
