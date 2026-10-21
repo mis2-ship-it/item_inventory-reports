@@ -152,11 +152,43 @@ jobs:
             git commit -m "Update item level historical data"
 
             echo ""
-            echo "🚀 Pushing changes to GitHub..."
+            echo "🚀 Syncing with latest GitHub main branch..."
 
-            git push
+            # Another workflow may have pushed while this run was generating CSVs.
+            # Rebase this commit on the latest remote commit before pushing.
+            git fetch origin main
+
+            if ! git rebase origin/main; then
+              echo "❌ Rebase conflict detected. The remote and this run changed the same file(s)."
+              echo "Resolve by rerunning this workflow after the other data-writing workflow finishes."
+              git rebase --abort || true
+              exit 1
+            fi
 
             echo ""
-            echo "✅ Historical data pushed successfully."
+            echo "🚀 Pushing changes to GitHub..."
+
+            # Retry once if another workflow pushes between fetch/rebase and push.
+            for attempt in 1 2 3; do
+              if git push origin HEAD:main; then
+                echo ""
+                echo "✅ Historical data pushed successfully."
+                exit 0
+              fi
+
+              if [ "$attempt" -lt 3 ]; then
+                echo "⚠️ Push attempt $attempt failed; syncing latest main and retrying..."
+                git fetch origin main
+                if ! git rebase origin/main; then
+                  echo "❌ Rebase conflict while retrying. No force push was attempted."
+                  git rebase --abort || true
+                  exit 1
+                fi
+                sleep 2
+              fi
+            done
+
+            echo "❌ Push failed after 3 attempts. Remote main may still be receiving commits."
+            exit 1
 
           fi
