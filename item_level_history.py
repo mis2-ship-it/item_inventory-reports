@@ -1522,7 +1522,12 @@ def fetch_business_date(
                     "",
 
                 "Category Name":
-                    str(item.get("categoryName", "") or "").strip(),
+                    str(
+                        item.get("item_categoryName")
+                        or item.get("categoryName")
+                        or item.get("category_name")
+                        or ""
+                    ).strip(),
 
                 "Swiggy Code":
                     discount_code_text(
