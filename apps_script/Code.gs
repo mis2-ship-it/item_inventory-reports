@@ -244,15 +244,25 @@ function buildDashboardResult_(rows) {
     add(brands, brand, {name:brand,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(regions, region, {name:region,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(categories, category, {name:category,ordersSet:{},qty:0,gross:0,discount:0,net:0,groupedCategory:groupedCategory},invoice,q,g,d,n);
-    if (!categoryRegion[category]) categoryRegion[category] = {name:category,ka:0,mh:0,tn:0,kerala:0,total:0};
+    if (!categoryRegion[category]) categoryRegion[category] = {
+      name:category,
+      ka:{net:0,gross:0,discount:0,qty:0,ordersSet:{}},
+      mh:{net:0,gross:0,discount:0,qty:0,ordersSet:{}},
+      tn:{net:0,gross:0,discount:0,qty:0,ordersSet:{}},
+      kerala:{net:0,gross:0,discount:0,qty:0,ordersSet:{}}
+    };
     const regionCode = region.toUpperCase().trim();
     const regionBucket = regionCode === "KA" ? "ka" :
       (regionCode === "MH" ? "mh" :
       (regionCode === "TN" ? "tn" :
       ((regionCode === "KL" || regionCode === "KERALA" || regionCode === "KERELA") ? "kerala" : "")));
     if (regionBucket) {
-      categoryRegion[category][regionBucket] += n;
-      categoryRegion[category].total += n;
+      const cell = categoryRegion[category][regionBucket];
+      cell.net += n;
+      cell.gross += g;
+      cell.discount += d;
+      cell.qty += q;
+      if (invoice) cell.ordersSet[invoice] = true;
     }
     add(productMix, mix, {name:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(sessionMix, session + "||" + mix, {name:session,session:session,mix:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
@@ -292,7 +302,12 @@ function buildDashboardResult_(rows) {
     trend:Object.keys(dates).sort().map(function(date){const x=dates[date];return {date:date,net:round2_(x.net),orders:Object.keys(x.ordersSet).length,qty:round2_(x.qty)};}),
     products:arr(products),brands:arr(brands),regions:arr(regions),categories:arr(categories),
     productMix:arr(productMix),sessionMix:arr(sessionMix),discounts:arr(discounts),sources:arr(sources),
-    categoryRegion:Object.keys(categoryRegion).map(function(k){const x=categoryRegion[k];return {name:x.name,ka:round2_(x.ka),mh:round2_(x.mh),tn:round2_(x.tn),kerala:round2_(x.kerala),total:round2_(x.total)};}).sort(function(a,b){return b.total-a.total;})
+    categoryRegion:Object.keys(categoryRegion).map(function(k){
+      const x=categoryRegion[k];
+      function cell(c){const orders=Object.keys(c.ordersSet).length;return {net:round2_(c.net),gross:round2_(c.gross),discount:round2_(c.discount),qty:round2_(c.qty),orders:orders,discountPct:c.gross?round2_(c.discount/c.gross*100):0,aov:orders?round2_(c.net/orders):0};}
+      const ka=cell(x.ka),mh=cell(x.mh),tn=cell(x.tn),kerala=cell(x.kerala);
+      return {name:x.name,ka:ka,mh:mh,tn:tn,kerala:kerala,total:{net:round2_(ka.net+mh.net+tn.net+kerala.net),gross:round2_(ka.gross+mh.gross+tn.gross+kerala.gross),discount:round2_(ka.discount+mh.discount+tn.discount+kerala.discount),qty:round2_(ka.qty+mh.qty+tn.qty+kerala.qty),orders:round2_(ka.orders+mh.orders+tn.orders+kerala.orders),discountPct:0,aov:0}};
+    }).sort(function(a,b){return b.total.net-a.total.net;})
   };
 }
 
