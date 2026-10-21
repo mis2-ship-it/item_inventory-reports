@@ -109,7 +109,7 @@ function getDashboardData(filters) {
     if (String(r["Ownership"] || "").toUpperCase() !== "COCO") return false;
     if (filters.brand && String(r["brandName"] || "") !== filters.brand) return false;
     if (filters.region && String(r["Region"] || "") !== filters.region) return false;
-    const categoryName = String(r["Category Name"] || "").trim();
+    const categoryName = ristaCategory_(r);
     if (filters.category && categoryName !== filters.category) return false;
     return true;
   });
@@ -137,6 +137,25 @@ function getDashboardData(filters) {
     comparison: compareFromDate ? buildDashboardResult_(comparisonRows) : null,
     periodTrend: buildPeriodTrend_(filtered, period, fromDate, toDate)
   };
+}
+
+function ristaCategory_(row) {
+  // Prefer the original Rista item category. Older exports can contain
+  // placeholders in Category Name, so skip them when choosing a value.
+  const candidates = [
+    row["item_categoryName"],
+    row["categoryName"],
+    row["Category Name"]
+  ];
+  const invalid = [
+    "", "nan", "none", "null", "category unavailable in source data",
+    "uncategorized (rista category missing)", "unknown", "n/a"
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    const value = String(candidates[i] == null ? "" : candidates[i]).trim();
+    if (value && invalid.indexOf(value.toLowerCase()) === -1) return value;
+  }
+  return "Uncategorized (Rista category missing)";
 }
 
 function inferProductMix_(itemName, categoryName) {
@@ -206,7 +225,7 @@ function buildDashboardResult_(rows) {
     const invoice = String(r["invoiceNumber"] || "").trim();
     const brand = String(r["brandName"] || "Unknown").trim() || "Unknown";
     const region = String(r["Region"] || "Unmapped").trim() || "Unmapped";
-    const category = String(r["Category Name"] || r["categoryName"] || r["item_categoryName"] || "").trim() || "Uncategorized (Rista category missing)";
+    const category = ristaCategory_(r);
     const groupedCategory = String(r["Category Group"] || "Others").trim() || "Others";
     const item = String(r["Item Name"] || "Unknown item").trim() || "Unknown item";
     const mix = inferProductMix_(item, category);
