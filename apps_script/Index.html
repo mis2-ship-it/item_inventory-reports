@@ -169,8 +169,8 @@ function barChartHtml(items,valueKey,formatter,baseOverride){
  var max=Math.max.apply(null,items.map(function(x){return Number(x[valueKey])||0}))||1;
  var total=baseOverride==null?((DATA&&DATA.current&&DATA.current.kpis)?Number(DATA.current.kpis.net)||0:0):(Number(baseOverride)||0);
  return items.map(function(x){
-  var v=Number(x[valueKey])||0,contribution=total?v/total*100:0,label=x.label||x.name||x.key||"";
-  var value=x.hasData===false?"No history available":formatter(v)+" · "+number(contribution)+"% contribution";
+  var v=Number(x[valueKey])||0,contribution=total?(Number(x.net)||0)/total*100:0,label=x.label||x.name||x.key||"";
+  var value=x.hasData===false?"No history available":formatter(v)+" · "+number(contribution)+"% revenue contribution";
   return '<div class="bar-row"><div class="bar-label" title="'+escapeHtml(label)+'">'+escapeHtml(label)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.max(0,Math.min(100,v/max*100))+'%"></div></div><div class="bar-value">'+escapeHtml(value)+'</div></div>';
  }).join("");
 }
@@ -212,7 +212,24 @@ function drawScatter(targetId,detailId,rows,kind){
 }
 function showScatterDetailByIndex(id,targetId,index){var r=(SCATTER_CACHE[targetId]||[])[index];if(!r)return;var group=["0–50K","50K–1L","1L–2L","2L–3L","3L–4L","4L–5L",">5L"][r.revenueBucket];el(id).textContent="Item: "+r.item+" | Net Revenue: "+money(r.net)+" | Revenue Group: "+group+" | Discount: "+number(r.discountPct)+"% | AOV: "+money(r.aov)+" | Orders: "+number(r.orders);}
 function renderScatterCharts(){if(!DATA)return;drawScatter("discountScatter","discountScatterDetail",scatterRows("d"),"discount");drawScatter("aovScatter","aovScatterDetail",scatterRows("a"),"aov")}
-function renderCharts(){var p=PERIOD,trend=DATA.periodTrend||[];el("periodChartTitle").textContent=(p==="week"?"Last 4 Weeks":p==="month"?"Last 3 Months":p==="live"?"Today":"Daily")+" Trend — "+metricLabel(el("growthMetric").value);var trendBase=trend.reduce(function(sum,r){return sum+(Number(r.net)||0)},0);el("periodTrendChart").innerHTML=barChartHtml(trend,"net",money,trendBase);el("brandChart").innerHTML=barChartHtml((DATA.current.brands||[]).slice(0,7),"net",money);el("categoryChart").innerHTML=barChartHtml((DATA.current.categories||[]).slice(0,7),"net",money);el("mixChart").innerHTML=barChartHtml((DATA.current.productMix||[]).slice(0,7),"net",money);var sessionAgg={};(DATA.current.sessionMix||[]).forEach(function(r){if(!sessionAgg[r.session])sessionAgg[r.session]={name:r.session,net:0};sessionAgg[r.session].net+=Number(r.net)||0});el("sessionChart").innerHTML=barChartHtml(Object.keys(sessionAgg).map(function(k){return sessionAgg[k]}),"net",money);el("discountChart").innerHTML=barChartHtml((DATA.current.discounts||[]).filter(function(r){return r.source==="Swiggy"||r.source==="Zomato"}).slice(0,7),"net",money)}
+function renderCharts(){
+ var p=PERIOD,trend=DATA.periodTrend||[],metric=el("growthMetric").value,totalNet=Number(DATA.current.kpis.net)||0;
+ el("periodChartTitle").textContent=(p==="week"?"Last 4 Weeks":p==="month"?"Last 3 Months":p==="live"?"Today":"Daily")+" "+metricLabel(metric)+" Trend";
+ function mapped(rows){return (rows||[]).map(function(r){var x=Object.assign({},r);x.chartValue=metricValue(r,metric,totalNet);return x;});}
+ var trendRows=mapped(trend),trendNet=trend.reduce(function(sum,r){return sum+(Number(r.net)||0);},0);
+ el("periodTrendChart").innerHTML=barChartHtml(trendRows,"chartValue",function(v){return fmtMetric(v,metric);},trendNet);
+ el("brandChart").innerHTML=barChartHtml(mapped((DATA.current.brands||[]).slice(0,7)),"chartValue",function(v){return fmtMetric(v,metric);},totalNet);
+ el("categoryChart").innerHTML=barChartHtml(mapped((DATA.current.categories||[]).slice(0,7)),"chartValue",function(v){return fmtMetric(v,metric);},totalNet);
+ el("mixChart").innerHTML=barChartHtml(mapped((DATA.current.productMix||[]).slice(0,7)),"chartValue",function(v){return fmtMetric(v,metric);},totalNet);
+ var sessionAgg={};
+ (DATA.current.sessionMix||[]).forEach(function(r){
+  if(!sessionAgg[r.session])sessionAgg[r.session]={name:r.session,orders:0,qty:0,gross:0,discount:0,net:0};
+  var x=sessionAgg[r.session];x.orders+=Number(r.orders)||0;x.qty+=Number(r.qty)||0;x.gross+=Number(r.gross)||0;x.discount+=Number(r.discount)||0;x.net+=Number(r.net)||0;
+ });
+ var sessions=Object.keys(sessionAgg).map(function(k){var x=sessionAgg[k];x.discountPct=x.gross?x.discount/x.gross*100:0;x.aov=x.orders?x.net/x.orders:0;x.chartValue=metricValue(x,metric,totalNet);return x;});
+ el("sessionChart").innerHTML=barChartHtml(sessions,"chartValue",function(v){return fmtMetric(v,metric);},totalNet);
+ el("discountChart").innerHTML=barChartHtml(mapped((DATA.current.discounts||[]).filter(function(r){return r.source==="Swiggy"||r.source==="Zomato";}).slice(0,7)),"chartValue",function(v){return fmtMetric(v,metric);},totalNet);
+}
 function renderAll(){if(!DATA)return;document.querySelectorAll(".growth-metric-link").forEach(function(node){node.value=el("growthMetric").value;});el("status").style.color="";var info=DATA.info;el("status").textContent="Loaded "+number(info.matchingRows)+" matching item lines from "+info.fromDate+" to "+info.toDate+". Live date: "+info.liveDate+(info.warnings&&info.warnings.length?" | Warnings: "+info.warnings.join("; "):"");renderKpis(DATA.current.kpis);renderGrowth();renderPrimary();renderTrend();renderCategoryRegionTable();refreshProductFilters();renderProductTable();renderSessions();renderDiscounts();fillScatterFilters();renderScatterCharts();renderCharts()}
 el("month").addEventListener("change",function(){if(PERIOD==="month")setMonthDates(this.value)});
 el("compareMonth").addEventListener("change",function(){if(PERIOD==="month"){setCompareMonthDates(this.value);applyFilters()}});el("compareFromDate").addEventListener("change",function(){if(PERIOD!=="live")applyFilters()});el("compareToDate").addEventListener("change",function(){if(PERIOD!=="live")applyFilters()});
