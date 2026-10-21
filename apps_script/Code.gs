@@ -193,7 +193,7 @@ function inferProductMix_(itemName, categoryName) {
 function buildDashboardResult_(rows) {
   let gross = 0, discount = 0, net = 0, qty = 0;
   const invoices = {}, products = {}, brands = {}, regions = {}, categories = {};
-  const productMix = {}, sessionMix = {}, discounts = {}, dates = {}, sources = {};
+  const productMix = {}, sessionMix = {}, discounts = {}, dates = {}, sources = {}, categoryRegion = {};
 
   function add(map, key, base, invoice, q, g, d, n) {
     if (!map[key]) map[key] = base;
@@ -225,6 +225,16 @@ function buildDashboardResult_(rows) {
     add(brands, brand, {name:brand,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(regions, region, {name:region,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(categories, category, {name:category,ordersSet:{},qty:0,gross:0,discount:0,net:0,groupedCategory:groupedCategory},invoice,q,g,d,n);
+    if (!categoryRegion[category]) categoryRegion[category] = {name:category,ka:0,mh:0,tn:0,kerala:0,total:0};
+    const regionCode = region.toUpperCase().trim();
+    const regionBucket = regionCode === "KA" ? "ka" :
+      (regionCode === "MH" ? "mh" :
+      (regionCode === "TN" ? "tn" :
+      ((regionCode === "KL" || regionCode === "KERALA" || regionCode === "KERELA") ? "kerala" : "")));
+    if (regionBucket) {
+      categoryRegion[category][regionBucket] += n;
+      categoryRegion[category].total += n;
+    }
     add(productMix, mix, {name:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(sessionMix, session + "||" + mix, {name:session,session:session,mix:mix,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
     add(sources, source, {name:source,ordersSet:{},qty:0,gross:0,discount:0,net:0},invoice,q,g,d,n);
@@ -262,7 +272,8 @@ function buildDashboardResult_(rows) {
       aov:Object.keys(invoices).length?round2_(net/Object.keys(invoices).length):0,itemLines:rows.length},
     trend:Object.keys(dates).sort().map(function(date){const x=dates[date];return {date:date,net:round2_(x.net),orders:Object.keys(x.ordersSet).length,qty:round2_(x.qty)};}),
     products:arr(products),brands:arr(brands),regions:arr(regions),categories:arr(categories),
-    productMix:arr(productMix),sessionMix:arr(sessionMix),discounts:arr(discounts),sources:arr(sources)
+    productMix:arr(productMix),sessionMix:arr(sessionMix),discounts:arr(discounts),sources:arr(sources),
+    categoryRegion:Object.keys(categoryRegion).map(function(k){const x=categoryRegion[k];return {name:x.name,ka:round2_(x.ka),mh:round2_(x.mh),tn:round2_(x.tn),kerala:round2_(x.kerala),total:round2_(x.total)};}).sort(function(a,b){return b.total-a.total;})
   };
 }
 
