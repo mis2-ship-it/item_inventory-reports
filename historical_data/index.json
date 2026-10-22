@@ -1,19 +1,33 @@
 {
-  "updated_at": "2026-10-21T14:59:53.978627+05:30",
+  "updated_at": "2026-10-22T08:11:16.909618+05:30",
   "files": [
+    {
+      "month": "2026_07",
+      "file": "item_level_2026_07.csv",
+      "rows": 269781,
+      "columns": 26,
+      "size_bytes": 89063516
+    },
+    {
+      "month": "2026_08",
+      "file": "item_level_2026_08.csv",
+      "rows": 261236,
+      "columns": 26,
+      "size_bytes": 86621707
+    },
     {
       "month": "2026_09",
       "file": "item_level_2026_09.csv",
       "rows": 257783,
-      "columns": 21,
-      "size_bytes": 66848306
+      "columns": 26,
+      "size_bytes": 85035143
     },
     {
       "month": "2026_10",
       "file": "item_level_2026_10.csv",
-      "rows": 172607,
+      "rows": 191437,
       "columns": 26,
-      "size_bytes": 45540701
+      "size_bytes": 62596049
     }
   ]
 }
