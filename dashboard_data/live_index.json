@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-22T20:43:31.992441+05:30",
+  "updated_at": "2026-10-22T22:30:37.490377+05:30",
   "business_date": "2026-10-22",
-  "rows": 3125,
+  "rows": 4546,
   "columns": [
     "Business Date",
     "branchCode",
@@ -63,6 +63,7 @@
     "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Popping Boba Sundae",
     "Popping Boba Tea",
@@ -108,6 +109,7 @@
     "Muffins",
     "Newly Launched Waffle Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pistachio Specials",
     "Popping Boba Mocktail",
