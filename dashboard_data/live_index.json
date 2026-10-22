@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-22T10:05:01.290189+05:30",
+  "updated_at": "2026-10-22T10:30:23.229001+05:30",
   "business_date": "2026-10-22",
-  "rows": 0,
+  "rows": 20,
   "columns": [
     "Business Date",
     "branchCode",
@@ -30,9 +30,34 @@
     "Discount",
     "Net Amount"
   ],
-  "brands": [],
-  "regions": [],
-  "categories": [],
-  "category_names": [],
+  "brands": [
+    "Boba Bar",
+    "Frozen Bottle"
+  ],
+  "regions": [
+    "KA",
+    "Kerela",
+    "MH",
+    "TN"
+  ],
+  "categories": [
+    "All day Foods",
+    "Belgian Waffles",
+    "Bubble Teas",
+    "Cold Coffees",
+    "Festival Specials",
+    "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
+    "Thickshakes"
+  ],
+  "category_names": [
+    "All day Foods",
+    "Belgian Waffles",
+    "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Cold Coffees",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Ice Cream Sundae Jars",
+    "Thickshakes"
+  ],
   "file": "live_item_level.csv"
 }
