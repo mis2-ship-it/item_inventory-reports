@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-23T10:04:51.136833+05:30",
+  "updated_at": "2026-10-23T10:30:16.905408+05:30",
   "business_date": "2026-10-23",
-  "rows": 7,
+  "rows": 15,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,14 +31,20 @@
     "Net Amount"
   ],
   "brands": [
+    "Boba Bar",
     "Frozen Bottle",
     "Madno"
   ],
   "regions": [
     "KA",
-    "Kerela"
+    "Kerela",
+    "MH",
+    "TN"
   ],
   "categories": [
+    "All day Foods",
+    "Belgian Waffles",
+    "Bubble Teas",
     "Cold Coffees",
     "Gudbud Sundae",
     "Ice Cream Scoops",
@@ -46,12 +52,15 @@
     "Thickshakes"
   ],
   "category_names": [
+    "All Day Food",
+    "Classic Bubble Teas",
     "Cold Coffees",
     "Gudbud Sundae Tubs (Serves 2)",
     "Ice Creams",
     "Monster Sundaes",
     "Signature Ice cream Sundaes",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffles"
   ],
   "file": "live_item_level.csv"
 }
