@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-24T14:58:11.680753+05:30",
+  "updated_at": "2026-10-24T16:30:19.040797+05:30",
   "business_date": "2026-10-24",
-  "rows": 1590,
+  "rows": 2530,
   "columns": [
     "Business Date",
     "branchCode",
@@ -77,8 +77,10 @@
     "Belgian Hot Chocolate by Frozen Bottle",
     "Belgian Hot Chocolates",
     "Belgian Waffles",
+    "Boba Ice cream Sundaes",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Cake Dessert Jars",
+    "Celebration Cakes",
     "Celebration Loaf Cake",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
@@ -109,6 +111,7 @@
     "Refreshing Coolers",
     "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
+    "Signature Mousse Cakes",
     "Sundae Ice Cream Tubs (100 ML)",
     "Thickshakes",
     "Waffles"
