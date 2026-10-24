@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-24T20:31:08.655490+05:30",
+  "updated_at": "2026-10-24T22:30:54.228206+05:30",
   "business_date": "2026-10-24",
-  "rows": 4773,
+  "rows": 6815,
   "columns": [
     "Business Date",
     "branchCode",
@@ -68,7 +68,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "90s Birthday Cake",
@@ -102,6 +103,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pastry",
