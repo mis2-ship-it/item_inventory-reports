@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-24T19:30:04.533016+05:30",
+  "updated_at": "2026-10-24T20:31:08.655490+05:30",
   "business_date": "2026-10-24",
-  "rows": 4172,
+  "rows": 4773,
   "columns": [
     "Business Date",
     "branchCode",
@@ -71,6 +71,7 @@
     "Thickshakes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
