@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-24T09:55:25.899840+05:30",
+  "updated_at": "2026-10-24T10:30:23.641496+05:30",
   "business_date": "2026-10-24",
-  "rows": 2,
+  "rows": 15,
   "columns": [
     "Business Date",
     "branchCode",
@@ -34,14 +34,23 @@
     "Frozen Bottle"
   ],
   "regions": [
-    "KA"
+    "KA",
+    "TN"
   ],
   "categories": [
     "Belgian Waffles",
+    "Hot Chocolate",
+    "Ice Cream Scoops",
+    "Ice Cream Sodas",
+    "Ice Cream Sundae Jars",
     "Thickshakes"
   ],
   "category_names": [
+    "Belgian Hot Chocolates",
     "Belgian Waffles",
+    "Ice Cream Sodas",
+    "Ice Cream Sundae Jars",
+    "Ice Creams",
     "Thickshakes"
   ],
   "file": "live_item_level.csv"
