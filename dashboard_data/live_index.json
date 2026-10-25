@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-25T18:30:41.575888+05:30",
+  "updated_at": "2026-10-25T19:48:35.682028+05:30",
   "business_date": "2026-10-25",
-  "rows": 3981,
+  "rows": 4806,
   "columns": [
     "Business Date",
     "branchCode",
@@ -67,7 +67,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -100,6 +101,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pistachio Specials",
