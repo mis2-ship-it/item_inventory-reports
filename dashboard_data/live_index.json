@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-25T09:59:39.129697+05:30",
+  "updated_at": "2026-10-25T10:30:18.828257+05:30",
   "business_date": "2026-10-25",
-  "rows": 1,
+  "rows": 14,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,16 +31,35 @@
     "Net Amount"
   ],
   "brands": [
-    "Frozen Bottle"
+    "Frozen Bottle",
+    "Madno"
   ],
   "regions": [
-    "KA"
+    "KA",
+    "Kerela"
   ],
   "categories": [
-    "Cold Coffees"
+    "All day Foods",
+    "Bakery & Desserts",
+    "Bubble Teas",
+    "Cold Coffees",
+    "Ice Cream Cones",
+    "Ice Cream Sodas",
+    "Ice Cream Sundae Jars",
+    "Popping Boba Sundae",
+    "Thickshakes"
   ],
   "category_names": [
-    "Cold Coffees"
+    "All Day Food",
+    "Bakery & Desserts",
+    "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Cold Coffees",
+    "Ice Cream Sodas",
+    "Ice Cream Sundae Jars",
+    "Ice cream Cones",
+    "Pistachio Specials",
+    "Signature Ice cream Sundaes",
+    "Thickshakes"
   ],
   "file": "live_item_level.csv"
 }
