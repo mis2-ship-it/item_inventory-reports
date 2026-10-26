@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-27T00:43:00.482649+05:30",
+  "updated_at": "2026-10-27T02:30:47.831251+05:30",
   "business_date": "2026-10-26",
-  "rows": 5538,
+  "rows": 5963,
   "columns": [
     "Business Date",
     "branchCode",
@@ -102,6 +102,7 @@
     "Ice Creams",
     "Ice cream Cones",
     "Macarons",
+    "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
