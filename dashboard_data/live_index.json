@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-26T18:30:27.045701+05:30",
+  "updated_at": "2026-10-26T20:30:39.692199+05:30",
   "business_date": "2026-10-26",
-  "rows": 2212,
+  "rows": 2971,
   "columns": [
     "Business Date",
     "branchCode",
@@ -63,6 +63,7 @@
     "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pastry",
     "Popping Boba Sundae",
@@ -94,6 +95,7 @@
     "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
@@ -103,6 +105,7 @@
     "Mini Cakes",
     "Monster Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pastry",
     "Pistachio Specials",
