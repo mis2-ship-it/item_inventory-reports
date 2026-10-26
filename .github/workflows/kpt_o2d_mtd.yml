@@ -1,13 +1,6 @@
 name: KPT and O2D MTD Automation
 
 on:
-  schedule:
-    # Everyday 10:00 AM IST
-    # GitHub Actions uses UTC
-    # IST = UTC +5:30
-    # 10:00 AM IST = 4:30 AM UTC
-    - cron: '30 3 * * *'
-
   workflow_dispatch:
 
 jobs:
