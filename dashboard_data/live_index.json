@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-26T16:30:34.238304+05:30",
+  "updated_at": "2026-10-26T18:21:33.657508+05:30",
   "business_date": "2026-10-26",
-  "rows": 1550,
+  "rows": 2178,
   "columns": [
     "Business Date",
     "branchCode",
@@ -100,6 +100,7 @@
     "Ice cream Cones",
     "Macarons",
     "Milkshake and Bubble Teas",
+    "Mini Cakes",
     "Monster Sundaes",
     "Others",
     "Party Combos",
