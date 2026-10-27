@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-27T20:30:41.899825+05:30",
+  "updated_at": "2026-10-27T21:58:35.560754+05:30",
   "business_date": "2026-10-27",
-  "rows": 3344,
+  "rows": 4535,
   "columns": [
     "Business Date",
     "branchCode",
@@ -80,6 +80,7 @@
     "Belgian Waffles",
     "Boba Ice cream Sundaes",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Cake Dessert Jars",
     "Celebration Cakes",
     "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
@@ -103,6 +104,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Muffins",
     "Others",
     "Others-Lubov",
     "Party Combos",
