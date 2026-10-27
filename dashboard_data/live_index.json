@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-27T10:21:10.355785+05:30",
+  "updated_at": "2026-10-27T10:30:23.648442+05:30",
   "business_date": "2026-10-27",
-  "rows": 18,
+  "rows": 23,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,12 +31,14 @@
     "Net Amount"
   ],
   "brands": [
+    "Boba Bar",
     "Frozen Bottle",
     "Lubov- Patisserie",
     "Madno"
   ],
   "regions": [
     "KA",
+    "Kerela",
     "TN"
   ],
   "categories": [
@@ -45,14 +47,20 @@
     "Bubble Teas",
     "Celebration Cakes",
     "Cold Coffees",
+    "Hot Chocolate",
+    "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
     "Thickshakes"
   ],
   "category_names": [
     "Bakery & Desserts",
+    "Belgian Hot Chocolate by Frozen Bottle",
     "Belgian Waffles",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
     "Cold Coffees",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Ice Cream Sundae Jars",
     "Milkshake and Bubble Teas",
     "Pistachio Specials",
     "Thickshakes",
