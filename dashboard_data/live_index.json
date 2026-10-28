@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-28T16:30:20.870172+05:30",
+  "updated_at": "2026-10-28T18:30:32.850095+05:30",
   "business_date": "2026-10-28",
-  "rows": 1808,
+  "rows": 2669,
   "columns": [
     "Business Date",
     "branchCode",
@@ -69,7 +69,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -85,6 +86,7 @@
     "Celebration Cakes",
     "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
     "Festive Specials",
@@ -95,13 +97,16 @@
     "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Macarons",
     "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pastry",
