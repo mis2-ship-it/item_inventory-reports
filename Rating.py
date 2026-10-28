@@ -8,10 +8,15 @@ import gspread
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1svixmiOhtlWvR0zQxQJt1w8pkZGCxrAUcjT4vQO7umM/edit"
 WORKSHEET_NAME = "Zomato"
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CRED_PATH = os.path.join(BASE_DIR, "credentials.json")
-
-gc = gspread.service_account(filename=CRED_PATH)
+# Check if running in GitHub Actions (Secret) or Local machine (credentials.json)
+if os.environ.get("GCP_SA_KEY"):
+    creds_dict = json.loads(os.environ["GCP_SA_KEY"])
+    gc = gspread.service_account_from_dict(creds_dict)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    CRED_PATH = os.path.join(BASE_DIR, "credentials.json")
+    gc = gspread.service_account(filename=CRED_PATH)
+    
 sh = gc.open_by_url(SHEET_URL)
 ws = sh.worksheet(WORKSHEET_NAME)
 
