@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-28T14:30:16.778785+05:30",
+  "updated_at": "2026-10-28T16:30:20.870172+05:30",
   "business_date": "2026-10-28",
-  "rows": 939,
+  "rows": 1808,
   "columns": [
     "Business Date",
     "branchCode",
@@ -99,6 +99,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
     "Others",
@@ -107,7 +108,9 @@
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
+    "Popping Boba Sundae",
     "Refreshing Coolers",
+    "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
     "Sundae Ice Cream Tubs (100 ML)",
     "Thickshakes",
