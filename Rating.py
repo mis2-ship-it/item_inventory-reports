@@ -37,14 +37,8 @@ for r_idx in range(2, len(rows) + 1):
     res_id = str(row_data[0]).strip()
     url = str(row_data[6]).strip()
 
+    # Only skip if there is no URL and no Res ID at all
     if not url and not res_id:
-        continue
-
-    # Skip if already scraped with OK status and valid rating & count
-    existing_rating = row_data[7] if len(row_data) > 7 else ""
-    existing_count = row_data[8] if len(row_data) > 8 else ""
-    existing_status = row_data[9] if len(row_data) > 9 else ""
-    if existing_status == "OK" and existing_rating and existing_count:
         continue
 
     print(f"Scraping Row {r_idx}: Res ID {res_id} ...", end=" ", flush=True)
