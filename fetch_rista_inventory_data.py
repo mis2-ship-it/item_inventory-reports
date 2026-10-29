@@ -15,7 +15,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS")
 GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "19z6KkVBFoLC33_wcNqVhDLyQEC2dDQ8YQE0gE38BhVg")
 BRANCH_ID = os.environ.get("BRANCH_ID", "FZBBLR023")
-DAY = os.environ.get("DAY", datetime.utcnow().strftime("%Y-%m-%d"))
+DAY = os.environ.get("DAY") or datetime.utcnow().strftime("%Y-%m-%d")
 PAGE = int(os.environ.get("PAGE", "1"))
 SIZE = int(os.environ.get("SIZE", "50"))
 
@@ -112,6 +112,7 @@ def main():
         "size": SIZE,
     }
 
+    print(f"Using day={DAY}")
     print("Fetching Rista inventory indents page...")
     indents_df = fetch_rista_endpoint("/inventory/indents/page", params=params)
 
