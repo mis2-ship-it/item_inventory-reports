@@ -1,4 +1,4 @@
-name: Fetch Rista inventory endpoints to Google Sheets
+name: Fetch Rista inventory endpoints to Google Sheet
 
 on:
   workflow_dispatch:
