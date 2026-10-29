@@ -19,13 +19,11 @@ DAY = os.environ.get("DAY") or datetime.utcnow().strftime("%Y-%m-%d")
 PAGE = int(os.environ.get("PAGE", "1"))
 SIZE = int(os.environ.get("SIZE", "50"))
 
-
 def get_jwt_token():
     if not API_KEY or not SECRET_KEY:
-        raise ValueError("API_KEY and SECRET_KEY environment variables are required.")
+        raise ValueError("API_KEY and SECRET_KEY are required.")
     payload = {"iss": API_KEY, "iat": int(time.time())}
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
-
 
 def get_headers():
     return {
@@ -34,14 +32,17 @@ def get_headers():
         "Content-Type": "application/json",
     }
 
-
 def normalize_data(raw):
+    if raw is None:
+        return pd.DataFrame()
+
     if isinstance(raw, dict):
-        data = raw.get("data", raw.get("items", raw.get("results", raw.get("records", []))))
-        if isinstance(data, list):
-            return pd.json_normalize(data)
-        if isinstance(data, dict):
-            return pd.json_normalize([data])
+        for key in ["data", "items", "results", "records", "content"]:
+            value = raw.get(key)
+            if isinstance(value, list):
+                return pd.json_normalize(value)
+            if isinstance(value, dict):
+                return pd.json_normalize([value])
         return pd.DataFrame([raw])
 
     if isinstance(raw, list):
@@ -49,85 +50,110 @@ def normalize_data(raw):
 
     return pd.DataFrame()
 
+def fetch_any_variant(endpoint_candidates, params_variants):
+    for endpoint in endpoint_candidates:
+        for params in params_variants:
+            try:
+                url = f"{RISTA_BASE_URL}/v1{endpoint}"
+                response = requests.get(url, headers=get_headers(), params=params, timeout=30)
+                print("TRY:", endpoint, params, "status:", response.status_code)
+                print(response.text[:800])
 
-def fetch_rista_endpoint(endpoint, params=None):
-    params = params or {}
-    url = f"{RISTA_BASE_URL}/v1{endpoint}"
-    response = requests.get(url, headers=get_headers(), params=params, timeout=30)
-    if response.status_code != 200:
-        raise RuntimeError(f"Rista API request failed for {endpoint}: {response.status_code} - {response.text[:500]}")
-    return normalize_data(response.json())
+                if response.status_code != 200:
+                    continue
 
+                data = response.json()
+                df = normalize_data(data)
+
+                # if response is valid but empty, still treat it as empty DataFrame
+                if df.empty:
+                    print(f"Endpoint {endpoint} returned empty data.")
+                    return df, endpoint, params
+
+                return df, endpoint, params
+
+            except Exception as e:
+                print("EXCEPTION:", endpoint, e)
+                continue
+
+    raise RuntimeError(f"No valid response found for indents endpoints: {endpoint_candidates}")
 
 def clean_dataframe(df):
     if df.empty:
         return df
-
-    cleaned = df.copy()
-    for col in cleaned.columns:
-        cleaned[col] = cleaned[col].apply(
+    out = df.copy()
+    for col in out.columns:
+        out[col] = out[col].apply(
             lambda value: ", ".join(str(v) for v in value) if isinstance(value, list)
             else json.dumps(value, ensure_ascii=False) if isinstance(value, dict)
             else "" if pd.isna(value) else str(value)
         )
-    return cleaned
-
+    return out
 
 def get_google_sheet_client():
     if not GOOGLE_CREDENTIALS:
-        raise ValueError("GOOGLE_CREDENTIALS environment variable is required.")
-
+        raise ValueError("GOOGLE_CREDENTIALS is required.")
     creds_info = json.loads(GOOGLE_CREDENTIALS)
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+    creds = Credentials.from_service_account_info(
+        creds_info,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+    )
     return gspread.authorize(creds)
 
-
-def write_dataframe_to_sheet(spreadsheet, tab_name, df):
+def write_sheet(spreadsheet, tab_name, df):
     if df.empty:
-        print(f"Skipping empty tab '{tab_name}'")
+        print(f"Writing empty tab: {tab_name}")
+        # Create a simple empty sheet with one placeholder cell
+        try:
+            ws = spreadsheet.worksheet(tab_name)
+        except gspread.WorksheetNotFound:
+            ws = spreadsheet.add_worksheet(title=tab_name, rows="1000", cols="20")
+        ws.clear()
+        ws.update("A1", [["No data returned for this endpoint"]])
         return
 
-    sheet = None
-    try:
-        sheet = spreadsheet.worksheet(tab_name)
-    except gspread.WorksheetNotFound:
-        sheet = spreadsheet.add_worksheet(title=tab_name, rows="1000", cols="50")
-
     cleaned = clean_dataframe(df)
-    data = [cleaned.columns.tolist()] + cleaned.astype(str).values.tolist()
-    sheet.clear()
-    sheet.update(data)
-    print(f"Updated worksheet '{tab_name}' with {len(cleaned)} rows.")
+    try:
+        ws = spreadsheet.worksheet(tab_name)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=tab_name, rows="1000", cols="50")
 
+    ws.clear()
+    rows = [cleaned.columns.tolist()] + cleaned.astype(str).values.tolist()
+    ws.update(rows)
 
 def main():
-    params = {
-        "branch": BRANCH_ID,
-        "day": DAY,
-        "page": PAGE,
-        "size": SIZE,
-    }
+    endpoint_candidates = [
+        "/inventory/indents/page",
+        "/inventory/indent/page",
+        "/inventory/indents",
+        "/stockStatus",
+        "/inventory/store/items"
+        "/inventory/indent",
+    ]
 
-    print(f"Using day={DAY}")
-    print("Fetching Rista inventory indents page...")
-    indents_df = fetch_rista_endpoint("/inventory/indents/page", params=params)
+    param_variants = [
+        {"branch": BRANCH_ID, "day": DAY, "page": PAGE, "size": SIZE},
+        {"branchCode": BRANCH_ID, "day": DAY, "page": PAGE, "size": SIZE},
+        {"branch": BRANCH_ID, "date": DAY, "page": PAGE, "size": SIZE},
+        {"branchCode": BRANCH_ID, "date": DAY, "page": PAGE, "size": SIZE},
+    ]
 
-    print("Fetching Rista item activity page...")
-    activity_df = fetch_rista_endpoint("/inventory/item/activity/page", params=params)
+    print("Trying indents endpoint variants...")
+    indents_df, used_endpoint, used_params = fetch_any_variant(endpoint_candidates, param_variants)
 
-    print(f"Connecting to Google Sheet ID: {GOOGLE_SHEET_ID}")
+    print("Connecting to Google Sheet...")
     client = get_google_sheet_client()
     spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
 
-    write_dataframe_to_sheet(spreadsheet, "Inventory_Indents_Page", indents_df)
-    write_dataframe_to_sheet(spreadsheet, "Inventory_Item_Activity_Page", activity_df)
+    write_sheet(spreadsheet, "Inventory_Indents_Page", indents_df)
 
-    print("Finished successfully.")
-
+    print("Finished.")
+    print("Used endpoint:", used_endpoint)
+    print("Used params:", used_params)
 
 if __name__ == "__main__":
     main()
