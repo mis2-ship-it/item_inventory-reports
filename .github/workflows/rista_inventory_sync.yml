@@ -1,4 +1,4 @@
-name: Fetch Rista inventory endpoints to Google Sheet
+name: Fetch Rista inventory endpoints to Google Sheets
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         required: false
         default: ""
   schedule:
-    - cron: '0 1 * * *'
+    - cron: "0 1 * * *"
 
 jobs:
   sync-rista-data:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -37,5 +37,9 @@ jobs:
           GOOGLE_SHEET_ID: 19z6KkVBFoLC33_wcNqVhDLyQEC2dDQ8YQE0gE38BhVg
           BRANCH_ID: FZBBLR023
         run: |
-          export DAY="${{ github.event.inputs.day || $(date -u +%F) }}"
+          DAY="${{ github.event.inputs.day }}"
+          if [ -z "$DAY" ]; then
+            DAY="$(date -u +%F)"
+          fi
+          export DAY
           python fetch_rista_inventory_data.py
