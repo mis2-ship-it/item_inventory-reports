@@ -2,6 +2,11 @@ name: Fetch Rista inventory endpoints to Google Sheets
 
 on:
   workflow_dispatch:
+    inputs:
+      day:
+        description: "Date in YYYY-MM-DD format. Leave blank to use today."
+        required: false
+        default: ""
   schedule:
     - cron: '0 1 * * *'
 
@@ -31,6 +36,6 @@ jobs:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           GOOGLE_SHEET_ID: 19z6KkVBFoLC33_wcNqVhDLyQEC2dDQ8YQE0gE38BhVg
           BRANCH_ID: FZBBLR023
-          DAY: ${{ github.event.inputs.day || github.run_id }}
         run: |
+          export DAY="${{ github.event.inputs.day || $(date -u +%F) }}"
           python fetch_rista_inventory_data.py
