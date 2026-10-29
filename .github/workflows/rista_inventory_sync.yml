@@ -1,0 +1,36 @@
+name: Fetch Rista inventory endpoints to Google Sheets
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'
+
+jobs:
+  sync-rista-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Rista inventory sync
+        env:
+          RISTA_BASE_URL: https://api.ristaapps.com
+          API_KEY: ${{ secrets.API_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          GOOGLE_SHEET_ID: 19z6KkVBFoLC33_wcNqVhDLyQEC2dDQ8YQE0gE38BhVg
+          BRANCH_ID: FZBBLR023
+          DAY: ${{ github.event.inputs.day || github.run_id }}
+        run: |
+          python fetch_rista_inventory_data.py
