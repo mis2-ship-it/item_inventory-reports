@@ -132,6 +132,7 @@ def main():
         "/inventory/indents",
         "/stockStatus",
         "/inventory/store/items"
+        "/sale/payments",
         "/inventory/indent",
     ]
 
