@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-30T20:30:39.936933+05:30",
+  "updated_at": "2026-10-30T22:30:47.793170+05:30",
   "business_date": "2026-10-30",
-  "rows": 4535,
+  "rows": 6902,
   "columns": [
     "Business Date",
     "branchCode",
@@ -110,6 +110,7 @@
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
+    "Popping Boba Sundae",
     "Refreshing Coolers",
     "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
