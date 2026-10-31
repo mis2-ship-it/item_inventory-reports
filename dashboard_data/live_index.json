@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-31T14:30:49.544468+05:30",
+  "updated_at": "2026-10-31T16:30:39.655170+05:30",
   "business_date": "2026-10-31",
-  "rows": 1654,
+  "rows": 3182,
   "columns": [
     "Business Date",
     "branchCode",
@@ -78,6 +78,7 @@
     "Belgian Hot Chocolate by Frozen Bottle",
     "Belgian Hot Chocolates",
     "Belgian Waffles",
+    "Boba Ice cream Sundaes",
     "Brownies",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Cake Dessert Jars",
@@ -86,6 +87,7 @@
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
