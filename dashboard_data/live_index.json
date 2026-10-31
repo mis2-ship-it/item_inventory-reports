@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-31T10:30:24.561098+05:30",
+  "updated_at": "2026-10-31T10:52:18.883336+05:30",
   "business_date": "2026-10-31",
-  "rows": 49,
+  "rows": 91,
   "columns": [
     "Business Date",
     "branchCode",
@@ -39,18 +39,24 @@
   "regions": [
     "KA",
     "Kerela",
+    "MH",
     "TN"
   ],
   "categories": [
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Waffles",
+    "Bubble Teas",
     "Celebration Cakes",
     "Cold Coffees",
     "Festival Specials",
     "Gudbud Sundae",
     "Hot Chocolate",
+    "Ice Cream Cones",
+    "Ice Cream Scoops",
+    "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
+    "Monster Sundaes",
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
@@ -67,11 +73,15 @@
     "Cold Coffees",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
+    "Ice Creams",
     "Milkshake and Bubble Teas",
+    "Monster Sundaes",
     "Refreshing Coolers",
     "Signature Ice cream Sundaes",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffles"
   ],
   "file": "live_item_level.csv"
 }
