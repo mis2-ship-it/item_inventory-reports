@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-10-31T22:30:59.612468+05:30",
+  "updated_at": "2026-10-31T23:11:28.865551+05:30",
   "business_date": "2026-10-31",
-  "rows": 8514,
+  "rows": 9453,
   "columns": [
     "Business Date",
     "branchCode",
@@ -64,6 +64,7 @@
     "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pastry",
     "Popping Boba Sundae",
@@ -84,6 +85,7 @@
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Cake Dessert Jars",
     "Celebration Cakes",
+    "Celebration Loaf Cake",
     "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
@@ -107,6 +109,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Muffins",
     "Newly Launched Waffle Sundaes",
     "Others",
     "Others-Lubov",
