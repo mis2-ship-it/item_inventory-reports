@@ -1428,13 +1428,46 @@ except Exception as e:
 print("✅ Script Completed")
 
 # =========================================================
-# PAYMENT SUMMARY DATA PIPELINE (UPDATED GROSS & DISCOUNT)
+# PAYMENT SUMMARY DATA PIPELINE (AGGREGATED & RECONCILED)
 # =========================================================
 
 def process_payment_records(df, help_df):
     if df.empty:
         return pd.DataFrame()
 
+    temp_df = df.copy()
+
+    # 1. Standardize invoice date
+    date_col = "invoiceDay" if "invoiceDay" in temp_df.columns else "date"
+    if date_col in temp_df.columns:
+        temp_df["Date"] = temp_df[date_col].astype(str)
+    else:
+        temp_df["Date"] = str(fetch_date)
+
+    # 2. Extract billed amount (Total settlement value), Gross, and Discount
+    # In Rista, billed amount is in 'billedAmount' or 'billAmount'
+    billed_col = "billedAmount" if "billedAmount" in temp_df.columns else ("billAmount" if "billAmount" in temp_df.columns else "item_grossAmount")
+    gross_col = "item_grossAmount" if "item_grossAmount" in temp_df.columns else "grossAmount"
+    disc_col = "item_discountAmount" if "item_discountAmount" in temp_df.columns else "totalDiscountAmount"
+
+    temp_df["_billed_num"] = pd.to_numeric(temp_df.get(billed_col, 0), errors="coerce").fillna(0)
+    temp_df["_gross_num"] = pd.to_numeric(temp_df.get(gross_col, 0), errors="coerce").fillna(0)
+    temp_df["_disc_num"] = pd.to_numeric(temp_df.get(disc_col, 0), errors="coerce").abs().fillna(0)
+
+    # 3. Calculate Invoice-level totals (Gross, Discount, Billed) to prevent multi-item duplication
+    # We group by invoiceNumber and brandName so multi-brand orders get attributed properly
+    brand_col = "brandName" if "brandName" in temp_df.columns else "Brand"
+    branch_col = "branchCode" if "branchCode" in temp_df.columns else "branch"
+
+    inv_totals = temp_df.groupby(["invoiceNumber", brand_col, branch_col, "Date"], as_index=False).agg({
+        "_billed_num": "sum" if billed_col == "item_grossAmount" else "first",
+        "_gross_num": "sum",
+        "_disc_num": "sum",
+        "payments": "first",
+        "Channel": "first" if "Channel" in temp_df.columns else lambda x: "In Store"
+    })
+
+    # Target payment mode canonical lookup
     target_modes = [
         "Swiggy", "Zomato", "Pine Labs - UPI Sale", "UPI", "Cash",
         "Swiggy Dine out", "Amazon Pay", "Pine Labs - Card", "Card",
@@ -1443,96 +1476,130 @@ def process_payment_records(df, help_df):
     ]
     target_mode_lookup = {m.lower().replace(" ", "").replace("-", ""): m for m in target_modes}
 
-    # 1. Calculate Gross and Discount at the Invoice Level
-    # Look for item-level columns, falling back to top-level order columns if needed
-    gross_col = "item_grossAmount" if "item_grossAmount" in df.columns else "grossAmount"
-    disc_col = "item_discountAmount" if "item_discountAmount" in df.columns else "discountAmount"
-
-    temp_calc = df.copy()
-    temp_calc["_gross_num"] = pd.to_numeric(temp_calc.get(gross_col, 0), errors="coerce").fillna(0)
-    # Convert discount to absolute positive value
-    temp_calc["_disc_num"] = pd.to_numeric(temp_calc.get(disc_col, 0), errors="coerce").abs().fillna(0)
-
-    # Sum item gross and discount per invoice
-    order_totals = temp_calc.groupby("invoiceNumber", as_index=False).agg({
-        "_gross_num": "sum",
-        "_disc_num": "sum"
-    }).rename(columns={
-        "_gross_num": "Gross",
-        "_disc_num": "Discount"
-    })
-
-    # 2. Get base unique invoice records for payment explosion
-    base_orders = df.drop_duplicates(subset=["invoiceNumber"]).copy()
-    base_orders = base_orders.merge(order_totals, on="invoiceNumber", how="left")
-
-    if "payments" not in base_orders.columns:
-        print("❌ 'payments' column not found in transaction data")
-        return pd.DataFrame()
-
-    pay_df = base_orders.explode("payments")
-    pay_df = pay_df[pay_df["payments"].notna()].copy()
-
-    # 3. Parse nested payment dictionaries/strings
-    def parse_payment(row):
-        p = row["payments"]
-        if isinstance(p, str):
-            try:
-                import ast
-                p = ast.literal_eval(p)
-            except:
-                return pd.Series([None, 0])
-        if isinstance(p, dict):
-            return pd.Series([p.get("mode"), float(p.get("amount", 0))])
-        return pd.Series([None, 0])
-
-    pay_df[["pay_mode_raw", "pay_amount"]] = pay_df.apply(parse_payment, axis=1)
-    pay_df = pay_df[pay_df["pay_mode_raw"].notna()].copy()
-
-    # 4. Standardize Payment Mode names without forcing into "Other"
     def normalize_mode(raw_mode):
+        if not raw_mode or pd.isna(raw_mode):
+            return "Cash"
         raw_clean = str(raw_mode).strip()
         key = raw_clean.lower().replace(" ", "").replace("-", "")
         return target_mode_lookup.get(key, raw_clean)
 
-    pay_df["Payment Mode"] = pay_df["pay_mode_raw"].apply(normalize_mode)
+    # 4. Explode and extract payment records
+    rows_expanded = []
+    import ast
 
-    # 5. Net out customer change adjustments (e.g. 100 Cash - 59 Cash refund = 41 net)
-    net_payments = pay_df.groupby(
-        ["invoiceNumber", "branchCode", "invoiceDay", "brandName", "Payment Mode"],
+    for _, row in inv_totals.iterrows():
+        inv_no = row["invoiceNumber"]
+        brand = row[brand_col]
+        branch = row[branch_col]
+        dt = row["Date"]
+        billed = row["_billed_num"]
+        gross = row["_gross_num"]
+        disc = row["_disc_num"]
+        channel = str(row.get("Channel", "")).lower()
+
+        p_list = row["payments"]
+
+        # Parse payments column
+        if isinstance(p_list, str):
+            try:
+                p_list = ast.literal_eval(p_list)
+            except:
+                p_list = None
+
+        if isinstance(p_list, list) and len(p_list) > 0:
+            # Parse tender items
+            for p in p_list:
+                if isinstance(p, dict):
+                    m = p.get("mode")
+                    amt = float(p.get("amount", 0))
+                    rows_expanded.append({
+                        "invoiceNumber": inv_no,
+                        "brandName": brand,
+                        "branchCode": branch,
+                        "Date": dt,
+                        "Payment Mode": normalize_mode(m),
+                        "Value": amt,
+                        "Gross": gross,
+                        "Discount": disc
+                    })
+        else:
+            # Fallback if payments array is missing or empty:
+            # Determine payment mode from the Channel (Swiggy, Zomato, or Cash)
+            fallback_mode = "Cash"
+            if "swiggy" in channel:
+                fallback_mode = "Swiggy"
+            elif "zomato" in channel:
+                fallback_mode = "Zomato"
+
+            rows_expanded.append({
+                "invoiceNumber": inv_no,
+                "brandName": brand,
+                "branchCode": branch,
+                "Date": dt,
+                "Payment Mode": fallback_mode,
+                "Value": billed,
+                "Gross": gross,
+                "Discount": disc
+            })
+
+    pay_df = pd.DataFrame(rows_expanded)
+    if pay_df.empty:
+        return pd.DataFrame()
+
+    # 5. Net out customer change (e.g. 100 Cash with -59 refund = 41 net)
+    # First, sum pay_amount per invoice and payment mode
+    net_inv_pay = pay_df.groupby(
+        ["invoiceNumber", "brandName", "branchCode", "Date", "Payment Mode"],
         as_index=False
     ).agg({
-        "pay_amount": "sum",
+        "Value": "sum",
         "Gross": "first",
         "Discount": "first"
     })
+    
+    # Keep only net positive payment entries
+    net_inv_pay = net_inv_pay[net_inv_pay["Value"] > 0].copy()
 
-    # Filter out balanced zero-sum entries
-    net_payments = net_payments[net_payments["pay_amount"] > 0].copy()
-
-    # 6. Merge Store Name & Region from Help Sheet
+    # 6. Merge Store Name & Region from help_df
     meta_cols = help_df[["branchCode", "Store Name", "Region"]].drop_duplicates()
-    final_payments = net_payments.merge(meta_cols, on="branchCode", how="left")
+    merged_df = net_inv_pay.merge(meta_cols, on="branchCode", how="left")
+    merged_df["Store Name"] = merged_df["Store Name"].fillna(merged_df["branchCode"])
+    merged_df["Region"] = merged_df["Region"].fillna("Other")
 
-    # Rename & format
-    final_payments = final_payments.rename(columns={
-        "invoiceDay": "Date",
-        "brandName": "Brand",
-        "pay_amount": "Value"
-    })
+    # 7. GROUP AT DAY + BRAND + STORE + PAYMENT MODE LEVEL (Unique Mode per Day per Store)
+    aggregated_df = merged_df.groupby(
+        ["Date", "brandName", "Region", "Store Name", "Payment Mode"],
+        as_index=False
+    ).agg(
+        Value=("Value", "sum"),
+        Txn=("invoiceNumber", "nunique"),
+        Gross=("Gross", "sum"),
+        Discount=("Discount", "sum")
+    ).rename(columns={"brandName": "Brand"})
 
-    final_payments["Txn"] = 1
+    # Round financial figures for clean viewing
+    aggregated_df["Value"] = aggregated_df["Value"].round(2)
+    aggregated_df["Gross"] = aggregated_df["Gross"].round(2)
+    aggregated_df["Discount"] = aggregated_df["Discount"].round(2)
 
-    return final_payments[[
+    # Sort clearly: Date -> Brand -> Store -> Value Descending
+    aggregated_df = aggregated_df.sort_values(
+        by=["Date", "Brand", "Store Name", "Value"],
+        ascending=[True, True, True, False]
+    )
+
+    return aggregated_df[[
         "Date", "Brand", "Region", "Store Name", "Payment Mode", "Value", "Txn", "Gross", "Discount"
     ]]
 
-print("🔄 Processing Payment Records with Item Gross & Positive Discount...")
+# =========================================================
+# EXECUTION & EXPORT TO GSHEET
+# =========================================================
+print("🔄 Processing Aggregated Payment Records...")
 payment_export_df = process_payment_records(raw_mtd_df, help_df)
 
 if not payment_export_df.empty:
     try:
-        payment_ws = None
         try:
             payment_ws = spreadsheet.worksheet("Payment_Raw_Data")
         except gspread.exceptions.WorksheetNotFound:
@@ -1542,6 +1609,6 @@ if not payment_export_df.empty:
         payment_export_df["Date"] = payment_export_df["Date"].astype(str)
         payment_data = [payment_export_df.columns.values.tolist()] + payment_export_df.values.tolist()
         payment_ws.update(payment_data, "A1")
-        print(f"✅ Payment Data synchronized to 'Payment_Raw_Data' ({len(payment_export_df)} rows)")
+        print(f"✅ Aggregated Payment Data synchronized ({len(payment_export_df)} store-day-mode rows). Total Value: ₹{payment_export_df['Value'].sum():,.2f}")
     except Exception as e:
         print("❌ Error exporting Payment Data:", e)
