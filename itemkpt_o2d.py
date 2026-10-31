@@ -1426,3 +1426,122 @@ except Exception as e:
     print("❌ Mail Error:", e)
 
 print("✅ Script Completed")
+
+# =========================================================
+# PAYMENT SUMMARY DATA PIPELINE (UPDATED GROSS & DISCOUNT)
+# =========================================================
+
+def process_payment_records(df, help_df):
+    if df.empty:
+        return pd.DataFrame()
+
+    target_modes = [
+        "Swiggy", "Zomato", "Pine Labs - UPI Sale", "UPI", "Cash",
+        "Swiggy Dine out", "Amazon Pay", "Pine Labs - Card", "Card",
+        "OWNLY", "Zomato Gold", "magicpin", "HOGR", "Bitsila",
+        "Pine Labs - other", "EazyDiner"
+    ]
+    target_mode_lookup = {m.lower().replace(" ", "").replace("-", ""): m for m in target_modes}
+
+    # 1. Calculate Gross and Discount at the Invoice Level
+    # Look for item-level columns, falling back to top-level order columns if needed
+    gross_col = "item_grossAmount" if "item_grossAmount" in df.columns else "grossAmount"
+    disc_col = "item_discountAmount" if "item_discountAmount" in df.columns else "discountAmount"
+
+    temp_calc = df.copy()
+    temp_calc["_gross_num"] = pd.to_numeric(temp_calc.get(gross_col, 0), errors="coerce").fillna(0)
+    # Convert discount to absolute positive value
+    temp_calc["_disc_num"] = pd.to_numeric(temp_calc.get(disc_col, 0), errors="coerce").abs().fillna(0)
+
+    # Sum item gross and discount per invoice
+    order_totals = temp_calc.groupby("invoiceNumber", as_index=False).agg({
+        "_gross_num": "sum",
+        "_disc_num": "sum"
+    }).rename(columns={
+        "_gross_num": "Gross",
+        "_disc_num": "Discount"
+    })
+
+    # 2. Get base unique invoice records for payment explosion
+    base_orders = df.drop_duplicates(subset=["invoiceNumber"]).copy()
+    base_orders = base_orders.merge(order_totals, on="invoiceNumber", how="left")
+
+    if "payments" not in base_orders.columns:
+        print("❌ 'payments' column not found in transaction data")
+        return pd.DataFrame()
+
+    pay_df = base_orders.explode("payments")
+    pay_df = pay_df[pay_df["payments"].notna()].copy()
+
+    # 3. Parse nested payment dictionaries/strings
+    def parse_payment(row):
+        p = row["payments"]
+        if isinstance(p, str):
+            try:
+                import ast
+                p = ast.literal_eval(p)
+            except:
+                return pd.Series([None, 0])
+        if isinstance(p, dict):
+            return pd.Series([p.get("mode"), float(p.get("amount", 0))])
+        return pd.Series([None, 0])
+
+    pay_df[["pay_mode_raw", "pay_amount"]] = pay_df.apply(parse_payment, axis=1)
+    pay_df = pay_df[pay_df["pay_mode_raw"].notna()].copy()
+
+    # 4. Standardize Payment Mode names without forcing into "Other"
+    def normalize_mode(raw_mode):
+        raw_clean = str(raw_mode).strip()
+        key = raw_clean.lower().replace(" ", "").replace("-", "")
+        return target_mode_lookup.get(key, raw_clean)
+
+    pay_df["Payment Mode"] = pay_df["pay_mode_raw"].apply(normalize_mode)
+
+    # 5. Net out customer change adjustments (e.g. 100 Cash - 59 Cash refund = 41 net)
+    net_payments = pay_df.groupby(
+        ["invoiceNumber", "branchCode", "invoiceDay", "brandName", "Payment Mode"],
+        as_index=False
+    ).agg({
+        "pay_amount": "sum",
+        "Gross": "first",
+        "Discount": "first"
+    })
+
+    # Filter out balanced zero-sum entries
+    net_payments = net_payments[net_payments["pay_amount"] > 0].copy()
+
+    # 6. Merge Store Name & Region from Help Sheet
+    meta_cols = help_df[["branchCode", "Store Name", "Region"]].drop_duplicates()
+    final_payments = net_payments.merge(meta_cols, on="branchCode", how="left")
+
+    # Rename & format
+    final_payments = final_payments.rename(columns={
+        "invoiceDay": "Date",
+        "brandName": "Brand",
+        "pay_amount": "Value"
+    })
+
+    final_payments["Txn"] = 1
+
+    return final_payments[[
+        "Date", "Brand", "Region", "Store Name", "Payment Mode", "Value", "Txn", "Gross", "Discount"
+    ]]
+
+print("🔄 Processing Payment Records with Item Gross & Positive Discount...")
+payment_export_df = process_payment_records(raw_mtd_df, help_df)
+
+if not payment_export_df.empty:
+    try:
+        payment_ws = None
+        try:
+            payment_ws = spreadsheet.worksheet("Payment_Raw_Data")
+        except gspread.exceptions.WorksheetNotFound:
+            payment_ws = spreadsheet.add_worksheet(title="Payment_Raw_Data", rows="50000", cols="15")
+        
+        payment_ws.clear()
+        payment_export_df["Date"] = payment_export_df["Date"].astype(str)
+        payment_data = [payment_export_df.columns.values.tolist()] + payment_export_df.values.tolist()
+        payment_ws.update(payment_data, "A1")
+        print(f"✅ Payment Data synchronized to 'Payment_Raw_Data' ({len(payment_export_df)} rows)")
+    except Exception as e:
+        print("❌ Error exporting Payment Data:", e)
