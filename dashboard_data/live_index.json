@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-01T12:30:22.278057+05:30",
+  "updated_at": "2026-11-01T12:56:13.643006+05:30",
   "business_date": "2026-11-01",
-  "rows": 520,
+  "rows": 769,
   "columns": [
     "Business Date",
     "branchCode",
@@ -53,6 +53,7 @@
     "Celebration Cakes",
     "Cold Coffees",
     "Festival Specials",
+    "Frozen Bottle X Hersheys Range",
     "Gudbud Sundae",
     "Hot Chocolate",
     "Ice Cream Cones",
@@ -79,6 +80,7 @@
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
     "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
     "Festive Specials",
