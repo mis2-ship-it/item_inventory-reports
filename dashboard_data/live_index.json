@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-01T16:30:39.207156+05:30",
+  "updated_at": "2026-11-01T18:30:47.369809+05:30",
   "business_date": "2026-11-01",
-  "rows": 3778,
+  "rows": 5294,
   "columns": [
     "Business Date",
     "branchCode",
@@ -65,10 +65,12 @@
     "Monster Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -85,6 +87,7 @@
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Cupcakes",
     "Doughnuts By Krispy Kreme",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
@@ -103,8 +106,10 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
