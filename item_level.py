@@ -549,10 +549,6 @@ print("✅ CLOSED LW ROWS:", len(lw_sales))
 # HELP SHEET MAPPING
 # =========================================================
 
-# Help Sheet is used only for branch/store/region/ownership mapping.
-# Channel/Source classification is handled below by the single
-# authorized CHANNEL_SOURCE_MAP.
-
 help_merge = help_df[
     [
         "branchCode",
@@ -674,12 +670,6 @@ def has_toing_tag(value):
 # =========================================================
 # AUTHORIZED CHANNEL -> SOURCE MAP
 # =========================================================
-# Keep ONLY the explicitly authorized channels below.
-# The Help Sheet Channel/Source columns are NOT used for source
-# classification. Unlisted Rista channels remain unmapped (NaN)
-# and are excluded from source-wise dashboards.
-# Toing is identified separately from Rista sales-page tags.
-# =========================================================
 
 CHANNEL_SOURCE_MAP = {
     # In Store
@@ -790,20 +780,12 @@ def parse_discount_objects(value):
         if isinstance(parsed, dict):
             return [parsed]
     except Exception:
-        # Some Rista responses expose the discount name as plain text
-        # rather than a serialized list/dict. Preserve it for regex extraction.
         return [{"name": text}]
 
     return []
 
 
 def extract_channel_discount_code(row):
-    """
-    Rista discount naming depends on the sales channel:
-      Swiggy -> Restaurant Discount (CODE)
-      Zomato -> Merchant Discount (CODE)
-    Use the row's channel to decide which code to extract.
-    """
     channel = " ".join([str(row.get("channel", "") or ""), str(row.get("Source", "") or "")]).strip().lower()
     if "swiggy" in channel:
         pattern = r"Restaurant Discount(?:\s*-\s*Swiggy)?\s*\((.*?)\)"
@@ -841,13 +823,8 @@ for df in [current_sales, lw_sales]:
 
 # =========================================================
 # PUBLISH LIVE ITEM-LEVEL DATA FOR APPS SCRIPT DASHBOARD
-# This is an additional output. Existing email and sheet
-# reporting continues unchanged.
 # =========================================================
 def publish_live_dashboard_data(df):
-    import os
-    import json
-
     output_dir = "dashboard_data"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -881,7 +858,7 @@ def publish_live_dashboard_data(df):
     out["Variant"] = ""
     out["Product Mix"] = df["Product Mix"].fillna("").astype(str).values
     out["Category Group"] = df["Category Group"].fillna("").astype(str).values
-    # Preserve Rista's actual item category separately from the grouped item-master category.
+
     category_col = next((c for c in ["item_categoryName", "item_category", "categoryName"] if c in df.columns), None)
     out["Category Name"] = df[category_col].fillna("").astype(str).values if category_col else ""
     out["Swiggy Code"] = df["Swiggy Code"].fillna("No Offer").astype(str).values
@@ -891,6 +868,7 @@ def publish_live_dashboard_data(df):
         or "No Offer"
         for sw, zo in zip(out["Swiggy Code"], out["Zomato Code"])
     ]
+
     def dashboard_session(value):
         ts = pd.to_datetime(value, utc=True, errors="coerce")
         if pd.isna(ts):
@@ -901,6 +879,7 @@ def publish_live_dashboard_data(df):
         if 16 <= hour <= 19: return "Snacks"
         if 20 <= hour <= 22: return "Dinner"
         return "Post Dinner (Closing / Late Night)"
+
     out["Session"] = df["createdDate"].apply(dashboard_session).values
     out["Qty"] = pd.to_numeric(df["item_quantity"], errors="coerce").fillna(0).values
     out["Gross Amount"] = pd.to_numeric(df["item_grossAmount"], errors="coerce").fillna(0).values
@@ -956,12 +935,6 @@ def safe_sum(df, column):
 
 
 def discount_pct(df):
-    """
-    IMPORTANT:
-    Discount % is always calculated from item-level columns.
-    No invoice-level dedupe is used for the amount calculation.
-    """
-
     gross = safe_sum(df, "item_grossAmount")
     discount = abs(safe_sum(df, "item_netDiscountAmount"))
 
@@ -988,7 +961,6 @@ def brand_filter(df, brand_filter):
 
 
 def source_filter(df, source):
-    # Source-wise reporting is restricted to the requested SOURCES list.
     if source not in SOURCES:
         return df.iloc[0:0].copy()
 
@@ -1041,16 +1013,6 @@ def create_source_summary(today_df, lw_df):
         })
 
     result = pd.DataFrame(rows)
-
-    # Strict source-only check. No HOGR / Magicpin / Others / Website
-    # values can enter this dashboard because only SOURCES are iterated.
-    print("\nSOURCE-WISE REPORTING CHECK")
-    print("Included Sources:", SOURCES)
-    print("Current Source Groups:")
-    print(today_df["Source Group"].value_counts(dropna=False))
-    print("LW Source Groups:")
-    print(lw_df["Source Group"].value_counts(dropna=False))
-
     return result
 
 
@@ -1361,7 +1323,6 @@ def create_brand_region_category_orders(today_df, lw_df):
         "Online (Except In Store)": pd.DataFrame(),
     }
 
-    # IMPORTANT: Region dashboard intentionally excludes Ownly and Toing.
     region_sources = {
         "Offline (In Store)": ["In Store"],
         "Online (Except In Store)": ["Swiggy", "Zomato", "Toing"],
@@ -1465,7 +1426,6 @@ def create_discount_dashboard(
         today_brand = brand_filter(today_source, brand_filter_value)
         lw_brand = brand_filter(lw_source, brand_filter_value)
 
-        # Exclude no-offer rows from the discount-code dashboard.
         today_brand = today_brand[
             today_brand[code_column].astype(str).str.strip().str.lower()
             != "no offer"
@@ -1630,46 +1590,14 @@ def write_multi_dataframe_sheet(sheet_name, dashboard_dict):
     print(f"✅ Google Sheet Updated: {sheet_name}")
 
 
-# Only the requested dashboards are refreshed.
-write_dataframe_sheet(
-    "Source Summary",
-    source_summary,
-)
-
-write_dataframe_sheet(
-    "Brand Source Analysis",
-    brand_source_analysis,
-)
-
-write_dataframe_sheet(
-    "Overall Category Dashboard",
-    overall_category_dashboard,
-)
-
-write_dataframe_sheet(
-    "Category Dashboard",
-    category_dashboard,
-)
-
-write_dataframe_sheet(
-    "Brand X Category Orders",
-    brand_category_orders,
-)
-
-write_multi_dataframe_sheet(
-    "Brand X Region X Category",
-    brand_region_category_orders,
-)
-
-write_multi_dataframe_sheet(
-    "Swiggy Discount Dashboard",
-    swiggy_discount_dashboard,
-)
-
-write_multi_dataframe_sheet(
-    "Zomato Discount Dashboard",
-    zomato_discount_dashboard,
-)
+write_dataframe_sheet("Source Summary", source_summary)
+write_dataframe_sheet("Brand Source Analysis", brand_source_analysis)
+write_dataframe_sheet("Overall Category Dashboard", overall_category_dashboard)
+write_dataframe_sheet("Category Dashboard", category_dashboard)
+write_dataframe_sheet("Brand X Category Orders", brand_category_orders)
+write_multi_dataframe_sheet("Brand X Region X Category", brand_region_category_orders)
+write_multi_dataframe_sheet("Swiggy Discount Dashboard", swiggy_discount_dashboard)
+write_multi_dataframe_sheet("Zomato Discount Dashboard", zomato_discount_dashboard)
 
 
 # =========================================================
@@ -1717,20 +1645,13 @@ def dataframe_to_html(df):
         for col in df.columns:
             value = row[col]
 
-            if (
-                "Growth" in col
-                or "LW %" in col
-            ):
+            if "Growth" in col or "LW %" in col:
                 try:
                     numeric = float(value)
                 except Exception:
                     numeric = 0
 
-                cls = (
-                    "positive"
-                    if numeric >= 0
-                    else "negative"
-                )
+                cls = "positive" if numeric >= 0 else "negative"
 
                 html.append(
                     f'<td class="growth {cls}">'
@@ -1922,9 +1843,7 @@ cc_mails = [
     "mis2@frozenbottle.in",
 ]
 
-# Combine all recipients for the SMTP sending function
 all_recipients = to_mails + cc_mails
-
 
 mail_subject = (
     f"Hourly Item Level Sales Dashboard - {business_date}"
@@ -1950,7 +1869,6 @@ msg.attach(
 )
 
 try:
-
     print("📧 Email User:", EMAIL_USER)
     print("📧 Recipients:", all_recipients)
     print("📧 Subject:", mail_subject)
@@ -1974,11 +1892,9 @@ try:
     )
 
     server.quit()
-
     print("✅ Hourly Mail Sent Successfully")
 
 except Exception as exc:
-
     print("❌ Hourly Mail Error:", str(exc))
     raise
 
@@ -1992,58 +1908,60 @@ print("=" * 60)
 # PAYMENT SUMMARY DATA PIPELINE (AGGREGATED & RECONCILED)
 # =========================================================
 
-def process_payment_records(df, help_df):
-    if df.empty:
+def process_payment_records(raw_df, sales_items_df, help_df_ref):
+    """
+    Reconciles raw order payment arrays with item-level gross & discount amounts.
+    Groups at Day + Brand + Region + Store Name + Payment Mode level.
+    """
+    if raw_df is None or raw_df.empty:
+        print("⚠ Raw orders dataset is empty. Skipping payment processing.")
         return pd.DataFrame()
 
-    temp_df = df.copy()
+    orders_df = raw_df.copy()
 
-    # 1. Standardize invoice date
-    date_col = "invoiceDay" if "invoiceDay" in temp_df.columns else "date"
-    if date_col in temp_df.columns:
-        temp_df["Date"] = temp_df[date_col].astype(str)
+    # 1. Invoice Date
+    date_col = next((c for c in ["invoiceDay", "date"] if c in orders_df.columns), None)
+    if date_col:
+        orders_df["Date"] = orders_df[date_col].astype(str)
     else:
-        temp_df["Date"] = str(fetch_date)
+        orders_df["Date"] = business_date.strftime("%Y-%m-%d")
 
-    # 2. Extract billed amount (Total settlement value), Gross, and Discount
-    # In Rista, billed amount is in 'billedAmount' or 'billAmount'
-    billed_col = "billedAmount" if "billedAmount" in temp_df.columns else ("billAmount" if "billAmount" in temp_df.columns else "item_grossAmount")
-    gross_col = "item_grossAmount" if "item_grossAmount" in temp_df.columns else "grossAmount"
-    disc_col = "item_discountAmount" if "item_discountAmount" in temp_df.columns else "totalDiscountAmount"
-
-    temp_df["_billed_num"] = pd.to_numeric(temp_df.get(billed_col, 0), errors="coerce").fillna(0)
-    temp_df["_gross_num"] = pd.to_numeric(temp_df.get(gross_col, 0), errors="coerce").fillna(0)
-    temp_df["_disc_num"] = pd.to_numeric(temp_df.get(disc_col, 0), errors="coerce").abs().fillna(0)
-
-    # 3. Calculate Invoice-level totals (Gross, Discount, Billed) to prevent multi-item duplication
-    # We group by invoiceNumber and brandName so multi-brand orders get attributed properly
-    brand_col = "brandName" if "brandName" in temp_df.columns else "Brand"
-    branch_col = "branchCode" if "branchCode" in temp_df.columns else "branch"
-
-    # 🌟 FIX: Safely detect and standardize Channel before groupby
-    channel_col = None
-    for cand in ["Channel", "channel", "orderSource", "source", "channelName"]:
-        if cand in temp_df.columns:
-            channel_col = cand
-            break
-
-    if channel_col:
-        temp_df["_clean_channel"] = temp_df[channel_col].astype(str).fillna("In Store")
+    # 2. Extract billed amount (Total settlement amount)
+    billed_col = next((c for c in ["billedAmount", "billAmount", "totalAmount"] if c in orders_df.columns), None)
+    if billed_col:
+        orders_df["_billed_num"] = pd.to_numeric(orders_df[billed_col], errors="coerce").fillna(0)
     else:
-        temp_df["_clean_channel"] = "In Store"
+        orders_df["_billed_num"] = 0.0
 
-    # Ensure payments column exists
-    if "payments" not in temp_df.columns:
-        temp_df["payments"] = None
+    # 3. Sum Item-level Gross & Discount per invoiceNumber from sales_items_df
+    if sales_items_df is not None and not sales_items_df.empty:
+        item_agg = sales_items_df.groupby("invoiceNumber", as_index=False).agg({
+            "item_grossAmount": "sum",
+            "item_netDiscountAmount": lambda x: abs(pd.to_numeric(x, errors="coerce").fillna(0)).sum()
+        }).rename(columns={
+            "item_grossAmount": "_gross_num",
+            "item_netDiscountAmount": "_disc_num"
+        })
+        orders_df = orders_df.merge(item_agg, on="invoiceNumber", how="left")
+    else:
+        orders_df["_gross_num"] = 0.0
+        orders_df["_disc_num"] = 0.0
 
-    # Group invoice level totals safely
-    inv_totals = temp_df.groupby(["invoiceNumber", brand_col, branch_col, "Date"], as_index=False).agg({
-        "_billed_num": "sum" if billed_col == "item_grossAmount" else "first",
-        "_gross_num": "sum",
-        "_disc_num": "sum",
-        "payments": "first",
-        "_clean_channel": "first"
-    }).rename(columns={"_clean_channel": "Channel"})
+    orders_df["_gross_num"] = orders_df["_gross_num"].fillna(orders_df["_billed_num"])
+    orders_df["_disc_num"] = orders_df["_disc_num"].fillna(0.0)
+
+    # 4. Standardize Channel and Brand
+    channel_col = next((c for c in ["channel", "Channel", "orderSource", "source", "channelName"] if c in orders_df.columns), None)
+    orders_df["_clean_channel"] = orders_df[channel_col].astype(str).fillna("In Store") if channel_col else "In Store"
+
+    brand_col = next((c for c in ["brandName", "Brand"] if c in orders_df.columns), None)
+    orders_df["_clean_brand"] = orders_df[brand_col].astype(str).str.strip().fillna("Frozen Bottle") if brand_col else "Frozen Bottle"
+
+    branch_col = next((c for c in ["branchCode", "branch"] if c in orders_df.columns), None)
+    orders_df["_clean_branch"] = orders_df[branch_col].astype(str).str.strip().fillna("") if branch_col else ""
+
+    if "payments" not in orders_df.columns:
+        orders_df["payments"] = None
 
     # Target payment mode canonical lookup
     target_modes = [
@@ -2061,31 +1979,30 @@ def process_payment_records(df, help_df):
         key = raw_clean.lower().replace(" ", "").replace("-", "")
         return target_mode_lookup.get(key, raw_clean)
 
-    # 4. Explode and extract payment records
+    # 5. Explode payments or fallback to channel
     rows_expanded = []
-    import ast
+    # Drop invoice duplicates in raw order frame to avoid processing the same order multiple times
+    unique_orders_df = orders_df.drop_duplicates(subset=["invoiceNumber"]).copy()
 
-    for _, row in inv_totals.iterrows():
-        inv_no = row["invoiceNumber"]
-        brand = row[brand_col]
-        branch = row[branch_col]
+    for _, row in unique_orders_df.iterrows():
+        inv_no = str(row["invoiceNumber"]).strip()
+        brand = row["_clean_brand"]
+        branch = row["_clean_branch"]
         dt = row["Date"]
-        billed = row["_billed_num"]
-        gross = row["_gross_num"]
-        disc = row["_disc_num"]
-        channel = str(row.get("Channel", "")).lower()
+        billed = float(row["_billed_num"])
+        gross = float(row["_gross_num"])
+        disc = float(row["_disc_num"])
+        channel = str(row["_clean_channel"]).lower()
 
         p_list = row["payments"]
 
-        # Parse payments column
         if isinstance(p_list, str):
             try:
                 p_list = ast.literal_eval(p_list)
-            except:
+            except Exception:
                 p_list = None
 
         if isinstance(p_list, list) and len(p_list) > 0:
-            # Parse tender items
             for p in p_list:
                 if isinstance(p, dict):
                     m = p.get("mode")
@@ -2101,13 +2018,14 @@ def process_payment_records(df, help_df):
                         "Discount": disc
                     })
         else:
-            # Fallback if payments array is missing or empty:
-            # Determine payment mode from the Channel (Swiggy, Zomato, or Cash)
+            # Fallback if tender array is empty/absent
             fallback_mode = "Cash"
             if "swiggy" in channel:
                 fallback_mode = "Swiggy"
             elif "zomato" in channel:
                 fallback_mode = "Zomato"
+            elif "ownly" in channel:
+                fallback_mode = "OWNLY"
 
             rows_expanded.append({
                 "invoiceNumber": inv_no,
@@ -2124,8 +2042,7 @@ def process_payment_records(df, help_df):
     if pay_df.empty:
         return pd.DataFrame()
 
-    # 5. Net out customer change (e.g. 100 Cash with -59 refund = 41 net)
-    # First, sum pay_amount per invoice and payment mode
+    # 6. Net customer change / balance adjustments (e.g. 100 Cash - 59 refund = 41 net)
     net_inv_pay = pay_df.groupby(
         ["invoiceNumber", "brandName", "branchCode", "Date", "Payment Mode"],
         as_index=False
@@ -2134,17 +2051,16 @@ def process_payment_records(df, help_df):
         "Gross": "first",
         "Discount": "first"
     })
-    
-    # Keep only net positive payment entries
+
     net_inv_pay = net_inv_pay[net_inv_pay["Value"] > 0].copy()
 
-    # 6. Merge Store Name & Region from help_df
-    meta_cols = help_df[["branchCode", "Store Name", "Region"]].drop_duplicates()
+    # 7. Merge Store Name & Region from help_df
+    meta_cols = help_df_ref[["branchCode", "Store Name", "Region"]].drop_duplicates("branchCode")
     merged_df = net_inv_pay.merge(meta_cols, on="branchCode", how="left")
     merged_df["Store Name"] = merged_df["Store Name"].fillna(merged_df["branchCode"])
     merged_df["Region"] = merged_df["Region"].fillna("Other")
 
-    # 7. GROUP AT DAY + BRAND + STORE + PAYMENT MODE LEVEL (Unique Mode per Day per Store)
+    # 8. GROUP BY DAY + BRAND + STORE + PAYMENT MODE (One row per mode per store per day)
     aggregated_df = merged_df.groupby(
         ["Date", "brandName", "Region", "Store Name", "Payment Mode"],
         as_index=False
@@ -2155,12 +2071,10 @@ def process_payment_records(df, help_df):
         Discount=("Discount", "sum")
     ).rename(columns={"brandName": "Brand"})
 
-    # Round financial figures for clean viewing
     aggregated_df["Value"] = aggregated_df["Value"].round(2)
     aggregated_df["Gross"] = aggregated_df["Gross"].round(2)
     aggregated_df["Discount"] = aggregated_df["Discount"].round(2)
 
-    # Sort clearly: Date -> Brand -> Store -> Value Descending
     aggregated_df = aggregated_df.sort_values(
         by=["Date", "Brand", "Store Name", "Value"],
         ascending=[True, True, True, False]
@@ -2170,23 +2084,28 @@ def process_payment_records(df, help_df):
         "Date", "Brand", "Region", "Store Name", "Payment Mode", "Value", "Txn", "Gross", "Discount"
     ]]
 
+
 # =========================================================
 # EXECUTION & EXPORT TO GSHEET
 # =========================================================
 print("🔄 Processing Aggregated Payment Records...")
-payment_export_df = process_payment_records(source_df, help_df)
+
+# Pass current_raw (which preserves payments array) and current_sales (which has item gross/discount)
+payment_export_df = process_payment_records(current_raw, current_sales, help_df)
 
 if not payment_export_df.empty:
     try:
         try:
             payment_ws = spreadsheet.worksheet("Payment_Raw_Data")
         except gspread.exceptions.WorksheetNotFound:
-            payment_ws = spreadsheet.add_worksheet(title="Payment_Raw_Data", rows="50000", cols="15")
-        
+            payment_ws = spreadsheet.add_worksheet(title="Payment_Raw_Data", rows=50000, cols=15)
+
         payment_ws.clear()
         payment_export_df["Date"] = payment_export_df["Date"].astype(str)
         payment_data = [payment_export_df.columns.values.tolist()] + payment_export_df.values.tolist()
-        payment_ws.update(payment_data, "A1")
+        payment_ws.update("A1", payment_data)
         print(f"✅ Aggregated Payment Data synchronized ({len(payment_export_df)} store-day-mode rows). Total Value: ₹{payment_export_df['Value'].sum():,.2f}")
     except Exception as e:
         print("❌ Error exporting Payment Data:", e)
+else:
+    print("⚠ No payment records were produced to export.")
