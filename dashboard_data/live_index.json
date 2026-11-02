@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-02T22:30:47.178351+05:30",
+  "updated_at": "2026-11-03T00:30:21.785395+05:30",
   "business_date": "2026-11-02",
-  "rows": 4929,
+  "rows": 6180,
   "columns": [
     "Business Date",
     "branchCode",
@@ -102,6 +102,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Macarons",
     "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Mini Cakes",
@@ -109,6 +110,7 @@
     "Muffins",
     "Newly Launched Waffle Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pistachio Specials",
     "Popping Boba Mocktail",
