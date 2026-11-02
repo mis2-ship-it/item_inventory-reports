@@ -88,12 +88,12 @@ if now.hour < 9:
 else:
     business_date = now.date()
 
-# 🌟 Set fixed start date from October 1st
-month_start_date = datetime(2026, 10, 1).date()
+# Month-to-date window (1st of the active month to today)
+month_start_date = business_date.replace(day=1)
 
 print(f"🕒 Current Execution Time: {now.strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"📅 Active Business Date: {business_date}")
-print(f"📅 Fetching Window: {month_start_date} to {business_date}")
+print(f"📅 Fetching Month-to-Date Window: {month_start_date} to {business_date}")
 
 # =========================================================
 # LOAD HELP SHEET (STORE & REGION METADATA)
