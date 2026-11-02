@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-02T21:06:27.303084+05:30",
+  "updated_at": "2026-11-02T22:30:47.178351+05:30",
   "business_date": "2026-11-02",
-  "rows": 3717,
+  "rows": 4929,
   "columns": [
     "Business Date",
     "branchCode",
@@ -49,6 +49,7 @@
     "Belgian Waffles",
     "Boba Sundaes",
     "Boba Teas",
+    "Brownies",
     "Bubble Teas",
     "Celebration Cakes",
     "Cold Coffees",
@@ -68,7 +69,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -78,6 +80,7 @@
     "Belgian Hot Chocolates",
     "Belgian Waffles",
     "Boba Ice cream Sundaes",
+    "Brownies",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
     "Cheesecakes",
@@ -91,6 +94,7 @@
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
+    "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
     "Guilt Free Desserts",
@@ -103,6 +107,7 @@
     "Mini Cakes",
     "Monster Sundaes",
     "Muffins",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pistachio Specials",
