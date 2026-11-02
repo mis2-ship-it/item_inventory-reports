@@ -1459,13 +1459,30 @@ def process_payment_records(df, help_df):
     brand_col = "brandName" if "brandName" in temp_df.columns else "Brand"
     branch_col = "branchCode" if "branchCode" in temp_df.columns else "branch"
 
+    # 🌟 FIX: Safely detect and standardize Channel before groupby
+    channel_col = None
+    for cand in ["Channel", "channel", "orderSource", "source", "channelName"]:
+        if cand in temp_df.columns:
+            channel_col = cand
+            break
+
+    if channel_col:
+        temp_df["_clean_channel"] = temp_df[channel_col].astype(str).fillna("In Store")
+    else:
+        temp_df["_clean_channel"] = "In Store"
+
+    # Ensure payments column exists
+    if "payments" not in temp_df.columns:
+        temp_df["payments"] = None
+
+    # Group invoice level totals safely
     inv_totals = temp_df.groupby(["invoiceNumber", brand_col, branch_col, "Date"], as_index=False).agg({
         "_billed_num": "sum" if billed_col == "item_grossAmount" else "first",
         "_gross_num": "sum",
         "_disc_num": "sum",
         "payments": "first",
-        "Channel": "first" if "Channel" in temp_df.columns else lambda x: "In Store"
-    })
+        "_clean_channel": "first"
+    }).rename(columns={"_clean_channel": "Channel"})
 
     # Target payment mode canonical lookup
     target_modes = [
