@@ -3068,7 +3068,9 @@ def process_payment_records(df, help_df):
 # EXECUTION & EXPORT TO GSHEET
 # =========================================================
 print("🔄 Processing Aggregated Payment Records...")
-payment_export_df = process_payment_records(raw_mtd_df, help_df)
+# Use sales_df (or df if that is your main extracted DataFrame)
+source_df = sales_df if "sales_df" in locals() else (df if "df" in locals() else pd.DataFrame())
+payment_export_df = process_payment_records(source_df, help_df)
 
 if not payment_export_df.empty:
     try:
