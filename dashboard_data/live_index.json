@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-02T10:30:21.756575+05:30",
+  "updated_at": "2026-11-02T11:19:05.498697+05:30",
   "business_date": "2026-11-02",
-  "rows": 12,
+  "rows": 79,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,31 +31,56 @@
     "Net Amount"
   ],
   "brands": [
+    "Boba Bar",
     "Frozen Bottle",
     "Madno"
   ],
   "regions": [
     "KA",
-    "Kerela"
+    "Kerela",
+    "MH",
+    "TN"
   ],
   "categories": [
     "All day Foods",
     "Bakery & Desserts",
+    "Belgian Waffles",
+    "Bubble Teas",
     "Cold Coffees",
+    "Festival Specials",
+    "Gudbud Sundae",
+    "Hot Chocolate",
     "Ice Cream Scoops",
     "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
+    "Monster Sundaes",
     "Others",
-    "Popping Boba Tea"
+    "Popping Boba Tea",
+    "Refreshing Coolers",
+    "Thickshakes"
   ],
   "category_names": [
+    "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
+    "Belgian Hot Chocolates",
+    "Belgian Waffles",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Cold Coffees",
     "Frozen Bottle X Hersheys Range",
+    "Gudbud Sundae Jars (Serves2)",
+    "Ice Cream Sundae Jars",
     "Ice Creams",
+    "Milkshake and Bubble Teas",
+    "Monster Sundaes",
     "Others",
-    "Signature Ice cream Sundaes"
+    "Pistachio Specials",
+    "Popping Boba Mocktail",
+    "Refreshing Coolers",
+    "Signature Ice cream Sundaes",
+    "Sundae Ice Cream Tubs (100 ML)",
+    "Thickshakes",
+    "Waffles"
   ],
   "file": "live_item_level.csv"
 }
