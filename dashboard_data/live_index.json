@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-03T18:30:38.322208+05:30",
+  "updated_at": "2026-11-03T20:30:29.509658+05:30",
   "business_date": "2026-11-03",
-  "rows": 2631,
+  "rows": 3612,
   "columns": [
     "Business Date",
     "branchCode",
@@ -50,7 +50,9 @@
     "Boba Sundaes",
     "Boba Teas",
     "Bubble Teas",
+    "Celebration Cakes",
     "Cold Coffees",
+    "Doughnuts",
     "Festival Specials",
     "Frozen Bottle X Hersheys Range",
     "Gudbud Sundae",
@@ -66,7 +68,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -77,10 +80,12 @@
     "Belgian Waffles",
     "Boba Ice cream Sundaes",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Celebration Cakes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Doughnuts By Krispy Kreme",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
@@ -97,6 +102,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pistachio Specials",
