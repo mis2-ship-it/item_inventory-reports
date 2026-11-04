@@ -27,7 +27,7 @@ RAW_SPREADSHEET_ID = "1ldgnNMdeubDx_ImtCC1uCD7FGz8gt_edmWEkmO_xRNk"
 SALES_URL = "https://api.ristaapps.com/v1/sales/page"
 
 # Start Date: September 26, 2026
-START_DATE = datetime(2026, 9, 26).date()
+START_DATE = datetime(2026, 9, 01).date()
 
 IST = ZoneInfo("Asia/Kolkata")
 now = datetime.now(IST)
@@ -103,38 +103,63 @@ coco_branches = coco_df["branchCode"].tolist()
 print(f"🏪 Active COCO Branches Loaded: {len(coco_branches)} stores")
 
 # =========================================================
-# FETCH SALES FROM SEP 26
+# FETCH SALES FROM SEP 26 WITH DIAGNOSTIC LOGGING
 # =========================================================
 date_range = [START_DATE + timedelta(days=x) for x in range((business_date - START_DATE).days + 1)]
 print(f"📅 Fetching window: {START_DATE} to {business_date} ({len(date_range)} days)")
 
 all_records = []
+first_call_tested = False
 
 for dt in date_range:
     d_str = dt.strftime("%Y-%m-%d")
+    print(f"\n⏳ Fetching Date: {d_str} across {len(coco_branches)} stores...")
+
     for branch in coco_branches:
-        params = {"branch": branch, "day": d_str, "page": 1, "limit": 5000}
+        params = {
+            "branch": str(branch).strip(),
+            "day": d_str,
+            "page": 1,
+            "limit": 5000
+        }
+
         try:
-            res = requests.get(SALES_URL, headers=api_headers(), params=params, timeout=120)
+            res = requests.get(SALES_URL, headers=api_headers(), params=params, timeout=60)
+
+            # Log first branch response for diagnostic visibility
+            if not first_call_tested:
+                print(f"🔍 API Test Branch [{branch}] Status: {res.status_code}")
+                if res.status_code != 200:
+                    print(f"❌ API Response Body: {res.text[:400]}")
+                else:
+                    test_json = res.json()
+                    print(f"🔍 Response Keys: {list(test_json.keys())}")
+                    sample_data = test_json.get("data", [])
+                    print(f"🔍 Data rows received for first branch: {len(sample_data)}")
+                first_call_tested = True
+
             if res.status_code != 200:
+                # Print non-200 errors if any occur
+                if res.status_code not in [404, 400]:
+                    print(f"⚠ Branch {branch} [{d_str}] HTTP {res.status_code}: {res.text[:200]}")
                 continue
-            data = res.json().get("data", [])
+
+            payload = res.json()
+            data = payload.get("data", [])
             if not data:
                 continue
+
             df_batch = pd.json_normalize(data)
-            df_batch["branchCode"] = branch
+            if "branchCode" not in df_batch.columns:
+                df_batch["branchCode"] = branch
             df_batch["invoiceDay"] = d_str
             all_records.append(df_batch)
-        except Exception:
+
+        except Exception as exc:
+            print(f"❌ Exception on Branch {branch} [{d_str}]: {exc}")
             continue
 
-if not all_records:
-    print("❌ No records retrieved.")
-    exit(0)
-
-raw_df = pd.concat(all_records, ignore_index=True)
-if "status" in raw_df.columns:
-    raw_df = raw_df[raw_df["status"].astype(str).str.upper().str.strip() == "CLOSED"].copy()
+print(f"\n📦 Finished Fetching. Total Batches Retrieved: {len(all_records)}")
 
 # =========================================================
 # FLATTEN & CALCULATE FOOD COST FORMAT
