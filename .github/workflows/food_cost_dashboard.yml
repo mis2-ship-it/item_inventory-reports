@@ -1,0 +1,35 @@
+name: Food Cost Dashboard Automation
+
+on:
+  schedule:
+    # Runs daily at 04:00 AM UTC (09:30 AM IST), right after the business day closes
+    - cron: '0 4 * * *'
+  workflow_dispatch: # Allows manual run anytime from GitHub Actions tab
+
+jobs:
+  run-food-cost-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests PyJWT gspread google-auth numpy
+
+      - name: Execute Food Cost Pipeline Script
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: |
+          echo "Starting Standalone Food Cost Pipeline..."
+          python food_cost_pipeline.py
