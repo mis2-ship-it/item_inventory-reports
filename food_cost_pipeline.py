@@ -55,24 +55,52 @@ help_ss = client.open_by_key(HELP_SPREADSHEET_ID)
 raw_ss = client.open_by_key(RAW_SPREADSHEET_ID)
 
 # =========================================================
-# LOAD COCO STORES & METADATA
+# LOAD COCO STORES & METADATA (HEADER-AWARE)
 # =========================================================
 help_ws = help_ss.worksheet("Help Sheet")
 help_vals = help_ws.get_all_values()
 
-# Col A(0): branchCode, Col B(1): Store Name, Col C(2): Ownership, Col D(3): Region
-store_meta = []
-for r in help_vals[1:]:
-    if len(r) >= 4 and str(r[2]).strip().upper() == "COCO":
-        store_meta.append({
-            "branchCode": str(r[0]).strip(),
-            "Store Name": str(r[1]).strip(),
-            "Region": str(r[3]).strip()
-        })
+if not help_vals or len(help_vals) < 2:
+    raise RuntimeError("Help Sheet is empty or missing data rows")
 
-coco_df = pd.DataFrame(store_meta).drop_duplicates("branchCode")
-coco_branches = coco_df["branchCode"].dropna().unique().tolist()
-print(f"🏪 Active COCO Branches Loaded: {len(coco_branches)}")
+headers = [str(h).strip() for h in help_vals[0]]
+raw_help_df = pd.DataFrame(help_vals[1:], columns=headers)
+
+# Clean column names
+raw_help_df.columns = [c.strip() for c in raw_help_df.columns]
+
+# Resolve Ownership column dynamically
+ownership_col = next((c for c in ["Ownership", "ownership", "Type", "type"] if c in raw_help_df.columns), None)
+if ownership_col:
+    coco_df = raw_help_df[raw_help_df[ownership_col].astype(str).str.upper().str.strip() == "COCO"].copy()
+else:
+    coco_df = raw_help_df.copy()
+
+# Resolve branchCode column dynamically (falls back to Store Name if branchCode isn't a column)
+branch_col = next((c for c in ["branchCode", "branch_code", "Branch Code", "BranchCode", "Store Name", "store"] if c in coco_df.columns), None)
+store_name_col = next((c for c in ["Store Name", "StoreName", "store_name", "store"] if c in coco_df.columns), None)
+region_col = next((c for c in ["Region", "region"] if c in coco_df.columns), None)
+
+if not branch_col:
+    raise KeyError(f"Could not identify a branchCode or Store Name column in Help Sheet. Found headers: {headers}")
+
+# Standardize to expected columns
+coco_df["branchCode"] = coco_df[branch_col].astype(str).str.strip()
+if store_name_col:
+    coco_df["Store Name"] = coco_df[store_name_col].astype(str).str.strip()
+else:
+    coco_df["Store Name"] = coco_df["branchCode"]
+
+if region_col:
+    coco_df["Region"] = coco_df[region_col].astype(str).str.strip()
+else:
+    coco_df["Region"] = "Other"
+
+coco_df = coco_df[["branchCode", "Store Name", "Region"]].drop_duplicates("branchCode")
+coco_df = coco_df[coco_df["branchCode"] != ""].copy()
+
+coco_branches = coco_df["branchCode"].tolist()
+print(f"🏪 Active COCO Branches Loaded: {len(coco_branches)} stores")
 
 # =========================================================
 # FETCH SALES FROM SEP 26
