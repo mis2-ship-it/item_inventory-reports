@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-04T14:29:53.144778+05:30",
+  "updated_at": "2026-11-04T16:30:37.095606+05:30",
   "business_date": "2026-11-04",
-  "rows": 1055,
+  "rows": 1951,
   "columns": [
     "Business Date",
     "branchCode",
@@ -50,6 +50,7 @@
     "Boba Sundaes",
     "Boba Teas",
     "Bubble Teas",
+    "Celebration Cakes",
     "Cold Coffees",
     "Festival Specials",
     "Frozen Bottle X Hersheys Range",
@@ -81,6 +82,7 @@
     "Classic Bubble Teas",
     "Cold Coffees",
     "Festive Specials",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
@@ -91,6 +93,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Macarons",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
     "Others",
@@ -101,6 +104,7 @@
     "Refreshing Coolers",
     "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
+    "Signature Mousse Cakes",
     "Sundae Ice Cream Tubs (100 ML)",
     "Thickshakes",
     "Waffles"
