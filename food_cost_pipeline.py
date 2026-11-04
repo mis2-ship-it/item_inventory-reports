@@ -159,20 +159,26 @@ if not all_batches:
     exit(0)
 
 raw_df = pd.concat(all_batches, ignore_index=True)
+
+# Filter Closed status
 if "status" in raw_df.columns:
     raw_df = raw_df[raw_df["status"].astype(str).str.upper().str.strip() == "CLOSED"].copy()
 
 # =========================================================
 # FLATTEN ITEMS & COMPUTE FOOD COST / DISCOUNT
 # =========================================================
-raw_df = raw_df.explode("items")
-raw_df = raw_df[raw_df["items"].notna()].copy()
-items_normalized = pd.json_normalize(raw_df["items"])
-items_normalized.columns = [f"item_{c}" for c in items_normalized.columns]
-
-raw_df = raw_df.drop(columns=["items"]).reset_index(drop=True)
-items_normalized = items_normalized.reset_index(drop=True)
-full_df = pd.concat([raw_df, items_normalized], axis=1)
+# If API returned nested 'items', explode it; if already exploded, keep as is
+if "items" in raw_df.columns:
+    raw_df = raw_df.explode("items")
+    raw_df = raw_df[raw_df["items"].notna()].copy()
+    items_normalized = pd.json_normalize(raw_df["items"])
+    # If keys don't already start with item_, prefix them
+    items_normalized.columns = [c if c.startswith("item_") else f"item_{c}" for c in items_normalized.columns]
+    raw_df = raw_df.drop(columns=["items"]).reset_index(drop=True)
+    items_normalized = items_normalized.reset_index(drop=True)
+    full_df = pd.concat([raw_df, items_normalized], axis=1)
+else:
+    full_df = raw_df.copy()
 
 # Map Channel to Order Source using Help Sheet definitions
 def resolve_order_source(channel_val):
@@ -192,23 +198,49 @@ channel_col = next((c for c in ["channel", "orderSource", "source"] if c in full
 full_df["Order Source"] = full_df[channel_col].apply(resolve_order_source) if channel_col else "In Store"
 
 # Merge COCO Metadata
-full_df = full_df.merge(coco_df, on="branchCode", how="left")
+if "Store Name" not in full_df.columns or "Region" not in full_df.columns:
+    full_df = full_df.merge(coco_df[["branchCode", "Store Name", "Region"]], on="branchCode", how="left")
 
-full_df["Business Brand"] = full_df.get("brandName", "Frozen Bottle").fillna("Frozen Bottle").astype(str).str.strip()
-full_df["SKU Code"] = full_df.get("item_sku", full_df.get("item_code", "")).fillna("").astype(str).str.strip()
-full_df["Category Name"] = full_df.get("item_categoryName", full_df.get("item_category", "Others")).fillna("Others").astype(str).str.strip()
-full_df["Item Name"] = full_df.get("item_shortName", full_df.get("item_name", "")).fillna("").astype(str).str.strip()
+# Helper function to extract series safely without AttributeError
+def get_series(df, candidate_cols, default=""):
+    for col in candidate_cols:
+        if col in df.columns:
+            return df[col].fillna(default)
+    return pd.Series(default, index=df.index)
 
-full_df["Qty"] = pd.to_numeric(full_df.get("item_quantity", 1), errors="coerce").fillna(0)
-full_df["Sales"] = pd.to_numeric(full_df.get("item_netAmount", 0), errors="coerce").fillna(0)
-full_df["Gross Rev"] = pd.to_numeric(full_df.get("item_grossAmount", full_df["Sales"]), errors="coerce").fillna(0)
-full_df["Discount"] = pd.to_numeric(full_df.get("item_netDiscountAmount", full_df.get("item_discountAmount", 0)), errors="coerce").abs().fillna(0)
-full_df["Material cost"] = pd.to_numeric(full_df.get("item_itemMaterialCost", 0), errors="coerce").fillna(0)
+# Field Extractions matching salepage schema
+full_df["Business Brand"] = get_series(full_df, ["item_brandName", "brandName"], default="Frozen Bottle").astype(str).str.strip()
+full_df["SKU Code"] = get_series(full_df, ["item_skuCode", "item_sku", "item_barCode"], default="").astype(str).str.strip()
+full_df["Category Name"] = get_series(full_df, ["item_categoryName", "item_category"], default="Others").astype(str).str.strip()
+full_df["Item Name"] = get_series(full_df, ["item_shortName", "item_longName", "item_name"], default="").astype(str).str.strip()
 
-# Group at Day + Store + Brand + Category + Item + Source
-agg_df = full_df.groupby([
-    "invoiceDay", "Region", "Store Name", "Business Brand", "SKU Code", "Category Name", "Item Name", "Order Source"
-], as_index=False).agg({
+# Numeric Extractions matching salepage schema
+full_df["Qty"] = pd.to_numeric(get_series(full_df, ["item_quantity", "quantity"], default=1), errors="coerce").fillna(0)
+full_df["Sales"] = pd.to_numeric(get_series(full_df, ["item_netAmount", "netAmount"], default=0), errors="coerce").fillna(0)
+full_df["Gross Rev"] = pd.to_numeric(get_series(full_df, ["item_grossAmount", "grossAmount"], default=0), errors="coerce").fillna(0)
+full_df["Discount"] = pd.to_numeric(get_series(full_df, ["item_netDiscountAmount", "item_discountAmount"], default=0), errors="coerce").abs().fillna(0)
+full_df["Material cost"] = pd.to_numeric(get_series(full_df, ["item_itemMaterialCost", "item_itemCost"], default=0), errors="coerce").fillna(0)
+
+# If Gross Rev is zero, set it to Sales + Discount
+zero_gross_mask = (full_df["Gross Rev"] == 0) & (full_df["Sales"] > 0)
+full_df.loc[zero_gross_mask, "Gross Rev"] = full_df.loc[zero_gross_mask, "Sales"] + full_df.loc[zero_gross_mask, "Discount"]
+
+# Date field resolution
+date_series = get_series(full_df, ["invoiceDay", "invoiceDate", "createdDate"])
+full_df["Date"] = date_series.astype(str).str.slice(0, 10)
+
+# =========================================================
+# GROUP AT DAY + STORE + BRAND + CATEGORY + ITEM + SOURCE
+# =========================================================
+group_cols = [
+    "Date", "Region", "Store Name", "Business Brand", "SKU Code", "Category Name", "Item Name", "Order Source"
+]
+
+# Ensure no NaN keys
+for col in group_cols:
+    full_df[col] = full_df[col].fillna("Unknown").astype(str)
+
+agg_df = full_df.groupby(group_cols, as_index=False).agg({
     "Qty": "sum",
     "Sales": "sum",
     "Material cost": "sum",
@@ -216,6 +248,7 @@ agg_df = full_df.groupby([
     "Discount": "sum"
 })
 
+# Calculate Percentages
 agg_df["Food Cost%"] = np.where(agg_df["Sales"] > 0, (agg_df["Material cost"] / agg_df["Sales"]) * 100, 0).round(1)
 agg_df["Dis%"] = np.where(agg_df["Gross Rev"] > 0, (agg_df["Discount"] / agg_df["Gross Rev"]) * 100, 0).round(1)
 
@@ -223,7 +256,7 @@ export_columns = [
     "Date", "Region", "Store Name", "Business Brand", "SKU Code", "Category Name", 
     "Item Name", "Order Source", "Qty", "Sales", "Material cost", "Gross Rev", "Discount", "Food Cost%", "Dis%"
 ]
-agg_df = agg_df.rename(columns={"invoiceDay": "Date"})[export_columns]
+agg_df = agg_df[export_columns]
 
 for col in ["Sales", "Material cost", "Gross Rev", "Discount"]:
     agg_df[col] = agg_df[col].round(2)
@@ -257,4 +290,4 @@ index_payload = {
 with open(os.path.join(DATA_DIR, "index.json"), "w") as f:
     json.dump(index_payload, f, indent=2)
 
-print("✅ Data stored in data/food_cost/ monthly folder structure.")
+print("✅ Data stored in data/food_cost/ monthly folder structure successfully.")
