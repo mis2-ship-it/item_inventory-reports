@@ -27,13 +27,12 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 SPREADSHEET_ID = "1ldgnNMdeubDx_ImtCC1uCD7FGz8gt_edmWEkmO_xRNk"
 SALES_URL = "https://api.ristaapps.com/v1/sales/page"
 
-# Temporary backfill window for September:
-START_DATE = datetime(2026, 9, 1).date()
-business_date = datetime(2026, 9, 25).date()
-
 IST = ZoneInfo("Asia/Kolkata")
 now = datetime.now(IST)
 business_date = now.date() - timedelta(days=1) if now.hour < 9 else now.date()
+
+# Daily fast sync (refreshes yesterday & today):
+START_DATE = business_date - timedelta(days=1)
 
 DATA_DIR = os.path.join("data", "food_cost")
 os.makedirs(DATA_DIR, exist_ok=True)
