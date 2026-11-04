@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-04T22:38:03.232424+05:30",
+  "updated_at": "2026-11-05T00:30:44.335630+05:30",
   "business_date": "2026-11-04",
-  "rows": 4914,
+  "rows": 6146,
   "columns": [
     "Business Date",
     "branchCode",
@@ -64,10 +64,12 @@
     "Monster Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -80,10 +82,12 @@
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Cake Dessert Jars",
     "Celebration Cakes",
+    "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Cupcakes",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
@@ -101,8 +105,10 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
