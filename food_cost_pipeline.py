@@ -57,52 +57,73 @@ client = gspread.authorize(creds)
 help_ss = client.open_by_key(HELP_SPREADSHEET_ID)
 
 # =========================================================
-# LOAD COCO STORES & METADATA
+# LOAD COCO STORES & METADATA (EXACT POSITIONAL MAPPING)
 # =========================================================
 help_ws = help_ss.worksheet("Help Sheet")
 help_vals = help_ws.get_all_values()
 
-headers = [str(h).strip() for h in help_vals[0]]
-raw_help_df = pd.DataFrame(help_vals[1:], columns=headers)
-raw_help_df.columns = [c.strip() for c in raw_help_df.columns]
+if not help_vals or len(help_vals) < 2:
+    raise RuntimeError("Help Sheet is empty")
 
-ownership_col = next((c for c in ["Ownership", "ownership"] if c in raw_help_df.columns), None)
-if ownership_col:
-    coco_df = raw_help_df[raw_help_df[ownership_col].astype(str).str.upper().str.strip() == "COCO"].copy()
-else:
-    coco_df = raw_help_df.copy()
+store_meta = []
+for row in help_vals[1:]:
+    row = list(row)
+    if len(row) < 7:
+        row.extend([""] * (7 - len(row)))
+    
+    branch_code = str(row[0]).strip()       # Col A: branchCode (Rista API ID)
+    store_name = str(row[1]).strip()        # Col B: Store Name
+    ownership = str(row[2]).strip().upper() # Col C: Ownership (COCO)
+    region = str(row[3]).strip()            # Col D: Region
 
-branch_col = next((c for c in ["branchCode", "branch_code", "Store Name", "store"] if c in coco_df.columns), None)
-store_name_col = next((c for c in ["Store Name", "StoreName", "store"] if c in coco_df.columns), None)
-region_col = next((c for c in ["Region", "region"] if c in coco_df.columns), None)
+    # Restrict strictly to COCO stores with a valid branch code
+    if ownership == "COCO" and branch_code:
+        store_meta.append({
+            "branchCode": branch_code,
+            "Store Name": store_name if store_name else branch_code,
+            "Region": region if region else "Other"
+        })
 
-coco_df["branchCode"] = coco_df[branch_col].astype(str).str.strip()
-coco_df["Store Name"] = coco_df[store_name_col].astype(str).str.strip() if store_name_col else coco_df["branchCode"]
-coco_df["Region"] = coco_df[region_col].astype(str).str.strip() if region_col else "Other"
-
-coco_df = coco_df[["branchCode", "Store Name", "Region"]].drop_duplicates("branchCode")
-coco_df = coco_df[coco_df["branchCode"] != ""].copy()
+coco_df = pd.DataFrame(store_meta).drop_duplicates("branchCode")
 coco_branches = coco_df["branchCode"].tolist()
 
 print(f"🏪 Active COCO Branches Loaded: {len(coco_branches)} stores")
+print(f"📋 Sample Branch Codes: {coco_branches[:5]}")
 
 # =========================================================
-# CONCURRENT SALES FETCH
+# CONCURRENT SALES FETCH WITH ERROR LOGGING
 # =========================================================
+logged_sample_error = False
+
 def fetch_single_branch_day(branch, d_str):
-    params = {"branch": branch, "day": d_str, "page": 1, "limit": 5000}
+    global logged_sample_error
+    params = {
+        "branch": str(branch).strip(),
+        "day": d_str,
+        "page": 1,
+        "limit": 5000
+    }
     try:
         res = requests.get(SALES_URL, headers=api_headers(), params=params, timeout=45)
         if res.status_code != 200:
+            if not logged_sample_error:
+                print(f"\n⚠ API Error Sample -> Branch: '{branch}' | Day: '{d_str}' | Status: {res.status_code}")
+                print(f"   Response Body: {res.text[:300]}\n")
+                logged_sample_error = True
             return None
+        
         data = res.json().get("data", [])
         if not data:
             return None
+        
         df_batch = pd.json_normalize(data)
         df_batch["branchCode"] = branch
         df_batch["invoiceDay"] = d_str
         return df_batch
-    except Exception:
+    except Exception as e:
+        if not logged_sample_error:
+            print(f"❌ Exception fetching branch '{branch}' on {d_str}: {e}")
+            logged_sample_error = True
         return None
 
 # Build tasks
@@ -201,7 +222,6 @@ for ym, month_df in agg_df.groupby("YearMonth"):
     month_file = os.path.join(DATA_DIR, f"{ym}.csv")
     cleaned_df = month_df.drop(columns=["YearMonth"])
 
-    # If file exists, update with fresh dates
     if os.path.exists(month_file):
         existing_m_df = pd.read_csv(month_file)
         fresh_dates = cleaned_df["Date"].unique().tolist()
@@ -214,7 +234,6 @@ for ym, month_df in agg_df.groupby("YearMonth"):
     final_m_df.to_csv(month_file, index=False)
     print(f"💾 Saved {len(final_m_df)} rows to {month_file}")
 
-# Save Index manifest
 index_payload = {
     "updated_at": datetime.now(IST).isoformat(),
     "months": sorted(agg_df["YearMonth"].unique().tolist()),
