@@ -18075,13 +18075,48 @@ Date,Region,Store Name,Business Brand,SKU Code,Category Name,Item Name,Order Sou
 2026-11-03,TN,Zamin Pallavaram,Madno,MAD99,Waffles,Ferrero Rocher Waffle Sandwich,Swiggy,1,129.53,49.26,190.0,60.47,38.0,31.8
 2026-11-03,TN,Zamin Pallavaram,Madno,MD77,Waffles,Double Choco Hazelnut Waffle,Swiggy,1,129.09,35.48,191.0,61.91,27.5,32.4
 2026-11-03,TN,Zamin Pallavaram,Madno,MD78,Waffles,Choco Vanilla Waffle,Swiggy,1,128.42,30.83,190.0,61.58,24.0,32.4
-2026-11-04,KA,Bel Road,Frozen Bottle,FB126,All Day Food,Classic Maggi,Swiggy,1,68.0,25.81,159.0,91.0,38.0,57.2
+2026-11-04,MH,Baner Road - Pune,Boba Bar,BB10,Chocolate & Coffee Latte Bubble Teas,Rich Chocolate Bubble Tea,Swiggy,1,204.0,37.33,280.0,76.0,18.3,27.1
+2026-11-04,MH,Baner Road - Pune,Boba Bar,BB5,Fruity Bubble Teas,Strawberry Bubble Tea,Swiggy,1,128.0,34.71,260.0,132.0,27.1,50.8
+2026-11-04,KA,Bel Road,Frozen Bottle,FB126,All Day Food,Classic Maggi,Swiggy,2,136.0,51.62,318.0,182.0,38.0,57.2
+2026-11-04,KA,Kanakapura,Frozen Bottle,FB127,All Day Food,Peri Peri Maggi,Swiggy,1,68.0,26.78,159.0,91.0,39.4,57.2
+2026-11-04,Kerela,Thiruvalla,Frozen Bottle,FB127,All Day Food,Peri Peri Maggi,Swiggy,1,197.0,82.69,288.0,91.0,42.0,31.6
+2026-11-04,TN,Annanagar,Frozen Bottle,FB127,All Day Food,Peri Peri Maggi,Swiggy,2,136.0,53.44,318.0,182.0,39.3,57.2
 2026-11-04,KA,Bel Road,Frozen Bottle,FB132,Belgian Hot Chocolates,Hazelnut Hot Chocolate,Swiggy,2,249.5,86.33,360.0,110.5,34.6,30.7
+2026-11-04,KA,Manipal,Frozen Bottle,FB134,Belgian Hot Chocolates,Classic Belgian Hot Chocolate,Zomato,1,154.8,52.1,180.0,25.2,33.7,14.0
+2026-11-04,KA,Bel Road,Frozen Bottle,FB230,Belgian Waffles,Choco Brownie Overload Waffle Sandwich,Zomato,1,101.0,37.92,199.0,98.0,37.5,49.2
+2026-11-04,KA,Manipal,Frozen Bottle,FB230,Belgian Waffles,Choco Brownie Overload Waffle Sandwich,Zomato,1,101.0,37.93,199.0,98.0,37.6,49.2
+2026-11-04,TN,Kolathur,Frozen Bottle,FB230,Belgian Waffles,Choco Brownie Overload Waffle Sandwich,Swiggy,1,119.0,37.81,198.0,79.0,31.8,39.9
+2026-11-04,TN,Nungambakkam - CK,Frozen Bottle,FB230,Belgian Waffles,Choco Brownie Overload Waffle Sandwich,Zomato,1,129.0,38.38,199.0,70.0,29.8,35.2
+2026-11-04,KA,Hsr Layout,Frozen Bottle,FB28A,"Bubble Teas, Boba Mocktails & Boba Sundaes",Blueberry Poppins,In Store,1,54.91,30.9,129.0,74.09,56.3,57.4
 2026-11-04,KA,Hsr Layout,Frozen Bottle,FB400,"Bubble Teas, Boba Mocktails & Boba Sundaes",Taro Bubble Tea,Zomato,1,299.0,66.98,299.0,0.0,22.4,0.0
+2026-11-04,KA,Whitefield,Frozen Bottle,FB351,"Bubble Teas, Boba Mocktails & Boba Sundaes",Rich Chocolate Bubble Tea,Zomato,1,201.0,54.68,299.0,98.0,27.2,32.8
 2026-11-04,KA,Frazer Town,Frozen Bottle,FB105,Cold Coffees,Choco Hazelnut Cold Coffee,Zomato,1,159.5,69.1,319.0,159.5,43.3,50.0
+2026-11-04,KA,Gunjur,Frozen Bottle,FB104,Cold Coffees,Classic Cold Coffee,In Store,1,169.0,35.9,169.0,0.0,21.2,0.0
+2026-11-04,KA,Gunjur,Frozen Bottle,FB104,Cold Coffees,Classic Cold Coffee,Swiggy,1,129.0,35.9,230.0,101.0,27.8,43.9
 2026-11-04,KA,JP Nagar,Frozen Bottle,FB108,Cold Coffees,Chocolate Cold Coffee,Swiggy,1,129.0,39.87,230.0,101.0,30.9,43.9
 2026-11-04,KA,Kammanhalli,Frozen Bottle,FB104,Cold Coffees,Classic Cold Coffee,Swiggy,1,129.0,36.51,230.0,101.0,28.3,43.9
+2026-11-04,KA,Yelahanka,Frozen Bottle,FB105,Cold Coffees,Choco Hazelnut Cold Coffee,Zomato,1,197.8,42.69,230.0,32.2,21.6,14.0
+2026-11-04,Kerela,Thiruvalla,Frozen Bottle,FB104,Cold Coffees,Classic Cold Coffee,Swiggy,2,258.0,71.67,460.0,202.0,27.8,43.9
+2026-11-04,TN,Annanagar,Frozen Bottle,FB105,Cold Coffees,Choco Hazelnut Cold Coffee,Swiggy,1,108.0,41.84,230.0,122.0,38.7,53.0
+2026-11-04,KA,Banashankari,Frozen Bottle,FB447,Frozen Bottle X Hersheys Range,Triple Choco Melt Milkshake,Swiggy,1,199.0,74.43,279.0,80.0,37.4,28.7
+2026-11-04,TN,Iyyappanthangal - CK,Frozen Bottle,FB86,Gudbud Sundae Jars (Serves2),Dry Fruit Gudbud Jar,Zomato,1,460.0,97.7,460.0,0.0,21.2,0.0
+2026-11-04,KA,Bel Road,Frozen Bottle,FB258A,Ice Cream Sundae Jars,Belgian Dark Chocolate Brownie Sundae,Swiggy,1,179.5,55.41,290.0,110.5,30.9,38.1
 2026-11-04,KA,Basaveshwarnagar,Frozen Bottle,FB56A,Ice Creams,Caramel Nuts Ice Cream,Swiggy,1,129.0,21.15,151.0,22.0,16.4,14.6
+2026-11-04,Kerela,Thiruvalla,Frozen Bottle,FB53B,Ice Creams,Black Currant Ice Cream,Swiggy,1,198.0,34.83,198.0,0.0,17.6,0.0
+2026-11-04,KA,Kempfort,Frozen Bottle,FB196,Others,Take Away Bag,In Store,1,15.23,6.47,15.23,0.0,42.5,0.0
+2026-11-04,KA,Whitefield,Frozen Bottle,FB390,Pistachio Specials,Pista Berry Sundae - Premium,Swiggy,1,241.03,51.7,300.0,58.97,21.4,19.7
+2026-11-04,TN,Iyyappanthangal - CK,Frozen Bottle,FB389,Pistachio Specials,Pistachio Milkshake,Zomato,2,300.0,117.75,600.0,300.0,39.2,50.0
+2026-11-04,KA,Kempfort,Frozen Bottle,FB36B,Refreshing Coolers,Berry Mojito,In Store,1,149.0,35.46,149.0,0.0,23.8,0.0
 2026-11-04,KA,Basaveshwarnagar,Frozen Bottle,FB333,Sundae Ice Cream Tubs (100 ML),Chikki Malai Kulfi Sundae [100 ml],Swiggy,1,49.01,34.89,122.85,73.84,71.2,60.1
+2026-11-04,KA,Channasandra,Frozen Bottle,FB6A,Thickshakes,Kesar Badam Milkshake,In Store,2,258.0,94.36,258.0,0.0,36.6,0.0
+2026-11-04,KA,JP Nagar,Frozen Bottle,FB27B,Thickshakes,Ferrero Rocher Milkshake,Swiggy,1,264.0,105.16,390.0,126.0,39.8,32.3
+2026-11-04,KA,Whitefield,Frozen Bottle,FB18B,Thickshakes,Berry Blast Milkshake,Swiggy,1,273.98,77.65,341.0,67.02,28.3,19.7
+2026-11-04,Kerela,Kakkanad,Frozen Bottle,FB11A,Thickshakes,Nutty Chocolate Milkshake,Swiggy,1,209.5,59.96,320.0,110.5,28.6,34.5
+2026-11-04,TN,Annanagar,Frozen Bottle,FB6B,Thickshakes,Kesar Badam Milkshake,Swiggy,1,189.0,73.42,310.0,121.0,38.8,39.0
+2026-11-04,TN,Erode,Frozen Bottle,FB13A,Thickshakes,Vanilla Cake Milkshake,In Store,1,159.0,43.77,159.0,0.0,27.5,0.0
+2026-11-04,KA,Lubov Store,Lubov,LUB178,Gifting Hampers,Assorted Mini Cupcakes,Zomato,3,1374.3,0.0,1527.0,152.7,0.0,10.0
+2026-11-04,KA,Channasandra,Madno,MAD125,All day Foods,Schezwan Paneer Sandwich,Swiggy,1,99.0,65.91,179.0,80.0,66.6,44.7
+2026-11-04,Kerela,Ravipuram,Madno,MD46,Milkshake and Bubble Teas,Sugar-Free Nutty Vanilla Milkshake,Swiggy,1,136.5,68.64,260.0,123.5,50.3,47.5
 2026-11-04,TN,Kolathur,Madno,MAD6,Signature Ice cream Sundaes,Belgian Chocolate Nuts Overload,Swiggy,1,134.98,56.69,198.0,63.02,42.0,31.8
+2026-11-04,KA,Koramangala,Madno,MAD178,Waffles,Death by Chocolate Waffle,Swiggy,1,132.0,46.35,190.0,58.0,35.1,30.5
 2026-11-04,TN,Kolathur,Madno,MAD178,Waffles,Death by Chocolate Waffle,Swiggy,1,129.53,46.08,190.0,60.47,35.6,31.8
