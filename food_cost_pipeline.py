@@ -23,7 +23,8 @@ print("🚀 Fast Food Cost Pipeline Started")
 API_KEY = os.environ["API_KEY"]
 SECRET_KEY = os.environ["SECRET_KEY"]
 
-HELP_SPREADSHEET_ID = "1CVUS-BSBfDIoQI4Yk2GB4_Zp1CIJRF-9YRfpvCih-FM"
+# Target Workbook (Contains 'Help Sheet' with branchCode and 'Food_Cost_Raw_Data')
+SPREADSHEET_ID = "1ldgnNMdeubDx_ImtCC1uCD7FGz8gt_edmWEkmO_xRNk"
 SALES_URL = "https://api.ristaapps.com/v1/sales/page"
 
 # Start Date: September 26, 2026
@@ -54,44 +55,50 @@ creds = Credentials.from_service_account_info(
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
 )
 client = gspread.authorize(creds)
-help_ss = client.open_by_key(HELP_SPREADSHEET_ID)
+ss = client.open_by_key(SPREADSHEET_ID)
 
 # =========================================================
-# LOAD COCO STORES & METADATA (EXACT POSITIONAL MAPPING)
+# LOAD COCO STORES & CHANNEL MAPPING FROM HELP SHEET
 # =========================================================
-help_ws = help_ss.worksheet("Help Sheet")
+help_ws = ss.worksheet("Help Sheet")
 help_vals = help_ws.get_all_values()
 
 if not help_vals or len(help_vals) < 2:
     raise RuntimeError("Help Sheet is empty")
 
 store_meta = []
-for row in help_vals[1:]:
-    row = list(row)
-    if len(row) < 7:
-        row.extend([""] * (7 - len(row)))
-    
-    branch_code = str(row[0]).strip()       # Col A: branchCode (Rista API ID)
-    store_name = str(row[1]).strip()        # Col B: Store Name
-    ownership = str(row[2]).strip().upper() # Col C: Ownership (COCO)
-    region = str(row[3]).strip()            # Col D: Region
+channel_source_map = {}
 
-    # Restrict strictly to COCO stores with a valid branch code
-    if ownership == "COCO" and branch_code:
+for row in help_vals[1:]:
+    # 1. Store Extraction: Col A (0): branchCode, Col B (1): Store Name, Col C (2): Ownership, Col D (3): Region
+    b_code = str(row[0]).strip() if len(row) > 0 else ""
+    s_name = str(row[1]).strip() if len(row) > 1 else ""
+    ownership = str(row[2]).strip().upper() if len(row) > 2 else ""
+    reg = str(row[3]).strip() if len(row) > 3 else "KA"
+
+    if ownership == "COCO" and b_code:
         store_meta.append({
-            "branchCode": branch_code,
-            "Store Name": store_name if store_name else branch_code,
-            "Region": region if region else "Other"
+            "branchCode": b_code,
+            "Store Name": s_name if s_name else b_code,
+            "Region": reg if reg else "KA"
         })
 
-coco_df = pd.DataFrame(store_meta).drop_duplicates("branchCode")
+    # 2. Channel -> Source Mapping: Col F (5): Channel, Col G (6): Source
+    if len(row) >= 7:
+        ch = str(row[5]).strip()
+        src = str(row[6]).strip()
+        if ch and src:
+            channel_source_map[ch.lower()] = src
+
+coco_df = pd.DataFrame(store_meta, columns=["branchCode", "Store Name", "Region"]).drop_duplicates("branchCode")
 coco_branches = coco_df["branchCode"].tolist()
 
 print(f"🏪 Active COCO Branches Loaded: {len(coco_branches)} stores")
-print(f"📋 Sample Branch Codes: {coco_branches[:5]}")
+print(f"📋 First 5 Branch Codes: {coco_branches[:5]}")
+print(f"🔗 Channel Mappings Loaded: {len(channel_source_map)}")
 
 # =========================================================
-# CONCURRENT SALES FETCH WITH ERROR LOGGING
+# CONCURRENT SALES FETCH
 # =========================================================
 logged_sample_error = False
 
@@ -107,8 +114,8 @@ def fetch_single_branch_day(branch, d_str):
         res = requests.get(SALES_URL, headers=api_headers(), params=params, timeout=45)
         if res.status_code != 200:
             if not logged_sample_error:
-                print(f"\n⚠ API Error Sample -> Branch: '{branch}' | Day: '{d_str}' | Status: {res.status_code}")
-                print(f"   Response Body: {res.text[:300]}\n")
+                print(f"\n⚠ Sample API Error -> Branch: '{branch}' | Day: '{d_str}' | Status: {res.status_code}")
+                print(f"   Body: {res.text[:200]}\n")
                 logged_sample_error = True
             return None
         
@@ -122,7 +129,7 @@ def fetch_single_branch_day(branch, d_str):
         return df_batch
     except Exception as e:
         if not logged_sample_error:
-            print(f"❌ Exception fetching branch '{branch}' on {d_str}: {e}")
+            print(f"❌ Exception on branch '{branch}': {e}")
             logged_sample_error = True
         return None
 
@@ -130,7 +137,7 @@ def fetch_single_branch_day(branch, d_str):
 date_range = [START_DATE + timedelta(days=x) for x in range((business_date - START_DATE).days + 1)]
 tasks = [(b, dt.strftime("%Y-%m-%d")) for dt in date_range for b in coco_branches]
 
-print(f"⚡ Dispatched {len(tasks)} requests with 15 parallel workers...")
+print(f"⚡ Dispatched {len(tasks)} requests with 15 parallel workers across {len(date_range)} days...")
 start_clock = time.time()
 all_batches = []
 
@@ -148,7 +155,7 @@ with ThreadPoolExecutor(max_workers=15) as executor:
 print(f"⏱ Data extraction completed in {round((time.time() - start_clock)/60, 2)} minutes.")
 
 if not all_batches:
-    print("❌ No records retrieved.")
+    print("❌ No records retrieved. Please check API responses above.")
     exit(0)
 
 raw_df = pd.concat(all_batches, ignore_index=True)
@@ -156,7 +163,7 @@ if "status" in raw_df.columns:
     raw_df = raw_df[raw_df["status"].astype(str).str.upper().str.strip() == "CLOSED"].copy()
 
 # =========================================================
-# FLATTEN & CALCULATE METRICS
+# FLATTEN ITEMS & COMPUTE FOOD COST / DISCOUNT
 # =========================================================
 raw_df = raw_df.explode("items")
 raw_df = raw_df[raw_df["items"].notna()].copy()
@@ -167,16 +174,24 @@ raw_df = raw_df.drop(columns=["items"]).reset_index(drop=True)
 items_normalized = items_normalized.reset_index(drop=True)
 full_df = pd.concat([raw_df, items_normalized], axis=1)
 
-def get_order_source(channel_str):
-    ch = str(channel_str or "").lower()
-    if "swiggy" in ch: return "swiggy"
-    if "zomato" in ch: return "zomato"
-    if "ownly" in ch: return "ownly"
-    return "in-store"
+# Map Channel to Order Source using Help Sheet definitions
+def resolve_order_source(channel_val):
+    ch_str = str(channel_val or "").strip().lower()
+    if ch_str in channel_source_map:
+        return channel_source_map[ch_str]
+    for k, v in channel_source_map.items():
+        if k in ch_str:
+            return v
+    if "swiggy" in ch_str: return "Swiggy"
+    if "zomato" in ch_str: return "Zomato"
+    if "ownly" in ch_str: return "Ownly"
+    if "magicpin" in ch_str: return "Magicpin"
+    return "In Store"
 
 channel_col = next((c for c in ["channel", "orderSource", "source"] if c in full_df.columns), None)
-full_df["Order Source"] = full_df[channel_col].apply(get_order_source) if channel_col else "in-store"
+full_df["Order Source"] = full_df[channel_col].apply(resolve_order_source) if channel_col else "In Store"
 
+# Merge COCO Metadata
 full_df = full_df.merge(coco_df, on="branchCode", how="left")
 
 full_df["Business Brand"] = full_df.get("brandName", "Frozen Bottle").fillna("Frozen Bottle").astype(str).str.strip()
