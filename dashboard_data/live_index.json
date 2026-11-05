@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-05T11:59:01.877337+05:30",
+  "updated_at": "2026-11-05T12:30:25.509498+05:30",
   "business_date": "2026-11-05",
-  "rows": 216,
+  "rows": 337,
   "columns": [
     "Business Date",
     "branchCode",
@@ -33,6 +33,7 @@
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
+    "Lubov- Patisserie",
     "Madno"
   ],
   "regions": [
@@ -49,6 +50,7 @@
     "Bubble Teas",
     "Cold Coffees",
     "Festival Specials",
+    "Frozen Bottle X Hersheys Range",
     "Gudbud Sundae",
     "Hot Chocolate",
     "Ice Cream Cones",
@@ -69,16 +71,21 @@
     "Belgian Hot Chocolates",
     "Belgian Waffles",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Chocolate & Coffee Latte Bubble Teas",
     "Cold Coffees",
     "Festive Specials",
+    "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
+    "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
     "Milkshake and Bubble Teas",
+    "Mini Cakes",
     "Monster Sundaes",
     "Others",
+    "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
     "Refreshing Coolers",
