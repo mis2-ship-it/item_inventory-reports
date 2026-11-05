@@ -21,6 +21,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from google.oauth2.service_account import Credentials
+from gspread.exceptions import APIError
 
 print("🚀 Payment Dashboard Pipeline Started")
 
@@ -61,7 +62,7 @@ def api_headers():
     }
 
 # =========================================================
-# GOOGLE SHEETS AUTHENTICATION
+# GOOGLE SHEETS AUTHENTICATION & RETRY UTILITIES
 # =========================================================
 
 creds = Credentials.from_service_account_info(
@@ -74,6 +75,42 @@ creds = Credentials.from_service_account_info(
 client = gspread.authorize(creds)
 spreadsheet = client.open_by_key(SPREADSHEET_ID)
 print("✅ Connected to Google Sheets Master Workbook")
+
+def safe_sheets_write(worksheet, data_matrix, max_retries=6, initial_delay=15):
+    """
+    Safely writes data to a Google Sheet with exponential backoff
+    to handle 429 Quota Exceeded and temporary network/server glitches.
+    """
+    delay = initial_delay
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"⏳ Attempt {attempt}/{max_retries}: Clearing and writing {len(data_matrix)} rows to '{worksheet.title}'...")
+            worksheet.clear()
+            time.sleep(2)  # Short pause between write calls
+            # Modern gspread syntax avoiding DeprecationWarning
+            worksheet.update(range_name="A1", values=data_matrix)
+            print(f"✅ Sheet '{worksheet.title}' updated successfully.")
+            return True
+        except APIError as e:
+            error_code = e.response.status_code if hasattr(e, 'response') else None
+            is_quota_error = error_code == 429 or "Quota exceeded" in str(e)
+            
+            if is_quota_error and attempt < max_retries:
+                print(f"⚠️ [429 Quota Exceeded] Google Sheets write quota hit. Backing off for {delay} seconds...")
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff (15s, 30s, 60s, 120s...)
+            else:
+                print(f"❌ Failed to write to Google Sheets on attempt {attempt}: {e}")
+                if attempt == max_retries:
+                    raise
+        except Exception as e:
+            if attempt < max_retries:
+                print(f"⚠️ Unexpected error on attempt {attempt}: {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+                delay *= 2
+            else:
+                raise
+    return False
 
 # =========================================================
 # BUSINESS DATE / TIME WINDOW
@@ -381,10 +418,14 @@ if not payment_export_df.empty:
             payment_ws = spreadsheet.add_worksheet(title="Payment_Raw_Data", rows=50000, cols=15)
             print("🛠 Created new sheet tab: 'Payment_Raw_Data'")
 
-        payment_ws.clear()
+        # Clean NaNs and formats before building matrix
         payment_export_df["Date"] = payment_export_df["Date"].astype(str)
+        payment_export_df = payment_export_df.fillna(0)
+        
         payment_matrix = [payment_export_df.columns.values.tolist()] + payment_export_df.values.tolist()
-        payment_ws.update("A1", payment_matrix)
+        
+        # Execute safe write with retry wrapper
+        safe_sheets_write(payment_ws, payment_matrix)
 
         total_val = payment_export_df["Value"].sum()
         total_txns = payment_export_df["Txn"].sum()
