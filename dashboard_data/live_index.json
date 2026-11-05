@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-05T22:30:53.251901+05:30",
+  "updated_at": "2026-11-06T00:30:46.804793+05:30",
   "business_date": "2026-11-05",
-  "rows": 4962,
+  "rows": 6191,
   "columns": [
     "Business Date",
     "branchCode",
@@ -63,6 +63,7 @@
     "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Popping Boba Sundae",
     "Popping Boba Tea",
@@ -71,6 +72,7 @@
     "Waffle Sundaes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
@@ -105,6 +107,7 @@
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pistachio Specials",
     "Popping Boba Mocktail",
