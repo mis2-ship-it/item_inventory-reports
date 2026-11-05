@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-05T16:30:34.058279+05:30",
+  "updated_at": "2026-11-05T18:30:54.598847+05:30",
   "business_date": "2026-11-05",
-  "rows": 1909,
+  "rows": 2606,
   "columns": [
     "Business Date",
     "branchCode",
@@ -66,7 +66,8 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "All Day Food",
@@ -78,6 +79,8 @@
     "Boba Ice cream Sundaes",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
+    "Classic Bubble Teas",
     "Cold Coffees",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
@@ -91,14 +94,17 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
+    "Popping Boba Sundae",
     "Refreshing Coolers",
     "Signature Ice cream Sundaes",
     "Sundae Ice Cream Tubs (100 ML)",
