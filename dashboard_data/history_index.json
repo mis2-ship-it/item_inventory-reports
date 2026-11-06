@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-05T18:08:02.630489+05:30",
+  "updated_at": "2026-11-06T17:51:03.337159+05:30",
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
@@ -44,6 +44,7 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
+    "Savoury Menu",
     "Thickshakes",
     "Waffle Sundaes"
   ],
@@ -95,6 +96,7 @@
     "Monster Milkshake",
     "Monster Sundaes",
     "Muffins",
+    "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
     "Others",
     "Others-Lubov",
@@ -265,9 +267,9 @@
       "file": "item_level_week_2026-11-02.csv",
       "path": "history/item_level_week_2026-11-02.csv",
       "start_date": "2026-11-02",
-      "end_date": "2026-11-05",
-      "rows": 9704,
-      "size_bytes": 3118661
+      "end_date": "2026-11-06",
+      "rows": 12210,
+      "size_bytes": 3927292
     }
   ]
 }
