@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-06T12:30:20.632731+05:30",
+  "updated_at": "2026-11-06T14:30:32.830362+05:30",
   "business_date": "2026-11-06",
-  "rows": 309,
+  "rows": 990,
   "columns": [
     "Business Date",
     "branchCode",
@@ -43,6 +43,7 @@
     "TN"
   ],
   "categories": [
+    "ActivHippy",
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Waffles",
@@ -81,10 +82,15 @@
     "Classic Bubble Teas",
     "Cold Coffees",
     "Cupcakes",
+    "Festive Specials",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
     "Gifting Hampers",
+    "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
