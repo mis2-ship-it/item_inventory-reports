@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-07T21:50:30.520879+05:30",
+  "updated_at": "2026-11-07T22:30:52.743494+05:30",
   "business_date": "2026-11-07",
-  "rows": 5357,
+  "rows": 5880,
   "columns": [
     "Business Date",
     "branchCode",
@@ -67,6 +67,7 @@
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
+    "Savoury Menu",
     "Thickshakes",
     "Waffle Sundaes"
   ],
