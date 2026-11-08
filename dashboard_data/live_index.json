@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-08T16:30:27.852122+05:30",
+  "updated_at": "2026-11-08T18:30:42.700820+05:30",
   "business_date": "2026-11-08",
-  "rows": 2189,
+  "rows": 2948,
   "columns": [
     "Business Date",
     "branchCode",
@@ -43,6 +43,7 @@
     "TN"
   ],
   "categories": [
+    "ActivHippy",
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Waffles",
@@ -86,6 +87,7 @@
     "Cold Coffees",
     "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
     "Gifting Hampers",
