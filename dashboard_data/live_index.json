@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-09T14:30:22.313592+05:30",
+  "updated_at": "2026-11-09T16:30:33.470313+05:30",
   "business_date": "2026-11-09",
-  "rows": 1036,
+  "rows": 2037,
   "columns": [
     "Business Date",
     "branchCode",
@@ -65,6 +65,7 @@
     "Monster Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
@@ -73,6 +74,7 @@
     "Waffle Sundaes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
@@ -83,8 +85,10 @@
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
+    "Classic Bubble Teas",
     "Cold Coffees",
     "Doughnuts By Krispy Kreme",
+    "Festive Specials",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
@@ -102,6 +106,7 @@
     "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
+    "Pastry",
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
