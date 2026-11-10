@@ -1,0 +1,36 @@
+name: Monthly Cancellation Fetcher
+
+on:
+  schedule:
+    # Runs daily at 2:30 AM UTC (8:00 AM IST)
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch-cancellations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install pandas requests pyjwt
+
+      - name: Run Fetch Script
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: python fetch_cancellations_monthly.py
+
+      - name: Commit & Push Monthly CSVs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/cancellations/*.csv
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update monthly cancellation datasets" && git push)
