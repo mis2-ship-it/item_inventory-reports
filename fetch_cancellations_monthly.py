@@ -47,11 +47,24 @@ client = gspread.authorize(creds)
 spreadsheet = client.open("Cancellation Dashboard")
 mapping_ws = spreadsheet.worksheet("Store_Mapping")
 
-mapping_data = mapping_ws.get_all_records()
-mapping_df = pd.DataFrame(mapping_data)
+# Safely extract values without gspread duplicate header restriction
+data = mapping_ws.get_all_values()
+if not data:
+    print("❌ Store_Mapping sheet is empty")
+    exit(1)
 
-# Normalize column names
-mapping_df.columns = [c.strip() for c in mapping_df.columns]
+# Keep only populated headers (columns A through G)
+raw_headers = [str(h).strip() for h in data[0]]
+valid_cols = [i for i, h in enumerate(raw_headers) if h]
+headers = [raw_headers[i] for i in valid_cols]
+
+rows = []
+for row in data[1:]:
+    # Pad row if shorter than headers
+    padded_row = row + [""] * (len(raw_headers) - len(row))
+    rows.append([padded_row[i] for i in valid_cols])
+
+mapping_df = pd.DataFrame(rows, columns=headers)
 
 # Create lookup dictionary by branchCode
 store_map = {}
