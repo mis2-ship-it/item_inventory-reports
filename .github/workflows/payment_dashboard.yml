@@ -1,9 +1,6 @@
 name: Payment Mode Dashboard Automation
 
 on:
-  schedule:
-    # Runs hourly at minute 15 (UTC) to avoid overlap with other scripts
-    - cron: '15 * * * *'
   workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
 
 jobs:
