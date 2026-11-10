@@ -25,7 +25,7 @@ def get_token():
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
-def headers():
+def api_headers():
     return {
         "x-api-key": API_KEY,
         "x-api-token": get_token(),
@@ -56,15 +56,14 @@ if not data:
 # Keep only populated headers (columns A through G)
 raw_headers = [str(h).strip() for h in data[0]]
 valid_cols = [i for i, h in enumerate(raw_headers) if h]
-headers = [raw_headers[i] for i in valid_cols]
+sheet_headers = [raw_headers[i] for i in valid_cols]
 
 rows = []
 for row in data[1:]:
-    # Pad row if shorter than headers
     padded_row = row + [""] * (len(raw_headers) - len(row))
     rows.append([padded_row[i] for i in valid_cols])
 
-mapping_df = pd.DataFrame(rows, columns=headers)
+mapping_df = pd.DataFrame(rows, columns=sheet_headers)
 
 # Create lookup dictionary by branchCode
 store_map = {}
@@ -113,7 +112,7 @@ print(f"📋 Target Periods: {[m['label'] for m in months_to_fetch]}")
 # =========================================================
 b_resp = requests.get(
     "https://api.ristaapps.com/v1/branch/list",
-    headers=headers(),
+    headers=api_headers(),
     timeout=30
 )
 b_data = b_resp.json()
@@ -154,7 +153,7 @@ for period in months_to_fetch:
             try:
                 r = requests.get(
                     "https://api.ristaapps.com/v1/sales/page",
-                    headers=headers(),
+                    headers=api_headers(),
                     params={
                         "branch": branch,
                         "fromDate": from_date,
