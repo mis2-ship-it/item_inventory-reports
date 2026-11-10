@@ -1,9 +1,11 @@
 # =========================================================
-# 📦 MONTHLY CANCELLATION FETCHER (APRIL TO CURRENT MONTH)
+# 📦 MONTHLY CANCELLATION FETCHER WITH REGION & STORE MAPPING
 # =========================================================
 import os, json, time, calendar, jwt, requests
 import pandas as pd
 from datetime import datetime, timedelta
+import gspread
+from google.oauth2.service_account import Credentials
 
 print("🚀 Starting Historical Monthly Cancellation Fetcher...")
 
@@ -31,18 +33,52 @@ def headers():
     }
 
 # =========================================================
-# 📅 GENERATE MONTH WINDOWS (APRIL 2026 TO CURRENT MONTH)
+# 🗺️ LOAD STORE MAPPING (REGION, OWNERSHIP, AM NAME)
+# =========================================================
+print("📥 Fetching Store Mapping from Google Sheet...")
+creds = Credentials.from_service_account_info(
+    json.loads(os.environ["GOOGLE_CREDENTIALS"]),
+    scopes=[
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+)
+client = gspread.authorize(creds)
+spreadsheet = client.open("Cancellation Dashboard")
+mapping_ws = spreadsheet.worksheet("Store_Mapping")
+
+mapping_data = mapping_ws.get_all_records()
+mapping_df = pd.DataFrame(mapping_data)
+
+# Normalize column names
+mapping_df.columns = [c.strip() for c in mapping_df.columns]
+
+# Create lookup dictionary by branchCode
+store_map = {}
+for _, row in mapping_df.iterrows():
+    b_code = str(row.get("branchCode", "")).strip()
+    if b_code:
+        store_map[b_code] = {
+            "storeName": str(row.get("Store Name", "")).strip(),
+            "ownership": str(row.get("Ownership", "")).strip().upper(),
+            "region": str(row.get("Region", "")).strip().upper(),
+            "amName": str(row.get("AM Name", "")).strip()
+        }
+
+print(f"✅ Mapped {len(store_map)} stores with Region & Ownership.")
+
+# =========================================================
+# 📅 GENERATE MONTH WINDOWS (APRIL TO CURRENT MONTH)
 # =========================================================
 now = datetime.utcnow() + timedelta(hours=5, minutes=30)
 current_year = now.year
 current_month = now.month
 
-# List of months starting from April (Month 4)
 months_to_fetch = []
-start_month = 4
+start_month = 4  # April
 
 for m in range(start_month, current_month + 1):
-    month_name = calendar.month_abbr[m].upper()  # e.g., APR, MAY, JUN
+    month_name = calendar.month_abbr[m].upper()  # APR, MAY, JUN...
     first_day = f"{current_year}-{m:02d}-01"
     
     if m == current_month:
@@ -60,7 +96,7 @@ for m in range(start_month, current_month + 1):
 print(f"📋 Target Periods: {[m['label'] for m in months_to_fetch]}")
 
 # =========================================================
-# 📡 FETCH ACTIVE BRANCHES
+# 📡 FETCH ACTIVE BRANCHES FROM RISTA
 # =========================================================
 b_resp = requests.get(
     "https://api.ristaapps.com/v1/branch/list",
@@ -74,7 +110,7 @@ branches = [
     if b.get("status") == "Active" and b.get("branchCode")
 ]
 
-print(f"🏪 Active Branches: {len(branches)}")
+print(f"🏪 Active Branches in Rista: {len(branches)}")
 
 # =========================================================
 # 🔄 LOOP THROUGH EACH MONTH
@@ -89,9 +125,17 @@ for period in months_to_fetch:
 
     month_rows = []
 
-    for idx, branch in enumerate(branches, start=1):
+    for branch in branches:
         page = 1
         has_more = True
+
+        # Grab mapped attributes for this branch
+        meta = store_map.get(branch, {
+            "storeName": branch,
+            "ownership": "UNKNOWN",
+            "region": "UNKNOWN",
+            "amName": "UNKNOWN"
+        })
 
         while has_more:
             try:
@@ -122,11 +166,9 @@ for period in months_to_fetch:
                 if not raw_records:
                     break
 
-                # Filter only Voided / Cancelled rows in-memory to save RAM
                 for item in raw_records:
                     status = str(item.get("status") or item.get("orderStatus") or item.get("invoiceStatus") or "").lower()
                     if status in ["voided", "cancel", "cancelled"]:
-                        # Extract nested reasons safely
                         status_info = item.get("statusInfo") or {}
                         reason = (
                             status_info.get("reason")
@@ -139,7 +181,10 @@ for period in months_to_fetch:
                         month_rows.append({
                             "invoiceNumber": item.get("invoiceNumber") or item.get("orderId") or "",
                             "branchCode": branch,
-                            "branchName": item.get("branchName") or branch,
+                            "storeName": meta["storeName"] if meta["storeName"] else (item.get("branchName") or branch),
+                            "ownership": meta["ownership"],
+                            "region": meta["region"],
+                            "amName": meta["amName"],
                             "channel": item.get("channel") or "Unknown",
                             "status": status,
                             "cancelReason": str(reason).strip(),
@@ -159,7 +204,6 @@ for period in months_to_fetch:
     # Save to CSV
     if month_rows:
         df_month = pd.DataFrame(month_rows)
-        # Drop duplicates by invoiceNumber if any
         if "invoiceNumber" in df_month.columns:
             df_month.drop_duplicates(subset=["invoiceNumber"], keep="first", inplace=True)
             
@@ -168,8 +212,9 @@ for period in months_to_fetch:
     else:
         print(f"⚠️ No cancellations found for {period_label}. Writing empty file.")
         pd.DataFrame(columns=[
-            "invoiceNumber", "branchCode", "branchName", "channel", 
-            "status", "cancelReason", "netAmount", "createdDate"
+            "invoiceNumber", "branchCode", "storeName", "ownership", 
+            "region", "amName", "channel", "status", "cancelReason", 
+            "netAmount", "createdDate"
         ]).to_csv(out_file, index=False)
 
 print("\n🎉 Monthly Cancellation Fetch Completed!")
