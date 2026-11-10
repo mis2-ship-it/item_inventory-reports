@@ -1,28 +1,14 @@
-# =========================================================
-# 📦 MONTHLY CANCELLATION FETCHER WITH REGION & STORE MAPPING
-# =========================================================
-import os, json, time, calendar, jwt, requests
+import os, json, time, jwt, requests
 import pandas as pd
 from datetime import datetime, timedelta
-import gspread
-from google.oauth2.service_account import Credentials
 
-print("🚀 Starting Historical Monthly Cancellation Fetcher...")
+print("🚀 Starting November Cancellation Sample Fetch...")
 
-# =========================================================
-# 🔐 AUTH & CONFIG
-# =========================================================
 API_KEY = os.environ["API_KEY"]
 SECRET_KEY = os.environ["SECRET_KEY"]
 
-OUTPUT_DIR = os.path.join("data", "cancellations")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 def get_token():
-    payload = {
-        "iss": API_KEY,
-        "iat": int(time.time())
-    }
+    payload = {"iss": API_KEY, "iat": int(time.time())}
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 def api_headers():
@@ -32,201 +18,105 @@ def api_headers():
         "content-type": "application/json"
     }
 
-# =========================================================
-# 🗺️ LOAD STORE MAPPING (REGION, OWNERSHIP, AM NAME)
-# =========================================================
-print("📥 Fetching Store Mapping from Google Sheet...")
-creds = Credentials.from_service_account_info(
-    json.loads(os.environ["GOOGLE_CREDENTIALS"]),
-    scopes=[
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-)
-client = gspread.authorize(creds)
-spreadsheet = client.open("Cancellation Dashboard")
-mapping_ws = spreadsheet.worksheet("Store_Mapping")
-
-# Safely extract values without gspread duplicate header restriction
-data = mapping_ws.get_all_values()
-if not data:
-    print("❌ Store_Mapping sheet is empty")
-    exit(1)
-
-# Keep only populated headers (columns A through G)
-raw_headers = [str(h).strip() for h in data[0]]
-valid_cols = [i for i, h in enumerate(raw_headers) if h]
-sheet_headers = [raw_headers[i] for i in valid_cols]
-
-rows = []
-for row in data[1:]:
-    padded_row = row + [""] * (len(raw_headers) - len(row))
-    rows.append([padded_row[i] for i in valid_cols])
-
-mapping_df = pd.DataFrame(rows, columns=sheet_headers)
-
-# Create lookup dictionary by branchCode
-store_map = {}
-for _, row in mapping_df.iterrows():
-    b_code = str(row.get("branchCode", "")).strip()
-    if b_code:
-        store_map[b_code] = {
-            "storeName": str(row.get("Store Name", "")).strip(),
-            "ownership": str(row.get("Ownership", "")).strip().upper(),
-            "region": str(row.get("Region", "")).strip().upper(),
-            "amName": str(row.get("AM Name", "")).strip()
-        }
-
-print(f"✅ Mapped {len(store_map)} stores with Region & Ownership.")
-
-# =========================================================
-# 📅 GENERATE MONTH WINDOWS (APRIL TO CURRENT MONTH)
-# =========================================================
-now = datetime.utcnow() + timedelta(hours=5, minutes=30)
-current_year = now.year
-current_month = now.month
-
-months_to_fetch = []
-start_month = 4  # April
-
-for m in range(start_month, current_month + 1):
-    month_name = calendar.month_abbr[m].upper()  # APR, MAY, JUN...
-    first_day = f"{current_year}-{m:02d}-01"
-    
-    if m == current_month:
-        last_day = now.strftime("%Y-%m-%d")
-    else:
-        last_day_num = calendar.monthrange(current_year, m)[1]
-        last_day = f"{current_year}-{m:02d}-{last_day_num:02d}"
-        
-    months_to_fetch.append({
-        "label": f"{month_name}_{current_year}",
-        "fromDate": f"{first_day} 00:00:00",
-        "toDate": f"{last_day} 23:59:59"
-    })
-
-print(f"📋 Target Periods: {[m['label'] for m in months_to_fetch]}")
-
-# =========================================================
-# 📡 FETCH ACTIVE BRANCHES FROM RISTA
-# =========================================================
-b_resp = requests.get(
-    "https://api.ristaapps.com/v1/branch/list",
-    headers=api_headers(),
-    timeout=30
-)
+# 1. Fetch Active Branches
+b_resp = requests.get("https://api.ristaapps.com/v1/branch/list", headers=api_headers(), timeout=30)
 b_data = b_resp.json()
 branches = [
     b.get("branchCode") 
     for b in (b_data.get("data", []) if isinstance(b_data, dict) else b_data) 
     if b.get("status") == "Active" and b.get("branchCode")
 ]
+print(f"🏪 Active Branches: {len(branches)}")
 
-print(f"🏪 Active Branches in Rista: {len(branches)}")
+# 2. Test Days in November 2026 (Checking Day by Day for 1st to 10th Nov)
+dates_to_check = [f"2026-11-{d:02d}" for d in range(1, 11)]
 
-# =========================================================
-# 🔄 LOOP THROUGH EACH MONTH
-# =========================================================
-for period in months_to_fetch:
-    period_label = period["label"]
-    from_date = period["fromDate"]
-    to_date = period["toDate"]
-    out_file = os.path.join(OUTPUT_DIR, f"cancellations_{period_label}.csv")
+sample_cancellations = []
+sample_raw_json = None
 
-    print(f"\n📂 Processing {period_label} ({from_date} → {to_date})...")
-
-    month_rows = []
-
+for d in dates_to_check:
+    print(f"\n🔍 Querying Day: {d}...")
+    day_count = 0
+    
     for branch in branches:
-        page = 1
-        has_more = True
+        try:
+            r = requests.get(
+                "https://api.ristaapps.com/v1/sales/page",
+                headers=api_headers(),
+                params={
+                    "branch": branch,
+                    "day": d,
+                    "page": 1,
+                    "pageSize": 500,
+                    "sort": "desc"
+                },
+                timeout=20
+            )
 
-        # Grab mapped attributes for this branch
-        meta = store_map.get(branch, {
-            "storeName": branch,
-            "ownership": "UNKNOWN",
-            "region": "UNKNOWN",
-            "amName": "UNKNOWN"
-        })
+            if r.status_code != 200:
+                continue
 
-        while has_more:
-            try:
-                r = requests.get(
-                    "https://api.ristaapps.com/v1/sales/page",
-                    headers=api_headers(),
-                    params={
-                        "branch": branch,
-                        "fromDate": from_date,
-                        "toDate": to_date,
-                        "page": page,
-                        "pageSize": 500,
-                        "sort": "desc"
-                    },
-                    timeout=30
-                )
+            res = r.json()
+            rows = []
+            if isinstance(res, dict) and "data" in res:
+                rows = res["data"].get("rows", []) if isinstance(res["data"], dict) else res["data"]
+            elif isinstance(res, list):
+                rows = res
 
-                if r.status_code != 200:
-                    break
+            if not rows:
+                continue
 
-                res_json = r.json()
-                raw_records = []
-                if isinstance(res_json, dict) and "data" in res_json:
-                    raw_records = res_json["data"].get("rows", []) if isinstance(res_json["data"], dict) else res_json["data"]
-                elif isinstance(res_json, list):
-                    raw_records = res_json
+            for item in rows:
+                status = str(item.get("status") or item.get("orderStatus") or item.get("invoiceStatus") or "").lower()
+                
+                # Check for void / cancel status
+                if status in ["voided", "cancel", "cancelled"] or "statusInfo" in item:
+                    if sample_raw_json is None:
+                        sample_raw_json = item  # Save first raw item to print its schema
 
-                if not raw_records:
-                    break
+                    status_info = item.get("statusInfo") or {}
+                    
+                    sample_cancellations.append({
+                        "day": d,
+                        "branchCode": branch,
+                        "branchName": item.get("branchName", branch),
+                        "invoiceNumber": item.get("invoiceNumber") or item.get("orderId"),
+                        "status": status,
+                        "statusInfo.reason": status_info.get("reason"),
+                        "statusInfo.sourceReason": status_info.get("sourceReason"),
+                        "statusInfo.remarks": status_info.get("remarks"),
+                        "note": item.get("note"),
+                        "channel": item.get("channel"),
+                        "netAmount": item.get("netAmount") or item.get("billAmount")
+                    })
+                    day_count += 1
 
-                for item in raw_records:
-                    status = str(item.get("status") or item.get("orderStatus") or item.get("invoiceStatus") or "").lower()
-                    if status in ["voided", "cancel", "cancelled"]:
-                        status_info = item.get("statusInfo") or {}
-                        reason = (
-                            status_info.get("reason")
-                            or status_info.get("sourceReason")
-                            or status_info.get("remarks")
-                            or item.get("note")
-                            or ""
-                        )
-                        
-                        month_rows.append({
-                            "invoiceNumber": item.get("invoiceNumber") or item.get("orderId") or "",
-                            "branchCode": branch,
-                            "storeName": meta["storeName"] if meta["storeName"] else (item.get("branchName") or branch),
-                            "ownership": meta["ownership"],
-                            "region": meta["region"],
-                            "amName": meta["amName"],
-                            "channel": item.get("channel") or "Unknown",
-                            "status": status,
-                            "cancelReason": str(reason).strip(),
-                            "netAmount": item.get("netAmount") or item.get("billAmount") or item.get("totalAmount") or 0,
-                            "createdDate": item.get("createdDate") or item.get("invoiceDate") or ""
-                        })
-
-                if len(raw_records) < 500:
-                    has_more = False
-                else:
-                    page += 1
-
-            except Exception as e:
-                print(f"⚠️ Error {branch} (Page {page}): {e}")
-                break
-
-    # Save to CSV
-    if month_rows:
-        df_month = pd.DataFrame(month_rows)
-        if "invoiceNumber" in df_month.columns:
-            df_month.drop_duplicates(subset=["invoiceNumber"], keep="first", inplace=True)
+        except Exception as e:
+            continue
             
-        df_month.to_csv(out_file, index=False)
-        print(f"✅ Saved {len(df_month)} cancelled orders → {out_file}")
-    else:
-        print(f"⚠️ No cancellations found for {period_label}. Writing empty file.")
-        pd.DataFrame(columns=[
-            "invoiceNumber", "branchCode", "storeName", "ownership", 
-            "region", "amName", "channel", "status", "cancelReason", 
-            "netAmount", "createdDate"
-        ]).to_csv(out_file, index=False)
+    print(f"   -> Found {day_count} cancellations on {d}")
+    if len(sample_cancellations) >= 30:
+        print("⚡ Reached enough samples to inspect structure!")
+        break
 
-print("\n🎉 Monthly Cancellation Fetch Completed!")
+# 3. Print Results & Columns
+print("\n" + "="*60)
+print(f"📊 TOTAL SAMPLES CAPTURED: {len(sample_cancellations)}")
+print("="*60)
+
+if sample_raw_json:
+    print("\n🔍 SAMPLE RAW RECORD KEYS FROM RISTA:")
+    print(list(sample_raw_json.keys()))
+    if "statusInfo" in sample_raw_json:
+        print("🔍 statusInfo content:", sample_raw_json["statusInfo"])
+
+if sample_cancellations:
+    df_sample = pd.DataFrame(sample_cancellations)
+    print("\n📋 SAMPLE ROWS PREVIEW:")
+    print(df_sample.head(10).to_string())
+    
+    os.makedirs("data/cancellations", exist_ok=True)
+    df_sample.to_csv("data/cancellations/nov_sample_cancellations.csv", index=False)
+    print("\n💾 Saved sample to data/cancellations/nov_sample_cancellations.csv")
+else:
+    print("⚠️ Still 0 cancellations found. Verifying whether status field or query param needs adjustment.")
