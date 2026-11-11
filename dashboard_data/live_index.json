@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-11T10:30:20.818836+05:30",
+  "updated_at": "2026-11-11T12:30:18.784922+05:30",
   "business_date": "2026-11-11",
-  "rows": 12,
+  "rows": 264,
   "columns": [
     "Business Date",
     "branchCode",
@@ -37,28 +37,69 @@
     "Madno"
   ],
   "regions": [
-    "KA"
+    "KA",
+    "Kerela",
+    "MH",
+    "TN"
   ],
   "categories": [
     "All day Foods",
+    "Bakery & Desserts",
+    "Belgian Waffles",
+    "Boba Sundaes",
+    "Bubble Teas",
     "Celebration Cakes",
     "Cold Coffees",
     "Festival Specials",
+    "Gudbud Sundae",
     "Hot Chocolate",
+    "Ice Cream Cones",
+    "Ice Cream Scoops",
+    "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
+    "Monster Sundaes",
     "Others",
     "Popping Boba Sundae",
-    "Thickshakes"
+    "Popping Boba Tea",
+    "Refreshing Coolers",
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
+    "All Day Food",
     "All day Foods",
+    "Bakery & Desserts",
+    "Belgian Hot Chocolate by Frozen Bottle",
     "Belgian Hot Chocolates",
+    "Belgian Waffles",
+    "Boba Ice cream Sundaes",
+    "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Celebration Cakes",
+    "Chocolate & Coffee Latte Bubble Teas",
+    "Classic Bubble Teas",
     "Cold Coffees",
+    "Festive Specials",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Fruity Bubble Teas",
+    "Gudbud Sundae Jars (Serves2)",
+    "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
+    "Ice Creams",
+    "Ice cream Cones",
     "Milkshake and Bubble Teas",
+    "Monster Sundaes",
     "Newly Launched Iced Coffees",
+    "Newly Launched Waffle Sundaes",
+    "Others",
+    "Pistachio Specials",
+    "Popping Boba Mocktail",
     "Pull me up special",
-    "Thickshakes"
+    "Refreshing Coolers",
+    "Signature Boba Sundaes",
+    "Signature Ice cream Sundaes",
+    "Thickshakes",
+    "Waffles"
   ],
   "file": "live_item_level.csv"
 }
