@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-11T17:31:25.805812+05:30",
+  "updated_at": "2026-11-12T18:32:44.498149+05:30",
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
@@ -275,9 +275,9 @@
       "file": "item_level_week_2026-11-09.csv",
       "path": "history/item_level_week_2026-11-09.csv",
       "start_date": "2026-11-09",
-      "end_date": "2026-11-11",
-      "rows": 7619,
-      "size_bytes": 2440197
+      "end_date": "2026-11-12",
+      "rows": 10504,
+      "size_bytes": 3359586
     }
   ]
 }
