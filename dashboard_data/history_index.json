@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-12T18:32:44.498149+05:30",
+  "updated_at": "2026-11-13T17:58:56.704856+05:30",
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
@@ -65,6 +65,7 @@
     "Celebration Cookies Cakes",
     "Celebration Loaf Cake",
     "Cheesecakes",
+    "Children's Day Specials",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
@@ -275,9 +276,9 @@
       "file": "item_level_week_2026-11-09.csv",
       "path": "history/item_level_week_2026-11-09.csv",
       "start_date": "2026-11-09",
-      "end_date": "2026-11-12",
-      "rows": 10504,
-      "size_bytes": 3359586
+      "end_date": "2026-11-13",
+      "rows": 13299,
+      "size_bytes": 4262539
     }
   ]
 }
