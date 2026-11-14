@@ -162,20 +162,58 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
 
                 items = order.get("items") or order.get("orderItems") or []
                 for item in items:
-                    brand_name = item.get("item_brandName") or item.get("brandName") or order_brand
-                    item_long = item.get("item_longName") or item.get("item_shortName") or item.get("itemName") or ""
+                    brand_name = (
+                        item.get("brandName")
+                        or item.get("item_brandName")
+                        or order_brand
+                    )
 
-                    raw_var = item.get("item_variants") or item.get("item_variant") or item.get("variantName") or ""
+                    # Check unprefixed API keys first (longName, shortName, name), then prefixed fallbacks
+                    item_long = (
+                        item.get("longName")
+                        or item.get("shortName")
+                        or item.get("name")
+                        or item.get("itemName")
+                        or item.get("item_longName")
+                        or item.get("item_shortName")
+                        or ""
+                    )
+
+                    # Check unprefixed API variant keys first (variants, variant, variantName)
+                    raw_var = (
+                        item.get("variants")
+                        or item.get("variant")
+                        or item.get("variantName")
+                        or item.get("variation")
+                        or item.get("item_variants")
+                        or item.get("item_variant")
+                        or ""
+                    )
                     variant = str(raw_var).strip() if raw_var is not None else ""
                     if variant.lower() in ["", "nan", "none", "-", "null"]:
                         variant = "Regular"
 
-                    category = item.get("item_categoryName") or item.get("categoryName") or ""
-                    qty = float(item.get("item_quantity") or item.get("quantity") or 0)
-                    gross = float(item.get("item_grossAmount") or item.get("grossAmount") or 0)
-                    net_disc = float(item.get("item_netDiscountAmount") or item.get("netDiscountAmount") or 0)
-                    net_amt = float(item.get("item_netAmount") or item.get("netAmount") or 0)
-                    item_cost = float(item.get("item_itemCost") or item.get("item_itemMaterialCost") or 0)
+                    category = (
+                        item.get("categoryName")
+                        or item.get("category")
+                        or item.get("item_categoryName")
+                        or ""
+                    )
+
+                    qty = float(item.get("quantity") or item.get("qty") or item.get("item_quantity") or 0)
+                    gross = float(item.get("grossAmount") or item.get("gross") or item.get("item_grossAmount") or 0)
+                    net_disc = float(item.get("netDiscountAmount") or item.get("discountAmount") or item.get("item_netDiscountAmount") or 0)
+                    net_amt = float(item.get("netAmount") or item.get("net") or item.get("item_netAmount") or 0)
+
+                    # Check unprefixed API cost keys first (itemCost, itemMaterialCost)
+                    item_cost = float(
+                        item.get("itemCost")
+                        or item.get("itemMaterialCost")
+                        or item.get("materialCost")
+                        or item.get("item_itemCost")
+                        or item.get("item_itemMaterialCost")
+                        or 0
+                    )
 
                     rows.append({
                         "Business Date": day_str,
@@ -191,9 +229,9 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
                         "Source Group": source_group,
                         "tags": tags,
                         "status": status,
-                        "item_longName": item_long,
+                        "item_longName": str(item_long).strip(),
                         "item_variants": variant,
-                        "item_categoryName": category,
+                        "item_categoryName": str(category).strip(),
                         "item_quantity": qty,
                         "item_grossAmount": round(gross, 2),
                         "item_netDiscountAmount": round(net_disc, 2),
