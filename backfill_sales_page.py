@@ -66,10 +66,9 @@ def load_help_sheet_metadata():
     ws = client.open_by_key(GSHEET_KEY).worksheet("Help Sheet")
     all_values = ws.get_all_values()
 
-    # 1. Parse Store Table (Cols A, B, C: branchCode, Store Name, Ownership, optional Region)
     store_headers = [h.strip() for h in all_values[0]]
     code_idx = next((i for i, h in enumerate(store_headers) if h.lower().replace(" ", "") in ["branchcode", "storecode", "code"]), 0)
-    name_idx = next((i for i, h in enumerate(store_headers) if "store" in h.lower() or "branch" in h.lower() and i != code_idx), 1)
+    name_idx = next((i for i, h in enumerate(store_headers) if ("store" in h.lower() or "branch" in h.lower()) and i != code_idx), 1)
     own_idx  = next((i for i, h in enumerate(store_headers) if "ownership" in h.lower() or "type" in h.lower()), 2)
     reg_idx  = next((i for i, h in enumerate(store_headers) if "region" in h.lower() or "state" in h.lower()), -1)
 
@@ -86,7 +85,6 @@ def load_help_sheet_metadata():
                 "Region": str(row[reg_idx]).strip() if (reg_idx >= 0 and len(row) > reg_idx and row[reg_idx]) else ""
             }
 
-    # 2. Parse Channel -> Source Group Mapping (Cols F & G)
     ch_col, sg_col = 5, 6
     for r_idx in range(min(5, len(all_values))):
         for c_idx, val in enumerate(all_values[r_idx]):
@@ -104,7 +102,7 @@ def load_help_sheet_metadata():
             if ch and sg and ch.lower() != "channel":
                 channel_map[ch.lower()] = sg
 
-    print(f"✅ Loaded {len(coco_stores)} COCO branch codes and {len(channel_map)} Channel mappings from Help Sheet.")
+    print(f"Loaded {len(coco_stores)} COCO branch codes and {len(channel_map)} Channel mappings.")
     return coco_stores, channel_map
 
 def resolve_source_group(raw_channel, channel_map):
@@ -166,7 +164,7 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
                 for item in items:
                     brand_name = item.get("item_brandName") or item.get("brandName") or order_brand
                     item_long = item.get("item_longName") or item.get("item_shortName") or item.get("itemName") or ""
-                    
+
                     raw_var = item.get("item_variants") or item.get("item_variant") or item.get("variantName") or ""
                     variant = str(raw_var).strip() if raw_var is not None else ""
                     if variant.lower() in ["", "nan", "none", "-", "null"]:
@@ -208,30 +206,27 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
     return rows
 
 # =========================================================
-# 3. PROCESS MONTH BY MONTH & SAVE CSV + INDEX.JSON
+# 3. PROCESS MONTH BY MONTH -> daily_item_level_history_<Mon>-<Year>.csv
 # =========================================================
 def run_backfill():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     coco_stores, channel_map = load_help_sheet_metadata()
 
     if not coco_stores:
-        print("❌ No COCO stores found in Help Sheet. Exiting.")
+        print("No COCO stores found in Help Sheet. Exiting.")
         exit(1)
 
-    # IST current yesterday
     ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
     yesterday = (ist_now - timedelta(days=1)).date()
 
     if BACKFILL_MODE == "APR_2026_TO_DATE":
         start_date = datetime(2026, 4, 1).date()
     else:
-        # Default: Push Nov-26 only first for verification
         start_date = datetime(2026, 11, 1).date()
 
     end_date = yesterday
-    print(f"📅 Running Backfill Mode: {BACKFILL_MODE} ({start_date} to {end_date})")
+    print(f"Running Backfill Mode: {BACKFILL_MODE} ({start_date} to {end_date})")
 
-    # Group dates by (year, month)
     months_to_process = []
     curr = start_date.replace(day=1)
     while curr <= end_date:
@@ -254,8 +249,11 @@ def run_backfill():
                 tasks.append((b_code, d_str, s_info))
             d += timedelta(days=1)
 
-        month_str = f"{year}_{month:02d}"
-        print(f"\n⚡ Fetching {month_str} ({m_start} to {m_end}) | {len(tasks)} COCO branch-day calls...")
+        # Format filename label as Nov-2026, Apr-2026, etc.
+        month_abbr = datetime(year, month, 1).strftime("%b-%Y")
+        file_name = f"daily_item_level_history_{month_abbr}.csv"
+        print(f"\nFetching {month_abbr} ({m_start} to {m_end}) | {len(tasks)} COCO branch-day calls...")
+
         t0 = time.time()
         month_rows = []
         completed = 0
@@ -271,29 +269,32 @@ def run_backfill():
                     month_rows.extend(res)
                 completed += 1
                 if completed % 300 == 0 or completed == len(tasks):
-                    print(f"   [{month_str}] {completed}/{len(tasks)} requests done...")
+                    print(f"   [{month_abbr}] {completed}/{len(tasks)} requests done...")
 
         if month_rows:
             df_month = pd.DataFrame(month_rows)[REQUIRED_COLUMNS]
             df_month.sort_values(by=["Business Date", "branchCode", "invoiceNumber"], inplace=True)
-            out_path = os.path.join(OUTPUT_DIR, f"item_level_{month_str}.csv")
+            out_path = os.path.join(OUTPUT_DIR, file_name)
             df_month.to_csv(out_path, index=False)
             net_sum = df_month["item_netAmount"].sum()
             cost_sum = df_month["item_itemCost"].sum()
-            print(f"✅ Saved {out_path} | Rows: {len(df_month):,} | Net Sales: ₹{net_sum:,.2f} | Item Cost: ₹{cost_sum:,.2f} | Time: {round(time.time() - t0, 1)}s")
+            print(f"Saved {out_path} | Rows: {len(df_month):,} | Net Sales: {net_sum:,.2f} | Item Cost: {cost_sum:,.2f} | Time: {round(time.time() - t0, 1)}s")
         else:
-            print(f"⚠️ No CLOSED COCO rows returned for {month_str}.")
+            print(f"No CLOSED COCO rows returned for {month_abbr}.")
 
-    # Update index.json listing all historical CSV files
-    csv_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("daily_item_level_") and f.endswith(".csv")])
+    # Maintain a dedicated index file without touching existing index.json
+    history_files = sorted([
+        f for f in os.listdir(OUTPUT_DIR)
+        if f.startswith("daily_item_level_history_") and f.endswith(".csv")
+    ])
     index_payload = {
         "updated_at_ist": ist_now.strftime("%Y-%m-%d %H:%M:%S"),
         "ownership_filter": "COCO",
-        "files": csv_files
+        "files": history_files
     }
-    with open(os.path.join(OUTPUT_DIR, "index.json"), "w") as f:
+    with open(os.path.join(OUTPUT_DIR, "daily_history_index.json"), "w") as f:
         json.dump(index_payload, f, indent=2)
-    print("📄 Updated historical_data/index.json")
+    print("Updated historical_data/daily_history_index.json")
 
 if __name__ == "__main__":
     run_backfill()
