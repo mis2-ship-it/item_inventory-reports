@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-14T16:30:33.903595+05:30",
+  "updated_at": "2026-11-14T16:55:22.169504+05:30",
   "business_date": "2026-11-14",
-  "rows": 2805,
+  "rows": 3045,
   "columns": [
     "Business Date",
     "branchCode",
@@ -99,6 +99,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Macarons",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
     "Newly Launched Iced Coffees",
