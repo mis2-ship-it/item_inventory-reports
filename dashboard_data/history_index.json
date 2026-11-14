@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-13T17:58:56.704856+05:30",
+  "updated_at": "2026-11-14T12:03:29.267886+05:30",
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
@@ -126,7 +126,7 @@
       "start_date": "2026-07-01",
       "end_date": "2026-07-05",
       "rows": 40271,
-      "size_bytes": 13398659
+      "size_bytes": 13479201
     },
     {
       "file": "item_level_week_2026-07-06.csv",
@@ -134,7 +134,7 @@
       "start_date": "2026-07-06",
       "end_date": "2026-07-12",
       "rows": 54439,
-      "size_bytes": 18158418
+      "size_bytes": 18267296
     },
     {
       "file": "item_level_week_2026-07-13.csv",
@@ -142,7 +142,7 @@
       "start_date": "2026-07-13",
       "end_date": "2026-07-19",
       "rows": 73707,
-      "size_bytes": 23995583
+      "size_bytes": 24142997
     },
     {
       "file": "item_level_week_2026-07-20.csv",
@@ -150,7 +150,7 @@
       "start_date": "2026-07-20",
       "end_date": "2026-07-26",
       "rows": 63012,
-      "size_bytes": 20822805
+      "size_bytes": 20948829
     },
     {
       "file": "item_level_week_2026-07-27.csv",
@@ -158,7 +158,7 @@
       "start_date": "2026-07-27",
       "end_date": "2026-08-02",
       "rows": 60753,
-      "size_bytes": 20099944
+      "size_bytes": 20221450
     },
     {
       "file": "item_level_week_2026-08-03.csv",
@@ -166,7 +166,7 @@
       "start_date": "2026-08-03",
       "end_date": "2026-08-09",
       "rows": 55847,
-      "size_bytes": 18629658
+      "size_bytes": 18741352
     },
     {
       "file": "item_level_week_2026-08-10.csv",
@@ -174,7 +174,7 @@
       "start_date": "2026-08-10",
       "end_date": "2026-08-16",
       "rows": 59041,
-      "size_bytes": 19608908
+      "size_bytes": 19726990
     },
     {
       "file": "item_level_week_2026-08-17.csv",
@@ -182,7 +182,7 @@
       "start_date": "2026-08-17",
       "end_date": "2026-08-23",
       "rows": 56653,
-      "size_bytes": 18664443
+      "size_bytes": 18777749
     },
     {
       "file": "item_level_week_2026-08-24.csv",
@@ -190,7 +190,7 @@
       "start_date": "2026-08-24",
       "end_date": "2026-08-30",
       "rows": 60590,
-      "size_bytes": 20095450
+      "size_bytes": 20216630
     },
     {
       "file": "item_level_week_2026-08-31.csv",
@@ -198,7 +198,7 @@
       "start_date": "2026-08-31",
       "end_date": "2026-09-06",
       "rows": 55749,
-      "size_bytes": 18381306
+      "size_bytes": 18492804
     },
     {
       "file": "item_level_week_2026-09-07.csv",
@@ -206,7 +206,7 @@
       "start_date": "2026-09-07",
       "end_date": "2026-09-13",
       "rows": 64884,
-      "size_bytes": 21469057
+      "size_bytes": 21598825
     },
     {
       "file": "item_level_week_2026-09-14.csv",
@@ -214,7 +214,7 @@
       "start_date": "2026-09-14",
       "end_date": "2026-09-20",
       "rows": 61053,
-      "size_bytes": 19989513
+      "size_bytes": 20111619
     },
     {
       "file": "item_level_week_2026-09-21.csv",
@@ -222,7 +222,7 @@
       "start_date": "2026-09-21",
       "end_date": "2026-09-27",
       "rows": 62201,
-      "size_bytes": 20585423
+      "size_bytes": 20709825
     },
     {
       "file": "item_level_week_2026-09-28.csv",
@@ -230,7 +230,7 @@
       "start_date": "2026-09-28",
       "end_date": "2026-10-04",
       "rows": 65673,
-      "size_bytes": 21650034
+      "size_bytes": 21781380
     },
     {
       "file": "item_level_week_2026-10-05.csv",
@@ -238,7 +238,7 @@
       "start_date": "2026-10-05",
       "end_date": "2026-10-11",
       "rows": 70606,
-      "size_bytes": 22893071
+      "size_bytes": 23034283
     },
     {
       "file": "item_level_week_2026-10-12.csv",
@@ -246,7 +246,7 @@
       "start_date": "2026-10-12",
       "end_date": "2026-10-18",
       "rows": 54207,
-      "size_bytes": 17821169
+      "size_bytes": 17929583
     },
     {
       "file": "item_level_week_2026-10-19.csv",
@@ -254,31 +254,31 @@
       "start_date": "2026-10-19",
       "end_date": "2026-10-25",
       "rows": 26406,
-      "size_bytes": 8620096
+      "size_bytes": 8672908
     },
     {
       "file": "item_level_week_2026-10-26.csv",
       "path": "history/item_level_week_2026-10-26.csv",
       "start_date": "2026-10-26",
       "end_date": "2026-11-01",
-      "rows": 16051,
-      "size_bytes": 5157138
+      "rows": 24394,
+      "size_bytes": 7955508
     },
     {
       "file": "item_level_week_2026-11-02.csv",
       "path": "history/item_level_week_2026-11-02.csv",
       "start_date": "2026-11-02",
       "end_date": "2026-11-08",
-      "rows": 17133,
-      "size_bytes": 5509563
+      "rows": 50626,
+      "size_bytes": 16724401
     },
     {
       "file": "item_level_week_2026-11-09.csv",
       "path": "history/item_level_week_2026-11-09.csv",
       "start_date": "2026-11-09",
       "end_date": "2026-11-13",
-      "rows": 13299,
-      "size_bytes": 4262539
+      "rows": 34931,
+      "size_bytes": 11511663
     }
   ]
 }
