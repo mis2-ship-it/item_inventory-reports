@@ -285,7 +285,7 @@ def run_backfill():
             print(f"⚠️ No CLOSED COCO rows returned for {month_str}.")
 
     # Update index.json listing all historical CSV files
-    csv_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("item_level_") and f.endswith(".csv")])
+    csv_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("daily_item_level_") and f.endswith(".csv")])
     index_payload = {
         "updated_at_ist": ist_now.strftime("%Y-%m-%d %H:%M:%S"),
         "ownership_filter": "COCO",
