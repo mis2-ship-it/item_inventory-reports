@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-14T20:30:44.003447+05:30",
+  "updated_at": "2026-11-14T22:31:30.646640+05:30",
   "business_date": "2026-11-14",
-  "rows": 5610,
+  "rows": 7962,
   "columns": [
     "Business Date",
     "branchCode",
@@ -72,6 +72,7 @@
     "Waffle Sundaes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
@@ -95,6 +96,7 @@
     "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
@@ -104,6 +106,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Muffins",
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
     "Others",
