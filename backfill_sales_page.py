@@ -105,7 +105,11 @@ def load_help_sheet_metadata():
     print(f"Loaded {len(coco_stores)} COCO branch codes and {len(channel_map)} Channel mappings.")
     return coco_stores, channel_map
 
-def resolve_source_group(raw_channel, channel_map):
+def resolve_source_group(raw_channel, channel_map, tags=""):
+    # Priority 1: Check if 'Toing' is present in tags (overrides Swiggy channel)
+    if "toing" in str(tags or "").lower():
+        return "Toing"
+
     ch_clean = str(raw_channel or "").strip()
     if not ch_clean:
         return "Others"
@@ -127,7 +131,6 @@ def resolve_source_group(raw_channel, channel_map):
     if "hogr" in key:
         return "HOGR"
     return "Others"
-
 # =========================================================
 # 2. FETCH SINGLE BRANCH + DAY FROM /v1/sales/page
 # =========================================================
@@ -156,8 +159,8 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
                 invoice_date = order.get("invoiceDate") or order.get("createdDate") or day_str
                 session_label = order.get("sessionLabel") or ""
                 channel = order.get("channel") or ""
-                source_group = resolve_source_group(channel, channel_map)
                 tags = str(order.get("tags") or "[]")
+                source_group = resolve_source_group(channel, channel_map, tags)
                 order_brand = order.get("brandName") or "Frozen Bottle"
 
                 items = order.get("items") or order.get("orderItems") or []
