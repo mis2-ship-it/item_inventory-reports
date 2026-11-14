@@ -13,10 +13,7 @@ on:
         required: true
         default: "2026-10-22"
         type: string
-  schedule:
-    - cron: '30 4 * * *'
-
-
+    
 permissions:
   contents: write
 
