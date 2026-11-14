@@ -1,40 +1,14 @@
 {
-  "updated_at": "2026-11-13T17:58:48.203869+05:30",
+  "updated_at_ist": "2026-11-14 11:26:43",
+  "ownership_filter": "COCO",
   "files": [
-    {
-      "month": "2026_07",
-      "file": "item_level_2026_07.csv",
-      "rows": 269781,
-      "columns": 26,
-      "size_bytes": 89063516
-    },
-    {
-      "month": "2026_08",
-      "file": "item_level_2026_08.csv",
-      "rows": 261236,
-      "columns": 26,
-      "size_bytes": 86621707
-    },
-    {
-      "month": "2026_09",
-      "file": "item_level_2026_09.csv",
-      "rows": 257783,
-      "columns": 26,
-      "size_bytes": 85035143
-    },
-    {
-      "month": "2026_10",
-      "file": "item_level_2026_10.csv",
-      "rows": 208145,
-      "columns": 26,
-      "size_bytes": 67962040
-    },
-    {
-      "month": "2026_11",
-      "file": "item_level_2026_11.csv",
-      "rows": 34630,
-      "columns": 26,
-      "size_bytes": 11126096
-    }
+    "item_level_2026_04.csv",
+    "item_level_2026_05.csv",
+    "item_level_2026_06.csv",
+    "item_level_2026_07.csv",
+    "item_level_2026_08.csv",
+    "item_level_2026_09.csv",
+    "item_level_2026_10.csv",
+    "item_level_2026_11.csv"
   ]
 }
