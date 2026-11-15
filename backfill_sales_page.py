@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import calendar
 import jwt
 import requests
 import pandas as pd
@@ -18,6 +19,10 @@ GSHEET_KEY = "1PhVeFoPERJODrGPW68ORAO0kJjToB5ZYMY-yOkGTWDk"
 OUTPUT_DIR = "historical_data"
 SALES_PAGE_URL = "https://api.ristaapps.com/v1/sales/page"
 BRANCH_LIST_URL = "https://api.ristaapps.com/v1/branch/list"
+
+# Modes: "APR_2026_TO_DATE" (default full Apr->Yesterday), "DAILY_YESTERDAY", or "CUSTOM_MONTH"
+BACKFILL_MODE = os.environ.get("BACKFILL_MODE", "APR_2026_TO_DATE").strip().upper()
+CUSTOM_MONTH = os.environ.get("CUSTOM_MONTH", "2026-10").strip() # Format: YYYY-MM
 
 REQUIRED_COLUMNS = [
     "Business Date",
@@ -101,7 +106,6 @@ def load_stores_and_mappings():
             if ch and sg and ch.lower() != "channel":
                 channel_map[ch.lower()] = sg
 
-    # Fetch all active COCO stores via /v1/branch/list (branchLabels contains "COCO")
     coco_stores = {}
     res = requests.get(BRANCH_LIST_URL, headers=get_headers(), timeout=30)
     if res.status_code == 200:
@@ -162,7 +166,7 @@ def resolve_source_group(raw_channel, channel_map, tags=""):
     return "Others"
 
 # =========================================================
-# 2. FETCH ALL PAGINATED TRANSACTIONS FOR ONE BRANCH + DATE
+# 2. FETCH ALL PAGINATED TRANSACTIONS (RETURNS ROWS + SUCCESS FLAG)
 # =========================================================
 def fetch_branch_day(branch_code, day_str, store_info, channel_map):
     rows = []
@@ -175,21 +179,25 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
             params["lastKey"] = last_key
 
         page_data = None
-        for attempt in range(4):
+        request_ok = False
+        for attempt in range(8):
             try:
-                res = requests.get(SALES_PAGE_URL, headers=get_headers(), params=params, timeout=40)
-                if res.status_code == 429:
-                    time.sleep(2 * (attempt + 1))
+                res = requests.get(SALES_PAGE_URL, headers=get_headers(), params=params, timeout=45)
+                if res.status_code == 429 or res.status_code >= 500:
+                    time.sleep(min(25, 2.5 * (attempt + 1)))
                     continue
                 if res.status_code != 200:
-                    break
+                    # Non-retryable client error (e.g., 400/404 if store wasn't open yet)
+                    return rows, True
                 page_data = res.json()
+                request_ok = True
                 break
             except Exception:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(min(20, 2 * (attempt + 1)))
 
-        if not page_data:
-            break
+        if not request_ok or page_data is None:
+            # Signal failure so this branch-day is queued for the recovery retry pass
+            return rows, False
 
         orders = page_data.get("data", []) if isinstance(page_data, dict) else page_data
         if not orders:
@@ -302,82 +310,175 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
             break
         last_key = next_key
 
-    return rows
+    return rows, True
 
 # =========================================================
-# 3. FETCH LATEST DATE & AUTO-CREATE/APPEND MONTHLY FILE
+# 3. EXECUTE FULL MONTH-BY-MONTH FETCH (1ST TO END OF MONTH)
 # =========================================================
-def run_daily_sync():
+def run_backfill():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     coco_stores, channel_map = load_stores_and_mappings()
 
     if not coco_stores:
-        print("No COCO stores found. Exiting.")
+        print("❌ No COCO stores found. Exiting.")
         exit(1)
 
-    # Calculate latest completed date (Yesterday in IST)
     ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
-    custom_date = os.environ.get("TARGET_DATE", "").strip()
-    if custom_date:
-        target_date = datetime.strptime(custom_date, "%Y-%m-%d").date()
+    yesterday = (ist_now - timedelta(days=1)).date()
+
+    if BACKFILL_MODE == "DAILY_YESTERDAY":
+        start_date = yesterday
+        end_date = yesterday
+    elif BACKFILL_MODE == "CUSTOM_MONTH":
+        y, m = map(int, CUSTOM_MONTH.split("-"))
+        _, last_d = calendar.monthrange(y, m)
+        start_date = datetime(y, m, 1).date()
+        end_date = min(yesterday, datetime(y, m, last_d).date())
     else:
-        target_date = (ist_now - timedelta(days=1)).date()
+        # Default: Full sweep from 1st April 2026 to yesterday
+        start_date = datetime(2026, 4, 1).date()
+        end_date = yesterday
 
-    day_str = target_date.strftime("%Y-%m-%d")
-    month_abbr = target_date.strftime("%b-%Y") # Automatically rolls over (e.g., Nov-2026 -> Dec-2026)
-    file_name = f"daily_item_level_history_{month_abbr}.csv"
-    out_path = os.path.join(OUTPUT_DIR, file_name)
+    print(f"==================================================================")
+    print(f"RUNNING MODE: {BACKFILL_MODE} | RANGE: {start_date} to {end_date}")
+    print(f"==================================================================")
 
-    is_new_month_file = not os.path.exists(out_path)
-    print(f"Syncing Latest Date: {day_str} -> {out_path} ({'Creating NEW month file' if is_new_month_file else 'Appending to existing month file'})")
+    months_to_process = []
+    curr = start_date.replace(day=1)
+    while curr <= end_date:
+        months_to_process.append((curr.year, curr.month))
+        curr = curr.replace(year=curr.year + 1, month=1, day=1) if curr.month == 12 else curr.replace(month=curr.month + 1, day=1)
 
-    t0 = time.time()
-    fetched_rows = []
-    with ThreadPoolExecutor(max_workers=12) as executor:
-        futures = [
-            executor.submit(fetch_branch_day, b_code, day_str, s_info, channel_map)
-            for b_code, s_info in coco_stores.items()
-        ]
-        for future in as_completed(futures):
-            res = future.result()
-            if res:
-                fetched_rows.extend(res)
+    for year, month in months_to_process:
+        _, last_day = calendar.monthrange(year, month)
+        m_start = max(start_date, datetime(year, month, 1).date())
+        m_end = min(end_date, datetime(year, month, last_day).date())
 
-    if not fetched_rows:
-        print(f"No CLOSED COCO rows returned for {day_str}.")
-        return
+        tasks = []
+        d = m_start
+        while d <= m_end:
+            d_str = d.strftime("%Y-%m-%d")
+            for b_code, s_info in coco_stores.items():
+                tasks.append((b_code, d_str, s_info))
+            d += timedelta(days=1)
 
-    df_new = pd.DataFrame(fetched_rows)[REQUIRED_COLUMNS]
+        month_abbr = datetime(year, month, 1).strftime("%b-%Y")
+        file_name = f"daily_item_level_history_{month_abbr}.csv"
+        out_path = os.path.join(OUTPUT_DIR, file_name)
 
-    if is_new_month_file:
-        df_final = df_new
-    else:
-        df_existing = pd.read_csv(out_path)
-        # Deduplicate: remove target_date if already present so re-runs never duplicate rows
-        df_existing = df_existing[df_existing["Business Date"].astype(str) != day_str]
-        df_final = pd.concat([df_existing, df_new], ignore_index=True)
+        print(f"\n==================================================================")
+        print(f"📦 MONTH: {month_abbr} | PERIOD: {m_start} (1st) to {m_end} (End)")
+        print(f"   Total API Calls: {len(tasks)} ({len(coco_stores)} stores x {(m_end - m_start).days + 1} days)")
+        print(f"==================================================================")
 
-    df_final = df_final.sort_values(by=["Business Date", "branchCode", "invoiceNumber"])
-    df_final.to_csv(out_path, index=False)
+        t0 = time.time()
+        fetched_rows = []
+        failed_tasks = []
+        completed = 0
 
-    day_net = df_new["item_netAmount"].sum() + df_new["chargeAmount"].sum()
-    day_ord = df_new["invoiceNumber"].nunique()
-    print(f"Saved {out_path} | New Date ({day_str}) Rows: {len(df_new):,} | Orders: {day_ord:,} | Net+Chg: ₹{day_net:,.2f} | Total Month Rows: {len(df_final):,} | Time: {round(time.time() - t0, 1)}s")
+        # Pass 1: Concurrent fetch with safe concurrency (max_workers=6)
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            futures = {
+                executor.submit(fetch_branch_day, b, ds, si, channel_map): (b, ds, si)
+                for b, ds, si in tasks
+            }
+            for future in as_completed(futures):
+                task_info = futures[future]
+                res_rows, ok = future.result()
+                if res_rows:
+                    fetched_rows.extend(res_rows)
+                if not ok:
+                    failed_tasks.append(task_info)
+                completed += 1
+                if completed % 400 == 0 or completed == len(tasks):
+                    print(f"   [{month_abbr}] Pass 1 Progress: {completed}/{len(tasks)} calls done...")
 
-    # Update dedicated index file
+        # Pass 2: Automatic recovery retry for any rate-limited/timed-out store-days
+        if failed_tasks:
+            print(f"   🔄 [{month_abbr}] Retrying {len(failed_tasks)} throttled/timed-out store-day calls after 10s cooldown...")
+            time.sleep(10)
+            still_failed = 0
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                retry_futures = {
+                    executor.submit(fetch_branch_day, b, ds, si, channel_map): (b, ds, si)
+                    for b, ds, si in failed_tasks
+                }
+                for future in as_completed(retry_futures):
+                    res_rows, ok = future.result()
+                    if res_rows:
+                        fetched_rows.extend(res_rows)
+                    if not ok:
+                        still_failed += 1
+            print(f"   🔄 [{month_abbr}] Recovery pass finished. Unresolved calls: {still_failed}")
+
+        if fetched_rows:
+            df_new = pd.DataFrame(fetched_rows)[REQUIRED_COLUMNS]
+
+            if BACKFILL_MODE == "DAILY_YESTERDAY" and os.path.exists(out_path):
+                df_existing = pd.read_csv(out_path)
+                fetched_dates = set(df_new["Business Date"].astype(str).unique())
+                df_existing = df_existing[~df_existing["Business Date"].astype(str).isin(fetched_dates)]
+                df_final = pd.concat([df_existing, df_new], ignore_index=True)
+            else:
+                df_final = df_new
+
+            df_final = df_final.sort_values(by=["Business Date", "branchCode", "invoiceNumber"])
+            df_final.to_csv(out_path, index=False)
+
+            # Full 1st-to-End-of-Month Calendar Verification Table
+            daily_summary = df_final.groupby("Business Date").agg(
+                stores=("branchCode", "nunique"),
+                orders=("invoiceNumber", "nunique"),
+                net=("item_netAmount", "sum"),
+                chg=("chargeAmount", "sum")
+            ).to_dict(orient="index")
+
+            print(f"\n📅 {month_abbr} FULL CALENDAR FETCH REPORT ({m_start} -> {m_end}):")
+            print(f"   {'Date':<12} | {'Status':<16} | {'Stores':>6} | {'Orders':>7} | {'Net + Charges':>15}")
+            print(f"   {'-'*68}")
+
+            check_d = m_start
+            missing_days = 0
+            while check_d <= m_end:
+                d_key = check_d.strftime("%Y-%m-%d")
+                if d_key in daily_summary:
+                    info = daily_summary[d_key]
+                    st_cnt = int(info["stores"])
+                    ord_cnt = int(info["orders"])
+                    tot_val = info["net"] + info["chg"]
+                    status_lbl = "✅ FETCHED" if st_cnt >= 65 else "⚠️ LOW STORES"
+                    print(f"   {d_key:<12} | {status_lbl:<16} | {st_cnt:>6} | {ord_cnt:>7,} | ₹{tot_val:>14,.2f}")
+                else:
+                    missing_days += 1
+                    print(f"   {d_key:<12} | ❌ MISSING DATE  | {0:>6} | {0:>7} | ₹{0:>14,.2f}")
+                check_d += timedelta(days=1)
+
+            uniq_inv = df_final["invoiceNumber"].nunique()
+            net_sum = df_final["item_netAmount"].sum()
+            chg_sum = df_final["chargeAmount"].sum()
+            print(f"   {'-'*68}")
+            print(
+                f"✅ SAVED {out_path} | Period: {m_start} to {m_end} | Missing Days: {missing_days} | "
+                f"Rows: {len(df_final):,} | Orders: {uniq_inv:,} | Total Net+Chg: ₹{(net_sum + chg_sum):,.2f} | Time: {round(time.time() - t0, 1)}s"
+            )
+        else:
+            print(f"⚠️ No CLOSED COCO rows returned for {month_abbr} ({m_start} to {m_end}).")
+
+        # Brief 5s pause between months so Rista API rate-limit window resets cleanly
+        time.sleep(5)
+
     history_files = sorted([
         f for f in os.listdir(OUTPUT_DIR)
         if f.startswith("daily_item_level_history_") and f.endswith(".csv")
     ])
     index_payload = {
         "updated_at_ist": ist_now.strftime("%Y-%m-%d %H:%M:%S"),
-        "latest_synced_date": day_str,
         "ownership_filter": "COCO",
         "files": history_files
     }
     with open(os.path.join(OUTPUT_DIR, "daily_history_index.json"), "w") as f:
         json.dump(index_payload, f, indent=2)
-    print("Updated historical_data/daily_history_index.json")
+    print("\n✅ Updated historical_data/daily_history_index.json")
 
 if __name__ == "__main__":
-    run_daily_sync()
+    run_backfill()
