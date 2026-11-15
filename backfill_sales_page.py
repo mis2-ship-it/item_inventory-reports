@@ -20,7 +20,8 @@ OUTPUT_DIR = "historical_data"
 SALES_PAGE_URL = "https://api.ristaapps.com/v1/sales/page"
 BRANCH_LIST_URL = "https://api.ristaapps.com/v1/branch/list"
 
-BACKFILL_MODE = os.environ.get("BACKFILL_MODE", "DAILY_YESTERDAY").strip().upper()
+# Modes: "DAILY_YESTERDAY", "NOV_2026", or "APR_2026_TO_DATE"
+BACKFILL_MODE = os.environ.get("BACKFILL_MODE", "NOV_2026").strip().upper()
 
 REQUIRED_COLUMNS = [
     "Business Date",
@@ -44,6 +45,8 @@ REQUIRED_COLUMNS = [
     "item_netDiscountAmount",
     "item_netAmount",
     "chargeAmount",
+    "AOV",
+    "Dis%",
     "item_itemCost"
 ]
 
@@ -56,34 +59,11 @@ def get_headers():
     }
 
 # =========================================================
-# 1. FETCH RISTA MASTER BRANCH LIST (FALLBACK CODE RESOLVER)
+# 1. FETCH ALL COCO STORES FROM /v1/branch/list (branchLabels)
+#    + ENRICH WITH HELP SHEET METADATA & CHANNEL MAPPINGS
 # =========================================================
-def fetch_rista_branch_master():
-    """Fetches active branches from Rista API to catch any branchCode mismatches (e.g., Sher-E-Punjab, Yemalur)."""
-    name_to_code = {}
-    valid_codes = set()
-    try:
-        res = requests.get(BRANCH_LIST_URL, headers=get_headers(), timeout=25)
-        if res.status_code == 200:
-            data = res.json()
-            branches = data if isinstance(data, list) else data.get("data", [])
-            for b in branches:
-                code = str(b.get("branchCode") or b.get("code") or "").strip()
-                name = str(b.get("branchName") or b.get("name") or "").strip()
-                if code:
-                    valid_codes.add(code)
-                if name and code:
-                    # Normalize name (remove spaces/hyphens) for fuzzy matching
-                    norm = "".join(ch for ch in name.lower() if ch.isalnum())
-                    name_to_code[norm] = code
-    except Exception as e:
-        print(f"Warning: Could not fetch Rista branch master list: {e}")
-    return valid_codes, name_to_code
-
-# =========================================================
-# 2. LOAD COCO BRANCHES & CHANNEL MAPPINGS FROM HELP SHEET
-# =========================================================
-def load_help_sheet_metadata():
+def load_stores_and_mappings():
+    # A. Load Help Sheet (Store metadata fallback + Channel -> Source Group map)
     creds = Credentials.from_service_account_info(
         json.loads(os.environ["GOOGLE_CREDENTIALS"]),
         scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
@@ -92,45 +72,25 @@ def load_help_sheet_metadata():
     ws = client.open_by_key(GSHEET_KEY).worksheet("Help Sheet")
     all_values = ws.get_all_values()
 
-    valid_rista_codes, rista_name_to_code = fetch_rista_branch_master()
-
     store_headers = [h.strip() for h in all_values[0]]
     code_idx = next((i for i, h in enumerate(store_headers) if h.lower().replace(" ", "") in ["branchcode", "storecode", "code"]), 0)
     name_idx = next((i for i, h in enumerate(store_headers) if ("store" in h.lower() or "branch" in h.lower()) and i != code_idx), 1)
     own_idx  = next((i for i, h in enumerate(store_headers) if "ownership" in h.lower() or "type" in h.lower()), 2)
     reg_idx  = next((i for i, h in enumerate(store_headers) if "region" in h.lower() or "state" in h.lower()), -1)
 
-    coco_stores = {}
+    helpsheet_meta = {}
     for row in all_values[1:]:
-        if len(row) <= max(code_idx, own_idx):
+        if len(row) <= code_idx:
             continue
-        raw_code = str(row[code_idx]).strip()
-        store_name = str(row[name_idx]).strip() if len(row) > name_idx else ""
-        ownership = str(row[own_idx]).strip().upper()
+        b_code = str(row[code_idx]).strip()
+        if b_code and b_code.lower() != "branchcode":
+            helpsheet_meta[b_code] = {
+                "Store Name": str(row[name_idx]).strip() if len(row) > name_idx else "",
+                "Ownership": str(row[own_idx]).strip() if len(row) > own_idx else "COCO",
+                "Region": str(row[reg_idx]).strip() if (reg_idx >= 0 and len(row) > reg_idx and row[reg_idx]) else ""
+            }
 
-        if "COCO" in ownership and (raw_code or store_name):
-            resolved_code = raw_code
-            # Verify against Rista branch master if available; fallback to Store Name match (Sher-E-Punjab, Yemalur)
-            if valid_rista_codes and raw_code not in valid_rista_codes and store_name:
-                norm_name = "".join(ch for ch in store_name.lower() if ch.isalnum())
-                if norm_name in rista_name_to_code:
-                    print(f"Auto-resolved branchCode for '{store_name}': '{raw_code}' -> '{rista_name_to_code[norm_name]}'")
-                    resolved_code = rista_name_to_code[norm_name]
-                else:
-                    # Partial substring match fallback
-                    for r_norm, r_code in rista_name_to_code.items():
-                        if norm_name in r_norm or r_norm in norm_name:
-                            print(f"Fuzzy-resolved branchCode for '{store_name}': '{raw_code}' -> '{r_code}'")
-                            resolved_code = r_code
-                            break
-
-            if resolved_code:
-                coco_stores[resolved_code] = {
-                    "Store Name": store_name,
-                    "Ownership": "COCO",
-                    "Region": str(row[reg_idx]).strip() if (reg_idx >= 0 and len(row) > reg_idx and row[reg_idx]) else ""
-                }
-
+    # Parse Channel -> Source Group Mapping (Cols F & G)
     ch_col, sg_col = 5, 6
     for r_idx in range(min(5, len(all_values))):
         for c_idx, val in enumerate(all_values[r_idx]):
@@ -148,7 +108,48 @@ def load_help_sheet_metadata():
             if ch and sg and ch.lower() != "channel":
                 channel_map[ch.lower()] = sg
 
-    print(f"Loaded {len(coco_stores)} COCO branch codes and {len(channel_map)} Channel mappings.")
+    # B. Query /v1/branch/list and filter where branchLabels contains "COCO"
+    coco_stores = {}
+    res = requests.get(BRANCH_LIST_URL, headers=get_headers(), timeout=30)
+    if res.status_code == 200:
+        payload = res.json()
+        branches = payload if isinstance(payload, list) else payload.get("data", [])
+        for b in branches:
+            code = str(b.get("branchCode") or b.get("code") or "").strip()
+            name = str(b.get("branchName") or b.get("name") or "").strip()
+            state = str(b.get("state") or b.get("branchState") or "").strip()
+            raw_labels = b.get("branchLabels") or b.get("labels") or []
+
+            # Normalize branchLabels whether returned as list of strings, list of dicts, or comma-separated string
+            if isinstance(raw_labels, list):
+                labels_str = " ".join(
+                    str(lbl.get("name") if isinstance(lbl, dict) else lbl) for lbl in raw_labels
+                ).upper()
+            else:
+                labels_str = str(raw_labels).upper()
+
+            if code and "COCO" in labels_str:
+                hs_info = helpsheet_meta.get(code, {})
+                coco_stores[code] = {
+                    "Store Name": name or hs_info.get("Store Name") or code,
+                    "Ownership": "COCO",
+                    "Region": hs_info.get("Region") or state or ""
+                }
+        print(f"✅ Found {len(coco_stores)} COCO branches via /v1/branch/list (branchLabels contains 'COCO').")
+    else:
+        print(f"⚠️ /v1/branch/list returned status {res.status_code}: {res.text}. Falling back to Help Sheet.")
+
+    # Safety union: ensure any COCO store explicitly listed in Help Sheet is also included
+    for code, info in helpsheet_meta.items():
+        if "COCO" in info.get("Ownership", "").upper() and code not in coco_stores:
+            coco_stores[code] = info
+
+    # Log confirmation specifically for Yemalur and Sher-E-Punjab
+    for target in ["yemalur", "sher"]:
+        matched = [f"{c} ({v['Store Name']})" for c, v in coco_stores.items() if target in v["Store Name"].lower() or target in c.lower()]
+        print(f"   🔍 Store check [{target}]: {matched if matched else 'NOT FOUND in branchLabels'}")
+
+    print(f"Total active COCO stores queued: {len(coco_stores)} | Channel mappings: {len(channel_map)}")
     return coco_stores, channel_map
 
 def resolve_source_group(raw_channel, channel_map, tags=""):
@@ -178,7 +179,7 @@ def resolve_source_group(raw_channel, channel_map, tags=""):
     return "Others"
 
 # =========================================================
-# 3. FETCH ALL PAGINATED TRANSACTIONS FOR BRANCH + DAY
+# 2. FETCH ALL PAGINATED TRANSACTIONS FOR BRANCH + DAY
 # =========================================================
 def fetch_branch_day(branch_code, day_str, store_info, channel_map):
     rows = []
@@ -217,7 +218,6 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
                 continue
 
             invoice_no = str(order.get("invoiceNumber") or "").strip()
-            # Prevent duplicate invoice processing across pagination boundaries
             if invoice_no and invoice_no in seen_invoices:
                 continue
             if invoice_no:
@@ -232,8 +232,15 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
             source_group = resolve_source_group(channel, channel_map, tags)
             order_brand = order.get("brandName") or "Frozen Bottle"
 
-            # Order-level chargeAmount (packaging/delivery charges) - assign ONCE per unique invoice
+            # Order-level financial metrics (assigned ONCE per unique invoice on item_idx == 0)
             order_charge_amt = float(order.get("chargeAmount") or 0)
+            order_gross_amt  = float(order.get("grossAmount") or 0)
+            order_net_amt    = float(order.get("netAmount") or 0)
+            order_disc_amt   = abs(float(order.get("netDiscountAmount") or order.get("discountAmount") or 0))
+
+            # Order-level AOV (Net Sales + Charges per unique invoice) & Dis%
+            order_aov = round(order_net_amt + order_charge_amt, 2)
+            order_dis_pct = round((order_disc_amt / order_gross_amt) * 100, 2) if order_gross_amt > 0 else 0.0
 
             items = order.get("items") or order.get("orderItems") or []
             for item_idx, item in enumerate(items):
@@ -270,7 +277,8 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
 
                 qty = float(item.get("quantity") or item.get("qty") or item.get("item_quantity") or 0)
                 gross = float(item.get("grossAmount") or item.get("gross") or item.get("item_grossAmount") or 0)
-                net_disc = float(item.get("netDiscountAmount") or item.get("discountAmount") or item.get("item_netDiscountAmount") or 0)
+                # Convert negative discount values to positive
+                net_disc = abs(float(item.get("netDiscountAmount") or item.get("discountAmount") or item.get("item_netDiscountAmount") or 0))
                 net_amt = float(item.get("netAmount") or item.get("net") or item.get("item_netAmount") or 0)
                 item_cost = float(
                     item.get("itemCost")
@@ -281,8 +289,11 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
                     or 0
                 )
 
-                # Assign chargeAmount ONLY on the first item row (item_idx == 0) of each unique invoice
-                row_charge = round(order_charge_amt, 2) if item_idx == 0 else 0.0
+                # Unique invoice-level fields placed ONLY on first item line (item_idx == 0)
+                is_first_item = (item_idx == 0)
+                row_charge  = round(order_charge_amt, 2) if is_first_item else 0.0
+                row_aov     = order_aov if is_first_item else 0.0
+                row_dis_pct = order_dis_pct if is_first_item else 0.0
 
                 rows.append({
                     "Business Date": day_str,
@@ -306,10 +317,11 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
                     "item_netDiscountAmount": round(net_disc, 2),
                     "item_netAmount": round(net_amt, 2),
                     "chargeAmount": row_charge,
+                    "AOV": row_aov,
+                    "Dis%": row_dis_pct,
                     "item_itemCost": round(item_cost, 2)
                 })
 
-        # Check for next pagination cursor
         next_key = page_data.get("lastKey") if isinstance(page_data, dict) else None
         if not next_key or next_key == last_key:
             break
@@ -318,14 +330,14 @@ def fetch_branch_day(branch_code, day_str, store_info, channel_map):
     return rows
 
 # =========================================================
-# 4. EXECUTE DAILY APPEND OR FULL MONTH BACKFILL
+# 3. EXECUTE DAILY APPEND OR FULL MONTH BACKFILL
 # =========================================================
 def run_backfill():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    coco_stores, channel_map = load_help_sheet_metadata()
+    coco_stores, channel_map = load_stores_and_mappings()
 
     if not coco_stores:
-        print("No COCO stores found in Help Sheet. Exiting.")
+        print("❌ No COCO stores found. Exiting.")
         exit(1)
 
     ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
@@ -387,10 +399,10 @@ def run_backfill():
                 if completed % 300 == 0 or completed == len(tasks):
                     print(f"   [{month_abbr}] {completed}/{len(tasks)} requests done...")
 
-        # Diagnostic check: report any COCO stores that returned 0 rows
-        zero_stores = [f"{code} ({coco_stores[code]['Store Name']})" for code, cnt in store_row_counts.items() if cnt == 0]
-        if zero_stores:
-            print(f"   ⚠️ Stores with 0 rows in {month_abbr}: {', '.join(zero_stores)}")
+        # Print row counts specifically for Yemalur & Sher-E-Punjab
+        for b_code, s_info in coco_stores.items():
+            if any(k in s_info["Store Name"].lower() for k in ["yemalur", "sher"]):
+                print(f"   ✅ {s_info['Store Name']} ({b_code}): {store_row_counts[b_code]} item rows fetched")
 
         if fetched_rows:
             df_new = pd.DataFrame(fetched_rows)[REQUIRED_COLUMNS]
@@ -405,9 +417,20 @@ def run_backfill():
 
             df_final.sort_values(by=["Business Date", "branchCode", "invoiceNumber"], inplace=True)
             df_final.to_csv(out_path, index=False)
+
+            uniq_inv = df_final["invoiceNumber"].nunique()
             net_sum = df_final["item_netAmount"].sum()
             chg_sum = df_final["chargeAmount"].sum()
-            print(f"✅ Saved {out_path} | Rows: {len(df_final):,} | Item Net: ₹{net_sum:,.2f} | Charges: ₹{chg_sum:,.2f} | Total: ₹{(net_sum + chg_sum):,.2f} | Time: {round(time.time() - t0, 1)}s")
+            disc_sum = df_final["item_netDiscountAmount"].sum()
+            gross_sum = df_final["item_grossAmount"].sum()
+            overall_aov = (net_sum + chg_sum) / uniq_inv if uniq_inv > 0 else 0
+            overall_dis_pct = (disc_sum / gross_sum * 100) if gross_sum > 0 else 0
+
+            print(
+                f"✅ Saved {out_path} | Rows: {len(df_final):,} | Uniq Orders: {uniq_inv:,} | "
+                f"Total Net+Chg: ₹{(net_sum + chg_sum):,.2f} | AOV: ₹{overall_aov:,.2f} | "
+                f"Dis%: {overall_dis_pct:.2f}% | Time: {round(time.time() - t0, 1)}s"
+            )
         else:
             print(f"⚠️ No CLOSED COCO rows returned for {month_abbr}.")
 
