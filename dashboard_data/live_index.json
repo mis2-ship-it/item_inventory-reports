@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-16T16:29:59.760640+05:30",
+  "updated_at": "2026-11-16T18:30:37.167668+05:30",
   "business_date": "2026-11-16",
-  "rows": 1458,
+  "rows": 2069,
   "columns": [
     "Business Date",
     "branchCode",
@@ -100,6 +100,7 @@
     "Ice Creams",
     "Ice cream Cones",
     "Milkshake and Bubble Teas",
+    "Mini Cakes",
     "Monster Sundaes",
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
