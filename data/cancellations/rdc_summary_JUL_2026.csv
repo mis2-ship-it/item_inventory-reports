@@ -19,6 +19,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-01,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-01,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-01,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,29,0,0.0,0.0
+2026-07-01,46094,Sarjapura 3,COCO,KA,Kamrul,25,0,0.0,0.0
 2026-07-01,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,23,0,0.0,0.0
 2026-07-01,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,42,0,0.0,0.0
 2026-07-01,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -98,6 +99,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-02,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-02,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-02,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,33,0,0.0,0.0
+2026-07-02,46094,Sarjapura 3,COCO,KA,Kamrul,15,0,0.0,0.0
 2026-07-02,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,31,0,0.0,0.0
 2026-07-02,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,28,0,0.0,0.0
 2026-07-02,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -177,6 +179,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-03,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-03,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-03,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,39,1,2.56,79.2
+2026-07-03,46094,Sarjapura 3,COCO,KA,Kamrul,36,0,0.0,0.0
 2026-07-03,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,36,0,0.0,0.0
 2026-07-03,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,39,1,2.56,69.0
 2026-07-03,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -256,6 +259,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-04,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-04,FZBBLR015,JP Nagar,COCO,KA,Kamrul,47,1,2.13,357.0
 2026-07-04,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,45,0,0.0,0.0
+2026-07-04,46094,Sarjapura 3,COCO,KA,Kamrul,43,0,0.0,0.0
 2026-07-04,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,43,0,0.0,0.0
 2026-07-04,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,1,2.0,99.0
 2026-07-04,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -335,6 +339,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-05,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-05,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-05,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,41,0,0.0,0.0
+2026-07-05,46094,Sarjapura 3,COCO,KA,Kamrul,44,0,0.0,0.0
 2026-07-05,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-05,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-05,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -414,6 +419,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-06,FZBBLR002,Banashankari,COCO,KA,Kamrul,48,0,0.0,0.0
 2026-07-06,FZBBLR015,JP Nagar,COCO,KA,Kamrul,29,0,0.0,0.0
 2026-07-06,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,16,0,0.0,0.0
+2026-07-06,46094,Sarjapura 3,COCO,KA,Kamrul,26,0,0.0,0.0
 2026-07-06,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,23,0,0.0,0.0
 2026-07-06,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,25,0,0.0,0.0
 2026-07-06,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -493,6 +499,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-07,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-07,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-07,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,20,0,0.0,0.0
+2026-07-07,46094,Sarjapura 3,COCO,KA,Kamrul,23,0,0.0,0.0
 2026-07-07,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,20,0,0.0,0.0
 2026-07-07,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,37,0,0.0,0.0
 2026-07-07,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -572,6 +579,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-08,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-08,FZBBLR015,JP Nagar,COCO,KA,Kamrul,41,0,0.0,0.0
 2026-07-08,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,28,1,3.57,82.0
+2026-07-08,46094,Sarjapura 3,COCO,KA,Kamrul,18,0,0.0,0.0
 2026-07-08,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,21,2,9.52,641.0
 2026-07-08,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,37,1,2.7,334.0
 2026-07-08,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -651,6 +659,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-09,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-09,FZBBLR015,JP Nagar,COCO,KA,Kamrul,44,0,0.0,0.0
 2026-07-09,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,32,1,3.12,82.0
+2026-07-09,46094,Sarjapura 3,COCO,KA,Kamrul,14,0,0.0,0.0
 2026-07-09,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,19,0,0.0,0.0
 2026-07-09,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,32,0,0.0,0.0
 2026-07-09,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -731,6 +740,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-10,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-10,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-10,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,25,0,0.0,0.0
+2026-07-10,46094,Sarjapura 3,COCO,KA,Kamrul,15,1,6.67,358.0
 2026-07-10,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,31,0,0.0,0.0
 2026-07-10,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,34,0,0.0,0.0
 2026-07-10,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -810,6 +820,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-11,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-11,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-11,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,48,0,0.0,0.0
+2026-07-11,46094,Sarjapura 3,COCO,KA,Kamrul,24,0,0.0,0.0
 2026-07-11,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-11,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,36,0,0.0,0.0
 2026-07-11,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -889,6 +900,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-12,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-12,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-12,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-12,46094,Sarjapura 3,COCO,KA,Kamrul,42,0,0.0,0.0
 2026-07-12,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-12,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-12,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -968,6 +980,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-13,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-13,FZBBLR015,JP Nagar,COCO,KA,Kamrul,43,0,0.0,0.0
 2026-07-13,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,33,0,0.0,0.0
+2026-07-13,46094,Sarjapura 3,COCO,KA,Kamrul,14,0,0.0,0.0
 2026-07-13,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,22,0,0.0,0.0
 2026-07-13,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,30,0,0.0,0.0
 2026-07-13,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1046,6 +1059,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-14,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-14,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-14,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,31,0,0.0,0.0
+2026-07-14,46094,Sarjapura 3,COCO,KA,Kamrul,17,0,0.0,0.0
 2026-07-14,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,26,1,3.85,80.6
 2026-07-14,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,34,0,0.0,0.0
 2026-07-14,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1125,6 +1139,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-15,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-15,FZBBLR015,JP Nagar,COCO,KA,Kamrul,32,0,0.0,0.0
 2026-07-15,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,46,0,0.0,0.0
+2026-07-15,46094,Sarjapura 3,COCO,KA,Kamrul,38,0,0.0,0.0
 2026-07-15,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,41,0,0.0,0.0
 2026-07-15,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,38,0,0.0,0.0
 2026-07-15,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1203,6 +1218,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-16,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-16,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-16,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-16,46094,Sarjapura 3,COCO,KA,Kamrul,27,0,0.0,0.0
 2026-07-16,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,1,2.0,80.6
 2026-07-16,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,46,0,0.0,0.0
 2026-07-16,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1281,6 +1297,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-17,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-17,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-17,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-17,46094,Sarjapura 3,COCO,KA,Kamrul,32,0,0.0,0.0
 2026-07-17,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,47,0,0.0,0.0
 2026-07-17,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,49,0,0.0,0.0
 2026-07-17,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1360,6 +1377,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-18,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-18,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-18,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-18,46094,Sarjapura 3,COCO,KA,Kamrul,27,0,0.0,0.0
 2026-07-18,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,1,2.0,508.01
 2026-07-18,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-18,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1438,6 +1456,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-19,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-19,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,1,2.0,345.6
 2026-07-19,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-19,46094,Sarjapura 3,COCO,KA,Kamrul,37,0,0.0,0.0
 2026-07-19,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-19,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-19,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1516,6 +1535,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-20,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-20,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-20,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,39,0,0.0,0.0
+2026-07-20,46094,Sarjapura 3,COCO,KA,Kamrul,23,0,0.0,0.0
 2026-07-20,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,26,0,0.0,0.0
 2026-07-20,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,40,0,0.0,0.0
 2026-07-20,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1595,6 +1615,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-21,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-21,FZBBLR015,JP Nagar,COCO,KA,Kamrul,48,0,0.0,0.0
 2026-07-21,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,36,0,0.0,0.0
+2026-07-21,46094,Sarjapura 3,COCO,KA,Kamrul,20,0,0.0,0.0
 2026-07-21,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,29,2,6.9,597.0
 2026-07-21,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,48,0,0.0,0.0
 2026-07-21,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1674,6 +1695,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-22,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-22,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-22,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,33,0,0.0,0.0
+2026-07-22,46094,Sarjapura 3,COCO,KA,Kamrul,25,0,0.0,0.0
 2026-07-22,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,25,0,0.0,0.0
 2026-07-22,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,39,0,0.0,0.0
 2026-07-22,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1753,6 +1775,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-23,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-23,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-23,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,38,0,0.0,0.0
+2026-07-23,46094,Sarjapura 3,COCO,KA,Kamrul,38,0,0.0,0.0
 2026-07-23,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,22,0,0.0,0.0
 2026-07-23,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-23,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1832,6 +1855,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-24,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-24,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-24,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-24,46094,Sarjapura 3,COCO,KA,Kamrul,35,0,0.0,0.0
 2026-07-24,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-24,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,39,0,0.0,0.0
 2026-07-24,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1911,6 +1935,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-25,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-25,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-25,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-25,46094,Sarjapura 3,COCO,KA,Kamrul,35,0,0.0,0.0
 2026-07-25,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-25,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-25,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -1990,6 +2015,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-26,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-26,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-26,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,1,2.0,234.4
+2026-07-26,46094,Sarjapura 3,COCO,KA,Kamrul,37,0,0.0,0.0
 2026-07-26,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-26,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-26,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -2068,6 +2094,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-27,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-27,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-27,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
+2026-07-27,46094,Sarjapura 3,COCO,KA,Kamrul,31,1,3.23,195.0
 2026-07-27,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,32,2,6.25,324.0
 2026-07-27,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,36,0,0.0,0.0
 2026-07-27,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -2147,6 +2174,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-28,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,1,2.0,109.0
 2026-07-28,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-28,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,39,0,0.0,0.0
+2026-07-28,46094,Sarjapura 3,COCO,KA,Kamrul,19,0,0.0,0.0
 2026-07-28,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,15,1,6.67,267.1
 2026-07-28,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,39,1,2.56,320.0
 2026-07-28,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,1,2.0,258.0
@@ -2226,6 +2254,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-29,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-29,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-29,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,17,0,0.0,0.0
+2026-07-29,46094,Sarjapura 3,COCO,KA,Kamrul,41,0,0.0,0.0
 2026-07-29,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,29,0,0.0,0.0
 2026-07-29,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,43,0,0.0,0.0
 2026-07-29,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -2305,6 +2334,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-30,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-30,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-30,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,43,1,2.33,241.0
+2026-07-30,46094,Sarjapura 3,COCO,KA,Kamrul,30,0,0.0,0.0
 2026-07-30,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,21,0,0.0,0.0
 2026-07-30,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,49,0,0.0,0.0
 2026-07-30,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
@@ -2383,6 +2413,7 @@ day,branchCode,storeName,ownership,region,amName,totalOrders,rdcOrders,rdcPercen
 2026-07-31,FZBBLR002,Banashankari,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-31,FZBBLR015,JP Nagar,COCO,KA,Kamrul,50,0,0.0,0.0
 2026-07-31,FZBBLR039,Ananth Nagar,COCO,KA,Kamrul,49,0,0.0,0.0
+2026-07-31,46094,Sarjapura 3,COCO,KA,Kamrul,38,0,0.0,0.0
 2026-07-31,FZBBLR021,Meenakshi Mall,COCO,KA,Kamrul,39,0,0.0,0.0
 2026-07-31,FZBBLR036,Indiranagar - CK,COCO,KA,Reazul,50,0,0.0,0.0
 2026-07-31,FZBBLR016,Kammanhalli,COCO,KA,Reazul,50,0,0.0,0.0
