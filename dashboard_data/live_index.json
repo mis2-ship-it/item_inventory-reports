@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-17T16:30:28.651631+05:30",
+  "updated_at": "2026-11-17T18:30:36.208213+05:30",
   "business_date": "2026-11-17",
-  "rows": 1546,
+  "rows": 2198,
   "columns": [
     "Business Date",
     "branchCode",
@@ -85,6 +85,7 @@
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
@@ -105,6 +106,7 @@
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
+    "Popping Boba Sundae",
     "Refreshing Coolers",
     "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
