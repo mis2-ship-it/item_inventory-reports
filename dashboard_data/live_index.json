@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-17T14:30:30.380610+05:30",
+  "updated_at": "2026-11-17T16:30:28.651631+05:30",
   "business_date": "2026-11-17",
-  "rows": 807,
+  "rows": 1546,
   "columns": [
     "Business Date",
     "branchCode",
@@ -80,7 +80,9 @@
     "Belgian Waffles",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
+    "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
     "Frozen Bottle X Activ Hippy Energy Coolers",
@@ -93,6 +95,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
     "Newly Launched Iced Coffees",
