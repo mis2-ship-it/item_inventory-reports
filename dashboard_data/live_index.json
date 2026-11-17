@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-17T22:30:40.625164+05:30",
+  "updated_at": "2026-11-18T00:30:21.939739+05:30",
   "business_date": "2026-11-17",
-  "rows": 4383,
+  "rows": 5602,
   "columns": [
     "Business Date",
     "branchCode",
@@ -72,6 +72,7 @@
     "Waffle Sundaes"
   ],
   "category_names": [
+    "90s Birthday Cake",
     "All Day Food",
     "All day Foods",
     "Bakery & Desserts",
