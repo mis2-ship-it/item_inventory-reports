@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-17T18:37:07.085445+05:30",
+  "updated_at": "2026-11-17T20:30:55.232427+05:30",
   "business_date": "2026-11-17",
-  "rows": 2228,
+  "rows": 3002,
   "columns": [
     "Business Date",
     "branchCode",
@@ -92,6 +92,7 @@
     "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
@@ -102,6 +103,7 @@
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pistachio Specials",
     "Popping Boba Mocktail",
