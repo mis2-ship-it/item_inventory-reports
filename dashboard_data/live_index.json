@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-17T09:13:33.952407+05:30",
+  "updated_at": "2026-11-17T10:30:30.052208+05:30",
   "business_date": "2026-11-17",
-  "rows": 0,
+  "rows": 11,
   "columns": [
     "Business Date",
     "branchCode",
@@ -30,9 +30,33 @@
     "Discount",
     "Net Amount"
   ],
-  "brands": [],
-  "regions": [],
-  "categories": [],
-  "category_names": [],
+  "brands": [
+    "Boba Bar",
+    "Frozen Bottle",
+    "Lubov- Patisserie",
+    "Madno"
+  ],
+  "regions": [
+    "KA",
+    "TN"
+  ],
+  "categories": [
+    "Bakery & Desserts",
+    "Belgian Waffles",
+    "Bubble Teas",
+    "Hot Chocolate",
+    "Monster Sundaes",
+    "Thickshakes"
+  ],
+  "category_names": [
+    "Belgian Hot Chocolate by Frozen Bottle",
+    "Belgian Waffles",
+    "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
+    "Gifting Hampers",
+    "Monster Sundaes",
+    "Thickshakes"
+  ],
   "file": "live_item_level.csv"
 }
