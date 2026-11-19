@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-19T14:32:43.666939+05:30",
+  "updated_at": "2026-11-19T16:30:46.013908+05:30",
   "business_date": "2026-11-19",
-  "rows": 1078,
+  "rows": 2084,
   "columns": [
     "Business Date",
     "branchCode",
@@ -43,6 +43,7 @@
     "TN"
   ],
   "categories": [
+    "ActivHippy",
     "All day Foods",
     "Bakery & Desserts",
     "Belgian Waffles",
@@ -80,7 +81,11 @@
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Celebration Cakes",
     "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
+    "Classic Bubble Teas",
     "Cold Coffees",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
+    "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
     "Gifting Hampers",
@@ -104,6 +109,7 @@
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
     "Refreshing Coolers",
+    "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
     "Sundae Ice Cream Tubs (100 ML)",
     "Thickshakes",
