@@ -29,7 +29,7 @@ jobs:
 
       - name: Build Pre-Aggregated Dashboard Cube JSON
         run: |
-          python scripts/build_dashboard_cube.py
+          python build_dashboard_cube.py
           
 
       - name: Commit and push dashboard_cube.json
