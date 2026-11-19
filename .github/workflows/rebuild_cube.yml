@@ -1,0 +1,45 @@
+name: Rebuild Dashboard Cube JSON Only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild-cube:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install pandas
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas
+
+      - name: Build Pre-Aggregated Dashboard Cube JSON
+        run: |
+          python scripts/build_dashboard_cube.py
+
+      - name: Commit and push dashboard_cube.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historical_data/dashboard_cube.json
+          if git diff --staged --quiet; then
+            echo "No changes to dashboard_cube.json."
+          else
+            git commit -m "chore: rebuild dashboard_cube.json ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+            git pull --rebase origin main
+            git push origin main
+          fi
