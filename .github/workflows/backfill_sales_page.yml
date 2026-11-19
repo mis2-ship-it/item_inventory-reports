@@ -1,56 +1,62 @@
-name: Backfill Historical Sales Page Data (COCO)
+name: Daily Rista Sales Page Sync & Dashboard Cube Build
 
 on:
+  schedule:
+    # Runs daily at 08:30 AM IST (03:00 AM UTC)
+    - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
-      backfill_mode:
-        description: 'Backfill mode (APR_2026_TO_DATE, CUSTOM_MONTH, or DAILY_YESTERDAY)'
-        required: true
-        default: 'APR_2026_TO_DATE'
-        type: choice
-        options:
-          - APR_2026_TO_DATE
-          - CUSTOM_MONTH
-          - DAILY_YESTERDAY
-      custom_month:
-        description: 'Target month (YYYY-MM) if CUSTOM_MONTH is selected (e.g. 2026-10)'
+      target_date:
+        description: "Optional specific date (YYYY-MM-DD). Leave blank for yesterday (IST)."
         required: false
-        default: '2026-10'
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
-  backfill:
+  sync-and-build-cube:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
-          pip install requests pandas pyjwt gspread google-auth
+          python -m pip install --upgrade pip
+          pip install requests pandas gspread google-auth pyjwt
 
-      - name: Run Sales Page Backfill (1st to End of Month)
+      - name: Run Daily Rista Sales Sync
         env:
-          API_KEY: ${{ secrets.API_KEY }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          RISTA_API_KEY: ${{ secrets.RISTA_API_KEY }}
+          RISTA_SECRET_KEY: ${{ secrets.RISTA_SECRET_KEY }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          BACKFILL_MODE: ${{ github.event.inputs.backfill_mode }}
-          CUSTOM_MONTH: ${{ github.event.inputs.custom_month }}
-        run: python backfill_sales_page.py
-
-      - name: Commit and Push Historical CSVs to GitHub
+          TARGET_DATE: ${{ github.event.inputs.target_date }}
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          python scripts/daily_sales_page_sync.py
+
+      - name: Build Pre-Aggregated Dashboard Cube JSON
+        run: |
+          python scripts/build_dashboard_cube.py
+
+      - name: Commit and push updated CSVs & dashboard_cube.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add historical_data/
-          git diff --quiet && git diff --staged --quiet || git commit -m "Backfill COCO sales/page data (${{ github.event.inputs.backfill_mode }})"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: daily sales sync & dashboard_cube.json update ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+            git pull --rebase origin main
+            git push origin main
+          fi
