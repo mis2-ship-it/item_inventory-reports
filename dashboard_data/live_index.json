@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-20T16:55:28.856176+05:30",
+  "updated_at": "2026-11-20T18:30:28.377231+05:30",
   "business_date": "2026-11-20",
-  "rows": 2246,
+  "rows": 2907,
   "columns": [
     "Business Date",
     "branchCode",
@@ -50,6 +50,7 @@
     "Boba Sundaes",
     "Boba Teas",
     "Bubble Teas",
+    "Celebration Cakes",
     "Cold Coffees",
     "Festival Specials",
     "Frozen Bottle X Hersheys Range",
@@ -97,6 +98,7 @@
     "Ice Creams",
     "Ice cream Cones",
     "Milkshake and Bubble Teas",
+    "Mini Cakes",
     "Monster Sundaes",
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
