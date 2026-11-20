@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-20T22:31:06.353049+05:30",
+  "updated_at": "2026-11-21T00:31:00.981779+05:30",
   "business_date": "2026-11-20",
-  "rows": 5722,
+  "rows": 7360,
   "columns": [
     "Business Date",
     "branchCode",
@@ -83,6 +83,7 @@
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
     "Cake Dessert Jars",
     "Celebration Cakes",
+    "Cheesecakes",
     "Chocolate & Coffee Latte Bubble Teas",
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
@@ -99,6 +100,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
