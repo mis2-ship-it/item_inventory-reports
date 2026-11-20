@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-20T18:30:28.377231+05:30",
+  "updated_at": "2026-11-20T20:31:01.978907+05:30",
   "business_date": "2026-11-20",
-  "rows": 2907,
+  "rows": 3894,
   "columns": [
     "Business Date",
     "branchCode",
@@ -86,6 +86,7 @@
     "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Cupcakes",
     "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
@@ -100,6 +101,7 @@
     "Milkshake and Bubble Teas",
     "Mini Cakes",
     "Monster Sundaes",
+    "Muffins",
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
     "Others",
