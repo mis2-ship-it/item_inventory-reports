@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-22T18:30:57.685999+05:30",
+  "updated_at": "2026-11-22T20:30:34.072737+05:30",
   "business_date": "2026-11-22",
-  "rows": 4529,
+  "rows": 6030,
   "columns": [
     "Business Date",
     "branchCode",
@@ -69,7 +69,8 @@
     "Popping Boba Tea",
     "Refreshing Coolers",
     "Savoury Menu",
-    "Thickshakes"
+    "Thickshakes",
+    "Waffle Sundaes"
   ],
   "category_names": [
     "90s Birthday Cake",
@@ -106,6 +107,7 @@
     "Mini Cakes",
     "Monster Sundaes",
     "Newly Launched Iced Coffees",
+    "Newly Launched Waffle Sundaes",
     "Others",
     "Party Combos",
     "Pastry",
