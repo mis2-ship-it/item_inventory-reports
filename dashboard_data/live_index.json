@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-24T20:30:44.390638+05:30",
+  "updated_at": "2026-11-24T22:30:36.586307+05:30",
   "business_date": "2026-11-24",
-  "rows": 3284,
+  "rows": 4676,
   "columns": [
     "Business Date",
     "branchCode",
@@ -63,6 +63,7 @@
     "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pastry",
     "Popping Boba Sundae",
@@ -94,6 +95,7 @@
     "Fruity Bubble Teas",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
