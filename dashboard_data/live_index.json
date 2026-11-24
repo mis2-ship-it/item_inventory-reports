@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-24T12:30:28.200657+05:30",
+  "updated_at": "2026-11-24T14:30:25.926925+05:30",
   "business_date": "2026-11-24",
-  "rows": 293,
+  "rows": 982,
   "columns": [
     "Business Date",
     "branchCode",
@@ -33,6 +33,7 @@
   "brands": [
     "Boba Bar",
     "Frozen Bottle",
+    "Lubov- Patisserie",
     "Madno"
   ],
   "regions": [
@@ -58,12 +59,14 @@
     "Ice Cream Scoops",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
+    "Ice Cream Tubs (100ml)",
     "Monster Sundaes",
     "Others",
     "Party Combos",
     "Popping Boba Sundae",
     "Popping Boba Tea",
     "Refreshing Coolers",
+    "Savoury Menu",
     "Thickshakes"
   ],
   "category_names": [
@@ -74,6 +77,9 @@
     "Belgian Hot Chocolates",
     "Belgian Waffles",
     "Bubble Teas, Boba Mocktails & Boba Sundaes",
+    "Cake Dessert Jars",
+    "Chocolate & Coffee Latte Bubble Teas",
+    "Chocolate Crack Bubble Tea",
     "Classic Bubble Teas",
     "Cold Coffees",
     "Frozen Bottle X Activ Hippy Energy Coolers",
@@ -96,6 +102,7 @@
     "Refreshing Coolers",
     "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
+    "Sundae Ice Cream Tubs (100 ML)",
     "Thickshakes",
     "Waffles"
   ],
