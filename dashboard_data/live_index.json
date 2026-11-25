@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-25T10:24:07.846717+05:30",
+  "updated_at": "2026-11-25T10:30:28.992521+05:30",
   "business_date": "2026-11-25",
-  "rows": 18,
+  "rows": 24,
   "columns": [
     "Business Date",
     "branchCode",
@@ -48,8 +48,10 @@
     "Bubble Teas",
     "Cold Coffees",
     "Hot Chocolate",
+    "Ice Cream Sundae Jars",
     "Ice Cream Tubs (100ml)",
     "Others",
+    "Popping Boba Tea",
     "Refreshing Coolers",
     "Thickshakes"
   ],
@@ -63,8 +65,10 @@
     "Chocolate & Coffee Latte Bubble Teas",
     "Cold Coffees",
     "Gifting Hampers",
+    "Milkshake and Bubble Teas",
     "Newly Launched Iced Coffees",
     "Refreshing Coolers",
+    "Signature Ice cream Sundaes",
     "Sundae Ice Cream Tubs (100 ML)",
     "Thickshakes"
   ],
