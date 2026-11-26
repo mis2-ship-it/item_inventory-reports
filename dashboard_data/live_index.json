@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-26T14:30:31.033182+05:30",
+  "updated_at": "2026-11-26T14:54:47.606986+05:30",
   "business_date": "2026-11-26",
-  "rows": 1077,
+  "rows": 1265,
   "columns": [
     "Business Date",
     "branchCode",
@@ -95,6 +95,7 @@
     "Ice Cream Sundae Jars",
     "Ice Creams",
     "Ice cream Cones",
+    "Macarons",
     "Matcha Latte Bubble Teas",
     "Milkshake and Bubble Teas",
     "Monster Sundaes",
