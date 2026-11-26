@@ -4,18 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       target_date:
-        description: 'Optional specific date (YYYY-MM-DD). Used only in CUSTOM_MONTH mode.'
+        description: 'Optional date (YYYY-MM-DD). Defaults to today minus 1 day.'
         required: false
         default: ''
       backfill_mode:
-        description: 'DAILY_YESTERDAY, CUSTOM_MONTH, or APR_2026_TO_DATE'
+        description: 'Fetch mode'
         required: false
         default: 'DAILY_YESTERDAY'
         type: choice
         options:
           - DAILY_YESTERDAY
-          - CUSTOM_MONTH
-          - APR_2026_TO_DATE
+          - SINGLE_DATE
+          - FROM_NOV_26_TO_DATE
 
 permissions:
   contents: write
@@ -47,15 +47,11 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           BACKFILL_MODE: ${{ github.event.inputs.backfill_mode || 'DAILY_YESTERDAY' }}
-          CUSTOM_MONTH: ${{ github.event.inputs.target_date || '' }}
+          TARGET_DATE: ${{ github.event.inputs.target_date || '' }}
         run: |
-          if [ -n "${CUSTOM_MONTH}" ] && [ "${BACKFILL_MODE}" = "CUSTOM_MONTH" ]; then
-            if [[ "${CUSTOM_MONTH}" =~ ^[0-9]{4}-[0-9]{2}$ ]]; then
-              export CUSTOM_MONTH="${CUSTOM_MONTH}"
-            elif [[ "${CUSTOM_MONTH}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-              export CUSTOM_MONTH="${CUSTOM_MONTH:0:7}"
-            else
-              echo "CUSTOM_MONTH must use YYYY-MM or YYYY-MM-DD format"
+          if [ -n "${TARGET_DATE}" ] && [ "${BACKFILL_MODE}" = "SINGLE_DATE" ]; then
+            if [[ ! "${TARGET_DATE}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "TARGET_DATE must use YYYY-MM-DD format"
               exit 1
             fi
           fi
