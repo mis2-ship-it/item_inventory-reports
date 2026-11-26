@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-26T20:30:44.805073+05:30",
+  "updated_at": "2026-11-26T22:31:06.990415+05:30",
   "business_date": "2026-11-26",
-  "rows": 3871,
+  "rows": 5736,
   "columns": [
     "Business Date",
     "branchCode",
@@ -97,6 +97,7 @@
     "Gifting Hampers",
     "Gudbud Sundae Jars (Serves2)",
     "Gudbud Sundae Tubs (Serves 2)",
+    "Guilt Free Desserts",
     "Ice Cream Sodas",
     "Ice Cream Sundae Jars",
     "Ice Creams",
@@ -115,6 +116,7 @@
     "Pistachio Specials",
     "Popping Boba Mocktail",
     "Popping Boba Mocktails",
+    "Popping Boba Sundae",
     "Refreshing Coolers",
     "Signature Boba Sundaes",
     "Signature Ice cream Sundaes",
