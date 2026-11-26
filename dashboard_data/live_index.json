@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-26T14:54:47.606986+05:30",
+  "updated_at": "2026-11-26T16:30:53.375107+05:30",
   "business_date": "2026-11-26",
-  "rows": 1265,
+  "rows": 2076,
   "columns": [
     "Business Date",
     "branchCode",
@@ -85,6 +85,7 @@
     "Chocolate & Coffee Latte Bubble Teas",
     "Classic Bubble Teas",
     "Cold Coffees",
+    "Frozen Bottle Sundae Ice Cream Tubs (100 ML)",
     "Frozen Bottle X Activ Hippy Energy Coolers",
     "Frozen Bottle X Hersheys Range",
     "Fruity Bubble Teas",
@@ -102,6 +103,7 @@
     "Newly Launched Iced Coffees",
     "Newly Launched Waffle Sundaes",
     "Others",
+    "Others-Lubov",
     "Party Combos",
     "Pastry",
     "Pistachio Specials",
