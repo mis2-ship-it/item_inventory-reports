@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-11-28T09:23:05.295361+05:30",
+  "updated_at": "2026-11-28T10:30:39.016379+05:30",
   "business_date": "2026-11-28",
-  "rows": 1,
+  "rows": 29,
   "columns": [
     "Business Date",
     "branchCode",
@@ -31,16 +31,41 @@
     "Net Amount"
   ],
   "brands": [
+    "Frozen Bottle",
     "Madno"
   ],
   "regions": [
-    "KA"
+    "KA",
+    "TN"
   ],
   "categories": [
+    "Belgian Waffles",
+    "Boba Sundaes",
+    "Cold Coffees",
+    "Gudbud Sundae",
+    "Hot Chocolate",
+    "Ice Cream Scoops",
+    "Ice Cream Sundae Jars",
+    "Others",
+    "Refreshing Coolers",
+    "Savoury Menu",
     "Thickshakes"
   ],
   "category_names": [
-    "Milkshake and Bubble Teas"
+    "Belgian Hot Chocolates",
+    "Belgian Waffles",
+    "Cold Coffees",
+    "Gudbud Sundae Jars (Serves2)",
+    "Ice Cream Sundae Jars",
+    "Ice Creams",
+    "Milkshake and Bubble Teas",
+    "Newly Launched Iced Coffees",
+    "Oatmeal - All Day Breakfast",
+    "Refreshing Coolers",
+    "Signature Boba Sundaes",
+    "Signature Ice cream Sundaes",
+    "Thickshakes",
+    "Waffles"
   ],
   "file": "live_item_level.csv"
 }
